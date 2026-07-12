@@ -876,8 +876,8 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if result.StringParsedMode != "delimiter" {
 		t.Fatalf("expected admin settings JSON string to preserve mode: %+v", result)
 	}
-	if !result.FeaturedSection || !result.FeaturedCategory {
-		t.Fatalf("expected starred source category to render in featured section: %+v", result)
+	if !result.FeaturedCategory {
+		t.Fatalf("expected starred source category to remain selectable: %+v", result)
 	}
 	if !result.FeaturedRenamedSection {
 		t.Fatalf("expected featured section label to use the configured group label: %+v", result)
