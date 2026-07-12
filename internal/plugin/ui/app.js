@@ -1258,10 +1258,7 @@ async function hydrateApp(payload, options) {
     const values = await loadPluginSettingsValues().catch(function() { return null; });
     const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
     state.app.preferences = mergePrefs(siloPrefs || state.app.preferences);
-    const savedAdminSettings = values && values[adminSettingsKey] ? readAdminSettingsValue(values[adminSettingsKey]) : null;
-    state.adminCategorySettings = await loadAdminCategorySettings().catch(function() {
-      return savedAdminSettings || defaultAdminCategorySettings();
-    });
+    state.adminCategorySettings = defaultAdminCategorySettings();
   }
   state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
   state.app.programs = items(state.app.programs);
