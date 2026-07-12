@@ -2716,17 +2716,15 @@ function allFilterCategories() {
 function guideFilterCategories() {
   const hidden = hiddenMap();
   const includeChannel = function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); };
-  const mode = adminSettings().mode || "normal";
   const custom = customGroupCategories();
-  if (mode !== "delimiter") return custom.concat(sourceCategoriesWithChannels(includeChannel));
+  if (!categoryParsing().enabled) return custom.concat(sourceCategoriesWithChannels(includeChannel));
   return custom
     .concat(featuredCategoriesFromPaths("", includeChannel, true))
     .concat(virtualCategoriesFromPaths("", includeChannel, true))
     .sort(compareCategoryDisplayName);
 }
 function adminListingTitle() {
-  const mode = adminSettings().mode || "normal";
-  if (mode === "delimiter") return configuredGroupLabel();
+  if (categoryParsing().enabled) return configuredGroupLabel();
   return "Categories";
 }
 function organizationRootLabel() {
@@ -2739,8 +2737,7 @@ function virtualGroupLabel() {
   return configuredGroupLabel();
 }
 function featuredGroupLabel() {
-  const mode = adminSettings().mode || "normal";
-  return "Featured " + (mode === "delimiter" ? configuredGroupLabel() : "Channel Groups");
+  return "Featured " + (categoryParsing().enabled ? configuredGroupLabel() : "Channel Groups");
 }
 function allGroupLabel() {
   return "All " + adminListingTitle().toLowerCase();
@@ -2752,13 +2749,12 @@ function virtualGroupLabelSuffix(value) {
 function adminListingCategories(parentPath, includeChannel) {
   const hidden = hiddenMap();
   includeChannel = includeChannel || function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); };
-  const mode = adminSettings().mode || "normal";
-  if (mode === "delimiter") return parentPath ? sourceVirtualChildCategories(parentPath, includeChannel) : sourceVirtualChildCategories("", includeChannel);
+  if (categoryParsing().enabled) return parentPath ? sourceVirtualChildCategories(parentPath, includeChannel) : sourceVirtualChildCategories("", includeChannel);
   return sourceCategoriesWithChannels(includeChannel);
 }
 function virtualCategoriesActive() {
   const hidden = hiddenMap();
-  return adminSettings().mode === "delimiter" && virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }).length > 0;
+  return categoryParsing().enabled && virtualGroupCategories(function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); }).length > 0;
 }
 function recentChannels(limit) {
   const seen = {};

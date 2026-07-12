@@ -900,6 +900,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.SourcePath {
 		t.Fatalf("expected source path to remain visible: %+v", result)
 	}
+	if !result.UserPipeGroupingBuildsFolders || !result.UserPipeGroupingActivatesFolders {
+		t.Fatalf("expected the per-user pipe setting to replace source groups with browsable folders: %+v", result)
+	}
 	if !result.ProfileGroupPath || !result.ProfileGroupRoot {
 		t.Fatalf("expected profile plus channel group virtual paths to be present: %+v", result)
 	}
@@ -1071,6 +1074,8 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 
 type virtualAliasResult struct {
 	SourcePath                           bool   `json:"sourcePath"`
+	UserPipeGroupingBuildsFolders        bool   `json:"userPipeGroupingBuildsFolders"`
+	UserPipeGroupingActivatesFolders     bool   `json:"userPipeGroupingActivatesFolders"`
 	ProfileGroupPath                     bool   `json:"profileGroupPath"`
 	ProfileGroupRoot                     bool   `json:"profileGroupRoot"`
 	ProfileNestedGroupPath               bool   `json:"profileNestedGroupPath"`
@@ -1274,7 +1279,15 @@ JSON.stringify((function() {
   const channelOnlyInferredShown = channelOnlyArgentinaPaths.indexOf("International Sports / Argentina") !== -1;
   state.adminCategorySettings.virtualGroupSource = "group_channel";
   normalizeAdminCategorySettings();
-  const grid = categoryGrid();
+	const grid = categoryGrid();
+	const originalAdminMode = state.adminCategorySettings.mode;
+	state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
+	state.adminCategorySettings.mode = "normal";
+	state.app.preferences.groupCategoriesByPipe = true;
+	const userPipeGrid = categoryGrid();
+	const userPipeGroupingActivatesFolders = virtualCategoriesActive();
+	state.app.preferences.groupCategoriesByPipe = false;
+	state.adminCategorySettings.mode = originalAdminMode;
   state.adminCategorySettings.virtualGroupLabel = "Things";
   const renamedGrid = categoryGrid();
   renderGuidePage();
@@ -1389,8 +1402,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	state.app.programs = originalPrograms;
 	normalizePreferences();
 	rebuildProgramIndex();
-	return {
+  return {
     sourcePath: !!source,
+    userPipeGroupingBuildsFolders: userPipeGrid.indexOf('data-category="virtual:US"') !== -1 && userPipeGrid.indexOf('>US | TV</strong>') === -1,
+    userPipeGroupingActivatesFolders: userPipeGroupingActivatesFolders,
     profileGroupPath: !!profileGroup,
     profileGroupRoot: !!profileRoot,
     profileNestedGroupPath: nestedProfileGroupPaths.indexOf("US TV / NY / News / Sports / Regional") !== -1,
