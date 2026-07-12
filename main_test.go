@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"os"
 	"reflect"
@@ -130,18 +129,19 @@ func TestRuntimeConfigurePreservesSecretsOmittedByHost(t *testing.T) {
 	t.Parallel()
 
 	state := &settingsState{settings: config.Settings{
-		SourceMode:        config.SourceModeAPIKey,
-		DispatcharrURL:    "https://dispatcharr.example.com",
-		DispatcharrAPIKey: "existing-secret",
-		ChannelRefreshH:   config.DefaultChannelRefreshHours,
-		EPGRefreshH:       config.DefaultEPGRefreshHours,
+		SourceMode:      config.SourceModeXtream,
+		XtreamBaseURL:   "https://provider.example.com",
+		XtreamUsername:  "demo",
+		XtreamPassword:  "existing-secret",
+		ChannelRefreshH: config.DefaultChannelRefreshHours,
+		EPGRefreshH:     config.DefaultEPGRefreshHours,
 	}}
 	server := &runtimeServer{settings: state}
 	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
 		{Key: "connection", Value: mustStruct(t, map[string]any{
-			"source_mode":     "api_key",
-			"base_url":        "https://dispatcharr.example.com",
-			"channel_profile": "The Ramindex | NY",
+			"source_mode": "xtream",
+			"base_url":    "https://provider.example.com",
+			"username":    "renamed-demo",
 		})},
 	}}
 
@@ -149,11 +149,11 @@ func TestRuntimeConfigurePreservesSecretsOmittedByHost(t *testing.T) {
 		t.Fatalf("configure: %v", err)
 	}
 	settings := state.Get()
-	if settings.DispatcharrAPIKey != "existing-secret" {
+	if settings.XtreamPassword != "existing-secret" {
 		t.Fatalf("omitted secret was erased: %+v", settings)
 	}
-	if settings.ChannelProfile != "The Ramindex | NY" {
-		t.Fatalf("expected present profile field to update: %+v", settings)
+	if settings.XtreamUsername != "renamed-demo" {
+		t.Fatalf("expected present Xtreme field to update: %+v", settings)
 	}
 }
 
@@ -212,6 +212,27 @@ func TestRuntimeConfigureRejectsLegacyDispatcharrSourceMode(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigureIgnoresInheritedDispatcharrConfigEntry(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret"}}
+	server := &runtimeServer{settings: state}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
+		{Key: "dispatcharr", Value: mustStruct(t, map[string]any{"base_url": "https://legacy.example.com", "username": "legacy", "password": "legacy-secret", "api_key": "legacy-key"})},
+	}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	settings := state.Get()
+	if settings.DispatcharrURL != "" || settings.DispatcharrUser != "" || settings.DispatcharrPass != "" || settings.DispatcharrAPIKey != "" {
+		t.Fatalf("inherited Dispatcharr entry changed standalone settings: %+v", settings)
+	}
+	if settings.XtreamBaseURL != "https://provider.example.com" || settings.XtreamUsername != "demo" {
+		t.Fatalf("inherited entry changed Xtreme settings: %+v", settings)
+	}
+}
+
 func TestRuntimeConfigureMapsM3UXMLTVFromConnectionEntry(t *testing.T) {
 	t.Parallel()
 
@@ -236,7 +257,7 @@ func TestRuntimeConfigureMapsM3UXMLTVFromConnectionEntry(t *testing.T) {
 	}
 }
 
-func TestRuntimeConfigureReadsCategorySettings(t *testing.T) {
+func TestRuntimeConfigureIgnoresRetiredCategorySettings(t *testing.T) {
 	t.Parallel()
 
 	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
@@ -253,12 +274,8 @@ func TestRuntimeConfigureReadsCategorySettings(t *testing.T) {
 		t.Fatalf("configure: %v", err)
 	}
 
-	var settings map[string]any
-	if err := json.Unmarshal(state.Get().AdminSettings, &settings); err != nil {
-		t.Fatalf("decode admin settings: %v", err)
-	}
-	if settings["mode"] != "delimiter" || settings["delimiter"] != "pipe" {
-		t.Fatalf("expected category settings to be loaded, got %+v", settings)
+	if len(state.Get().AdminSettings) != 0 {
+		t.Fatalf("retired category settings changed standalone settings: %+v", state.Get())
 	}
 }
 

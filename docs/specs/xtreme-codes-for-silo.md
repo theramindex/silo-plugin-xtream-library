@@ -182,6 +182,9 @@ features are excluded.
   while later features remove inherited behavior.
 - Complete: the Go module and all internal imports identify the standalone
   `silo-plugin-xtream-library` repository rather than the Dispatcharr plugin.
+- Complete: runtime configuration accepts only the standalone `connection`
+  object; inherited Dispatcharr, category, and split legacy configuration
+  entries cannot activate or change unsupported behavior.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin
