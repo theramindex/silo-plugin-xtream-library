@@ -199,10 +199,11 @@ type watchRequest struct {
 }
 
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if strings.HasPrefix(request.GetPath(), "/dispatcharr/timeshift/") {
+	path := normalizePublicPath(request.GetPath())
+	if strings.HasPrefix(path, "/dispatcharr/timeshift/") {
 		return s.handleTimeShiftMedia(request), nil
 	}
-	switch request.GetPath() {
+	switch path {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
 	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
@@ -316,6 +317,16 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
+}
+
+func normalizePublicPath(path string) string {
+	if path == "/xtream" {
+		return "/dispatcharr"
+	}
+	if strings.HasPrefix(path, "/xtream/") {
+		return "/dispatcharr/" + strings.TrimPrefix(path, "/xtream/")
+	}
+	return path
 }
 
 func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {

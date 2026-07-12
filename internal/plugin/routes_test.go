@@ -58,6 +58,27 @@ func TestHTTPRoutesServerStatusRoute(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerSupportsXtreamPublicNamespace(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/status"})
+	if err != nil {
+		t.Fatalf("handle xtream status: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected xtream status route to succeed, got %d", response.GetStatusCode())
+	}
+
+	asset, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/assets/app.js"})
+	if err != nil {
+		t.Fatalf("handle xtream app asset: %v", err)
+	}
+	if asset.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected xtream app asset route to succeed, got %d", asset.GetStatusCode())
+	}
+}
+
 func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	t.Parallel()
 
