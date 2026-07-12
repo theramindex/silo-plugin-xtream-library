@@ -140,6 +140,13 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-episode-stream",
+      "method": "GET",
+      "path": "/dispatcharr/episode/stream",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-app",
       "method": "GET",
       "path": "/dispatcharr/api/app",
@@ -199,6 +206,13 @@
       "id": "dispatcharr-api-series",
       "method": "GET",
       "path": "/dispatcharr/api/series",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-series-info",
+      "method": "GET",
+      "path": "/dispatcharr/api/series/info",
       "access": "authenticated",
       "navigable": false
     },

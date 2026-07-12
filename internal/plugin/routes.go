@@ -148,6 +148,21 @@ type ContentPayload struct {
 	Items      any              `json:"items"`
 }
 
+type EpisodePayload struct {
+	ID        string `json:"id"`
+	Season    int    `json:"season"`
+	Number    int    `json:"number"`
+	Title     string `json:"title"`
+	Container string `json:"container,omitempty"`
+}
+
+type SeriesInfoPayload struct {
+	Available bool             `json:"available"`
+	Name      string           `json:"name,omitempty"`
+	Episodes  []EpisodePayload `json:"episodes"`
+	Reason    string           `json:"reason,omitempty"`
+}
+
 type RecordingsPayload struct {
 	Available bool              `json:"available"`
 	Reason    string            `json:"reason,omitempty"`
@@ -247,6 +262,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/series":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
+	case "/dispatcharr/api/series/info":
+		return s.handleSeriesInfo(ctx, request)
 	case "/dispatcharr/api/recordings/capability":
 		return s.handleRecordingCapability(ctx)
 	case "/dispatcharr/api/recordings":
@@ -314,9 +331,39 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
 		return redirectResponse(streamURL), nil
+	case "/dispatcharr/episode/stream":
+		streamURL, err := s.resolveEpisodeStreamURL(ctx, queryValue(request, "series_id"), queryValue(request, "episode_id"))
+		if err != nil {
+			return textResponse(http.StatusNotFound, err.Error()), nil
+		}
+		return redirectResponse(streamURL), nil
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
+}
+
+func (s *HTTPRoutesServer) handleSeriesInfo(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if s.settingsProvider == nil {
+		return s.respondJSON(http.StatusServiceUnavailable, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "source settings are unavailable"})
+	}
+	seriesID, err := strconv.ParseInt(strings.TrimPrefix(queryValue(request, "series_id"), "series:"), 10, 64)
+	if err != nil || seriesID <= 0 {
+		return s.respondJSON(http.StatusBadRequest, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "invalid series_id"})
+	}
+	settings := s.settingsProvider()
+	if settings.EffectiveSourceMode() != config.SourceModeXtream {
+		return s.respondJSON(http.StatusOK, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "series are available only for Xtream Codes"})
+	}
+	baseURL, username, password := xtreamConnectionSettings(settings)
+	info, err := xtream.NewClient(baseURL, username, password).SeriesInfo(ctx, seriesID)
+	if err != nil {
+		return s.respondJSON(http.StatusBadGateway, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "series information is unavailable"})
+	}
+	episodes := make([]EpisodePayload, 0, len(info.Episodes))
+	for _, episode := range info.Episodes {
+		episodes = append(episodes, EpisodePayload{ID: "episode:" + strconv.FormatInt(episode.ID, 10), Season: episode.SeasonNumber, Number: episode.EpisodeNumber, Title: episode.Title, Container: episode.ContainerExtension})
+	}
+	return s.respondJSON(http.StatusOK, SeriesInfoPayload{Available: true, Name: info.Info.Name, Episodes: episodes})
 }
 
 func normalizePublicPath(path string) string {
@@ -1088,6 +1135,38 @@ func (s *HTTPRoutesServer) resolveVODStreamURL(_ context.Context, itemID string)
 		return streamURL, nil
 	}
 	return "", fmt.Errorf("vod item not found")
+}
+
+func (s *HTTPRoutesServer) resolveEpisodeStreamURL(ctx context.Context, seriesIDValue, episodeIDValue string) (string, error) {
+	if s.settingsProvider == nil {
+		return "", fmt.Errorf("source settings are unavailable")
+	}
+	seriesID, err := strconv.ParseInt(strings.TrimPrefix(seriesIDValue, "series:"), 10, 64)
+	if err != nil || seriesID <= 0 {
+		return "", fmt.Errorf("invalid series id")
+	}
+	episodeID, err := strconv.ParseInt(strings.TrimPrefix(episodeIDValue, "episode:"), 10, 64)
+	if err != nil || episodeID <= 0 {
+		return "", fmt.Errorf("invalid episode id")
+	}
+	settings := s.settingsProvider()
+	if settings.EffectiveSourceMode() != config.SourceModeXtream {
+		return "", fmt.Errorf("episode playback is available only for Xtream Codes")
+	}
+	baseURL, username, password := xtreamConnectionSettings(settings)
+	client := xtream.NewClient(baseURL, username, password)
+	info, err := client.SeriesInfo(ctx, seriesID)
+	if err != nil {
+		return "", fmt.Errorf("series information is unavailable")
+	}
+	for _, episode := range info.Episodes {
+		if episode.ID == episodeID {
+			if target := client.ResolveEpisodeStreamURL(episode); target != "" {
+				return target, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("episode not found")
 }
 
 func (s *HTTPRoutesServer) dispatcharrClient() (*dispatcharr.Client, error) {
