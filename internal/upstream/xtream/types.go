@@ -1,5 +1,12 @@
 package xtream
 
+import (
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+)
+
 type LiveCategory struct {
 	CategoryID   string `json:"category_id"`
 	CategoryName string `json:"category_name"`
@@ -25,6 +32,35 @@ type LiveStream struct {
 	CategoryID               string `json:"category_id"`
 	TVArchive                int    `json:"tv_archive"`
 	TVArchiveDurationMinutes int    `json:"tv_archive_duration"`
+}
+
+func (stream *LiveStream) UnmarshalJSON(data []byte) error {
+	type alias LiveStream
+	decoded := struct {
+		*alias
+		ArchiveDuration json.RawMessage `json:"tv_archive_duration"`
+	}{alias: (*alias)(stream)}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	if len(decoded.ArchiveDuration) == 0 || string(decoded.ArchiveDuration) == "null" {
+		return nil
+	}
+	var minutes int
+	if err := json.Unmarshal(decoded.ArchiveDuration, &minutes); err == nil {
+		stream.TVArchiveDurationMinutes = minutes
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(decoded.ArchiveDuration, &text); err != nil {
+		return fmt.Errorf("decode tv_archive_duration: %w", err)
+	}
+	minutes, err := strconv.Atoi(strings.TrimSpace(text))
+	if err != nil {
+		return fmt.Errorf("decode tv_archive_duration %q: %w", text, err)
+	}
+	stream.TVArchiveDurationMinutes = minutes
+	return nil
 }
 
 func (stream LiveStream) CatchupAvailable() bool {
