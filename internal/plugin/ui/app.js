@@ -111,7 +111,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], autoFavorites: {}, hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryParsing: { enabled: false, mode: "off", delimiter: "pipe", regex: "", output: "" }, profileSelection: { mode: "all", profileIds: [] }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], hiddenCategories: {}, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -267,16 +267,11 @@ function mergePrefs(remote) {
   return {
     favorites: Object.assign({}, remote.favorites),
     favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
-    autoFavorites: Object.assign({}, remote.autoFavorites),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
-    sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
-    keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
     recentChannels: uniqueIDs(items(remote.recentChannels)).slice(0, 24),
     continueWatching: Object.assign({}, remote.continueWatching),
     playback: Object.assign({}, remote.playback),
-    categoryParsing: Object.assign({}, remote.categoryParsing),
-    profileSelection: normalizeProfileSelection(remote.profileSelection),
     customGroups: items(remote.customGroups),
     customGroupMemberships: Object.assign({}, remote.customGroupMemberships)
   };
@@ -284,10 +279,6 @@ function mergePrefs(remote) {
 function normalizePreferences() {
   if (!state.app || !state.app.preferences) return;
   state.app.preferences = Object.assign(defaultPrefs(), state.app.preferences || {});
-  state.app.preferences.categoryParsing = Object.assign(defaultPrefs().categoryParsing, state.app.preferences.categoryParsing || {});
-  state.app.preferences.profileSelection = normalizeProfileSelection(state.app.preferences.profileSelection);
-  state.app.preferences.sportsFavoriteTeams = state.app.preferences.sportsFavoriteTeams || {};
-  state.app.preferences.keywordPasses = normalizeKeywordPasses(state.app.preferences.keywordPasses);
   state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
   state.app.preferences.customGroups = items(state.app.preferences.customGroups);
   state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};

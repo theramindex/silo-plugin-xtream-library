@@ -495,7 +495,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`now - state.guideLastAutoFetchAt < 5 * 60 * 1000`,
 	} {
 		legacy := strings.ToLower(want)
-		if strings.Contains(legacy, "sports") || strings.Contains(legacy, "event") || strings.Contains(legacy, "record") || strings.Contains(legacy, "timeshift") {
+		if strings.Contains(legacy, "sports") || strings.Contains(legacy, "event") || strings.Contains(legacy, "record") || strings.Contains(legacy, "timeshift") || strings.Contains(legacy, "profileselection") || strings.Contains(legacy, "categoryparsing") || strings.Contains(legacy, "autofavorites") {
 			continue
 		}
 		if !strings.Contains(body, want) {
