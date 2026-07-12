@@ -1486,6 +1486,7 @@ function render() {
   else if (state.view === "events") renderEventsPage();
   else if (state.view === "onlater") renderOnLaterPage();
   else if (state.view === "search") renderSearchPage();
+  else if (state.view === "series-detail") renderSeriesDetailPage();
   else if (state.view === "recordings") renderRecordingsPage();
   else if (state.view === "admin") renderAdminPage();
   else if (state.view === "settings") renderSettings();
@@ -1779,8 +1780,7 @@ function searchResultSections(query) {
     const guideMovies = programsFor("").filter(function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }).slice(0, 8);
     sections.push({ id: "movies", title: "Movies", rows: vodMovies.map(function(item) {
       return {
-        attrs: "",
-        disabled: true,
+        attrs: "data-vod-playback=\"" + escapeHTML(item.id || "") + "\"",
         art: item.posterUrl ? "<img src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "<span class=\"logo logo-fallback\">VOD</span>",
         title: item.name || "Untitled movie",
         meta: ["Movie", contentCategoryName("vod", item), item.rating].filter(Boolean).join(" - "),
@@ -1801,8 +1801,7 @@ function searchResultSections(query) {
     const shows = items(state.app && state.app.series && state.app.series.items).filter(function(item) { return contentMatchesSearch("series", item, query); }).slice(0, 12);
     sections.push({ id: "shows", title: "Shows", rows: shows.map(function(item) {
       return {
-        attrs: "",
-        disabled: true,
+        attrs: "data-series-open=\"" + escapeHTML(item.id || "") + "\"",
         art: item.posterUrl ? "<img src=\"" + escapeHTML(item.posterUrl) + "\" alt=\"\">" : "<span class=\"logo logo-fallback\">TV</span>",
         title: item.name || "Untitled show",
         meta: ["Show", contentCategoryName("series", item), item.releaseDate].filter(Boolean).join(" - "),
@@ -1825,6 +1824,45 @@ function searchResultSections(query) {
     }) });
   }
   return sections.filter(function(section) { return section.rows.length; });
+}
+
+function renderSeriesDetailPage() {
+  const detail = state.seriesDetail || { episodes: [] };
+  const episodes = items(detail.episodes);
+  const back = "<button class=\"chip\" data-series-back=\"true\">Back to search</button>";
+  const rows = episodes.length ? episodes.map(function(episode) {
+    const label = "S" + String(episode.season || 0).padStart(2, "0") + " E" + String(episode.number || 0).padStart(2, "0");
+    return "<button class=\"search-result\" data-episode-playback=\"" + escapeHTML(episode.id || "") + "\"><span class=\"search-result-art\"><span class=\"logo logo-fallback\">" + escapeHTML(label) + "</span></span><span class=\"search-result-main\"><strong>" + escapeHTML(episode.title || "Untitled episode") + "</strong><small>" + escapeHTML(label) + "</small></span><span class=\"search-result-action\">Play</span></button>";
+  }).join("") : "<div class=\"empty\">No episodes are available.</div>";
+  byId("view").innerHTML = "<section class=\"search-page\"><div class=\"search-page-head\">" + back + "<div><p class=\"eyebrow\">Series</p><h2>" + escapeHTML(detail.name || "Episodes") + "</h2></div></div><div class=\"search-result-list\">" + rows + "</div></section>";
+}
+
+async function openSeriesDetail(seriesID) {
+  if (!seriesID) return;
+  state.seriesDetail = { loading: true, seriesID: seriesID, episodes: [] };
+  state.view = "series-detail";
+  render();
+  try {
+    state.seriesDetail = await getJSON("/dispatcharr/api/series/info?series_id=" + encodeURIComponent(seriesID));
+  } catch (error) {
+    state.seriesDetail = { seriesID: seriesID, episodes: [], name: "Series unavailable" };
+    showAppToast(readableError(error));
+  }
+  if (state.view === "series-detail") render();
+}
+
+async function playOnDemand(title, gatewayURL) {
+  if (!gatewayURL) return;
+  stopTimeShiftSession();
+  state.currentChannel = { id: "ondemand:" + title, name: title || "On Demand", categoryName: "On Demand", streamFormat: "" };
+  state.view = "player";
+  render();
+  try {
+    await ensurePlayerLibraries();
+    setVideoSource(route(gatewayURL), { format: "" });
+  } catch (error) {
+    showPlayerToast(readableError(error));
+  }
 }
 function renderSearchResultRow(row) {
   const record = row.recordable ? "<button class=\"search-result-record\" type=\"button\" data-schedule-channel=\"" + escapeHTML(row.channelId || "") + "\" data-schedule-program=\"" + escapeHTML(row.programId || "") + "\">Record</button>" : "";
@@ -5056,6 +5094,33 @@ document.addEventListener("click", function(event) {
     event.preventDefault();
     const url = recordingPlayback.getAttribute("data-recording-playback");
     if (url) window.open(url, "_blank", "noopener");
+    return;
+  }
+  const vodPlayback = event.target.closest("[data-vod-playback]");
+  if (vodPlayback) {
+    event.preventDefault();
+    playOnDemand(vodPlayback.textContent || "On Demand", "/dispatcharr/vod/stream?item_id=" + encodeURIComponent(vodPlayback.getAttribute("data-vod-playback")));
+    return;
+  }
+  const seriesOpen = event.target.closest("[data-series-open]");
+  if (seriesOpen) {
+    event.preventDefault();
+    openSeriesDetail(seriesOpen.getAttribute("data-series-open"));
+    return;
+  }
+  const seriesBack = event.target.closest("[data-series-back]");
+  if (seriesBack) {
+    event.preventDefault();
+    state.view = "search";
+    render();
+    return;
+  }
+  const episodePlayback = event.target.closest("[data-episode-playback]");
+  if (episodePlayback) {
+    event.preventDefault();
+    const detail = state.seriesDetail || {};
+    const episodeID = episodePlayback.getAttribute("data-episode-playback");
+    playOnDemand(episodePlayback.textContent || "Episode", "/dispatcharr/episode/stream?series_id=" + encodeURIComponent(detail.seriesID || "") + "&episode_id=" + encodeURIComponent(episodeID || ""));
     return;
   }
   const scheduleTarget = event.target.closest("[data-schedule-channel]");

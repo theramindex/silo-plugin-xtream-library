@@ -182,6 +182,8 @@ features are excluded.
   while later features remove inherited behavior.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
+- Complete: VOD items and Xtream series episodes open through the in-plugin
+  Browser Player using redacted detail and provider-bound gateway routes.
 
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.
