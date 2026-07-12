@@ -272,6 +272,32 @@ func asStringValue(value any) string {
 	return text
 }
 
+func normalizeKeywordValues(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return []string{}
+	}
+	keywords := make([]string, 0, len(items))
+	for _, item := range items {
+		if keyword := strings.TrimSpace(asStringValue(item)); keyword != "" {
+			keywords = append(keywords, keyword)
+		}
+	}
+	return keywords
+}
+
+func normalizeEventCategoryID(categoryID, _ string) string {
+	return strings.ToLower(strings.TrimSpace(categoryID))
+}
+
+func eventCategoryName(categoryID string) string {
+	return strings.TrimSpace(categoryID)
+}
+
+func defaultEventKeywordRules() []map[string]any {
+	return []map[string]any{}
+}
+
 func normalizeAdminEventKeywordRules(value any) []map[string]any {
 	rows, ok := value.([]any)
 	if !ok {
