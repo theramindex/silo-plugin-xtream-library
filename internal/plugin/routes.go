@@ -44,6 +44,7 @@ type HTTPRoutesServer struct {
 	refreshMu           sync.Mutex
 	guideWarmLastUnix   int64
 	profileWarmLastUnix int64
+	relay               *hlsRelay
 }
 
 type catalogSyncer interface {
@@ -84,7 +85,7 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, relay: newHLSRelay()}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -250,6 +251,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.respondJSON(http.StatusOK, GuidePayload{Programs: programs})
 	case "/dispatcharr/api/guide/ping":
 		return s.handleGuidePing(ctx, request)
+	case "/dispatcharr/image":
+		return s.relay.resume(ctx, queryValue(request, "relay_token"), request)
 	case "/dispatcharr/api/categories":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.categoriesPayload())
@@ -286,6 +289,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/api/watch/stop":
 		return s.handleWatchStop(request)
 	case "/dispatcharr/stream":
+		if relayToken := queryValue(request, "relay_token"); relayToken != "" {
+			return s.relay.resume(ctx, relayToken, request)
+		}
 		s.ensureCatalogHydrated(ctx)
 		channelID := queryValue(request, "channel_id")
 		if strings.TrimSpace(channelID) == "" {
@@ -296,6 +302,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
 		streamURL = appendPlaybackQuery(streamURL, request)
+		if strings.HasPrefix(channelID, "xtream:") && publicStreamFormat(streamURL) == "hls" {
+			return s.relay.start(ctx, streamURL, request)
+		}
 		return redirectResponse(streamURL), nil
 	case "/dispatcharr/vod/stream":
 		s.ensureCatalogHydrated(ctx)
@@ -622,7 +631,7 @@ func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 	return AppPayload{
 		Status:       s.healthPayload(),
 		Source:       snapshot.Catalog.Source,
-		Channels:     publicChannels(snapshot.Catalog.Channels, streamFormat),
+		Channels:     s.publicChannels(snapshot.Catalog.Channels, streamFormat),
 		Categories:   liveCategories(snapshot),
 		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode),
 	}
@@ -642,7 +651,7 @@ func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {
 	snapshot := s.store.Current()
 	return ChannelsPayload{
 		SourceName: snapshot.Catalog.Source.Name,
-		Channels:   publicChannels(snapshot.Catalog.Channels, s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)),
+		Channels:   s.publicChannels(snapshot.Catalog.Channels, s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)),
 		Categories: liveCategories(snapshot),
 	}
 }
@@ -678,7 +687,7 @@ func (s *HTTPRoutesServer) xtreamLiveStreamFormat(sourceMode model.SourceMode) s
 	return "mpegts"
 }
 
-func publicChannels(channels []model.Channel, xtreamFormat string) []PublicChannel {
+func (s *HTTPRoutesServer) publicChannels(channels []model.Channel, xtreamFormat string) []PublicChannel {
 	result := make([]PublicChannel, 0, len(channels))
 	for _, channel := range channels {
 		streamFormat := publicStreamFormat(channel.StreamURL)
@@ -691,7 +700,7 @@ func publicChannels(channels []model.Channel, xtreamFormat string) []PublicChann
 			Name:         channel.Name,
 			Number:       channel.Number,
 			GuideID:      channel.GuideID,
-			LogoURL:      channel.LogoURL,
+			LogoURL:      s.relay.imageURL(channel.LogoURL),
 			CategoryID:   channel.CategoryID,
 			CategoryName: channel.CategoryName,
 			ProfileIDs:   append([]string(nil), channel.ProfileIDs...),
