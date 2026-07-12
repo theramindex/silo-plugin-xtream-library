@@ -1,0 +1,9 @@
+{
+  "info": {"name": "Example Series"},
+  "episodes": {
+    "1": [
+      {"id": "9001", "episode_num": 1, "title": "Pilot", "container_extension": "mkv"},
+      {"id": "9002", "episode_num": 2, "title": "Second Episode", "container_extension": "mp4"}
+    ]
+  }
+}

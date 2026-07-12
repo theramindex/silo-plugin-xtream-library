@@ -175,6 +175,8 @@ features are excluded.
 - Complete: the SDK capability contract is verified against SDK v0.8.1 and
   encoded in a regression test. The contract rules out typed viewer identity
   and streaming response bodies as v1 assumptions.
+- Complete: Xtream source identifiers, episode discovery, and provider
+  Catch-up metadata are documented and covered by upstream-adapter tests.
 
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.
