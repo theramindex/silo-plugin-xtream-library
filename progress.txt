@@ -33,3 +33,7 @@ Notes: The Go module and all in-repository imports now resolve through the stand
 [2026-07-12 03:20] Feature: Restrict runtime configuration to Xtreme sources
 Status: Complete
 Notes: Runtime configuration ignores inherited Dispatcharr and category entries; only the documented standalone connection object is applied.
+
+[2026-07-12 03:30] Feature: Remove inherited local-timeshift implementation
+Status: Complete
+Notes: The local buffer manager and all timeshift routes were deleted; provider Catch-up remains the supported replay feature.
