@@ -88,6 +88,8 @@ func TestXtreamPublicNamespaceRejectsRetiredDispatcharrFeatures(t *testing.T) {
 		"/xtream/api/sports",
 		"/xtream/api/events",
 		"/xtream/api/timeshift/start",
+		"/xtream/admin",
+		"/xtream/api/admin-settings",
 	} {
 		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: path})
 		if err != nil {

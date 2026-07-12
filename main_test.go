@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"reflect"
 	"sort"
@@ -365,7 +364,7 @@ func TestManifestUserPreferenceSchemaAcceptsBrowserPayload(t *testing.T) {
 	}
 }
 
-func TestManifestExposesAdminNavigationRoute(t *testing.T) {
+func TestManifestOmitsInheritedAdminRoutes(t *testing.T) {
 	t.Parallel()
 
 	manifest, err := loadManifest()
@@ -374,41 +373,9 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 	}
 
 	for _, route := range manifest.GetHttpRoutes() {
-		if route.GetPath() != "/xtream/admin" {
-			continue
+		if route.GetPath() == "/xtream/admin" || route.GetPath() == "/xtream/api/admin-settings" {
+			t.Fatalf("manifest exposes inherited admin route: %+v", route)
 		}
-		if !route.GetNavigable() || route.GetNavigationKind() != "admin" || route.GetNavigationLabel() != "Live TV Admin" || route.GetAccess() != "admin" {
-			t.Fatalf("unexpected admin route metadata: %+v", route)
-		}
-		return
-	}
-	t.Fatalf("expected manifest to expose /xtream/admin as a navigable admin route")
-}
-
-func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
-	t.Parallel()
-
-	manifest, err := loadManifest()
-	if err != nil {
-		t.Fatalf("load manifest: %v", err)
-	}
-
-	found := map[string]bool{}
-	for _, route := range manifest.GetHttpRoutes() {
-		if route.GetPath() != "/xtream/api/admin-settings" {
-			continue
-		}
-		expectedAccess := "authenticated"
-		if route.GetMethod() == http.MethodPost {
-			expectedAccess = "admin"
-		}
-		if route.GetAccess() != expectedAccess || route.GetNavigable() {
-			t.Fatalf("unexpected admin settings route metadata: %+v", route)
-		}
-		found[route.GetMethod()] = true
-	}
-	if !found["GET"] || !found["POST"] {
-		t.Fatalf("expected manifest to expose admin settings GET and POST routes, got %+v", found)
 	}
 }
 
