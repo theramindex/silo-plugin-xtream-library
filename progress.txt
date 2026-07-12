@@ -17,3 +17,7 @@ Notes: Live TV, guide, redacted Catalog payloads, and the provider-bound `/xtrea
 [2026-07-12 02:25] Feature: Deliver Xtream VOD, series, and episode playback
 Status: Complete
 Notes: Series details are fetched server-side; VOD and episodes enter the existing Browser Player through authenticated Xtreme gateways.
+
+[2026-07-12 02:35] Feature: Add Xtream provider catch-up replay
+Status: Complete
+Notes: Archive eligibility reaches the guide UI; replay resolves through the provider gateway and never creates a local buffer or DVR asset.
