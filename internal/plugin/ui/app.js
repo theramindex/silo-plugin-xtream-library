@@ -700,6 +700,10 @@ async function refreshCoreSession() {
   return true;
 }
 async function coreFetch(url, options) {
+  if (!coreAccessToken && coreStoredValue("refresh_token")) {
+    if (!coreRefreshPromise) coreRefreshPromise = refreshCoreSession().finally(function() { coreRefreshPromise = null; });
+    await coreRefreshPromise;
+  }
   let response = await fetch(url, coreRequestOptions(options));
   if (response.status !== 401) return response;
   if (!coreRefreshPromise) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -381,8 +382,8 @@ vm.createContext(sandbox); vm.runInContext(source, sandbox);
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("decode core auth regression: %v\n%s", err, output)
 	}
-	if len(result.Calls) != 3 || result.Calls[0].Auth != "" || result.Calls[1].URL != "/api/v1/auth/refresh" || result.Calls[2].Auth != "Bearer fresh-access" {
-		t.Fatalf("expected protected request, token refresh, and authorized retry; got %+v", result.Calls)
+	if len(result.Calls) != 2 || result.Calls[0].URL != "/api/v1/auth/refresh" || result.Calls[1].Auth != "Bearer fresh-access" {
+		t.Fatalf("expected proactive token refresh and authorized request; got %+v", result.Calls)
 	}
 	if result.RefreshToken != "fresh-refresh" {
 		t.Fatalf("expected rotated refresh token, got %q", result.RefreshToken)
@@ -1478,12 +1479,13 @@ func TestHTTPRoutesServerRecordingsDisabledForXtream(t *testing.T) {
 	})
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{
-			SourceMode:      config.SourceModeXtream,
-			XtreamBaseURL:   "https://dispatcharr.example.com",
-			XtreamUsername:  "demo",
-			XtreamPassword:  "secret",
-			ChannelRefreshH: config.DefaultChannelRefreshHours,
-			EPGRefreshH:     config.DefaultEPGRefreshHours,
+			SourceMode:       config.SourceModeXtream,
+			XtreamBaseURL:    "https://dispatcharr.example.com",
+			XtreamUsername:   "demo",
+			XtreamPassword:   "secret",
+			XtreamLiveFormat: "ts",
+			ChannelRefreshH:  config.DefaultChannelRefreshHours,
+			EPGRefreshH:      config.DefaultEPGRefreshHours,
 		}
 	})
 
@@ -2589,12 +2591,13 @@ func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	})
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{
-			SourceMode:      config.SourceModeXtream,
-			XtreamBaseURL:   "https://dispatcharr.example.com",
-			XtreamUsername:  "demo",
-			XtreamPassword:  "secret",
-			ChannelRefreshH: config.DefaultChannelRefreshHours,
-			EPGRefreshH:     config.DefaultEPGRefreshHours,
+			SourceMode:       config.SourceModeXtream,
+			XtreamBaseURL:    "https://dispatcharr.example.com",
+			XtreamUsername:   "demo",
+			XtreamPassword:   "secret",
+			XtreamLiveFormat: "ts",
+			ChannelRefreshH:  config.DefaultChannelRefreshHours,
+			EPGRefreshH:      config.DefaultEPGRefreshHours,
 		}
 	})
 	query, _ := structpb.NewStruct(map[string]any{"channel_id": "xtream:1001"})
@@ -2608,6 +2611,62 @@ func TestHTTPRoutesServerStreamXtreamRoute(t *testing.T) {
 	}
 	if !strings.Contains(response.GetHeaders()["location"], "/live/demo/secret/1001") {
 		t.Fatalf("unexpected location header: %q", response.GetHeaders()["location"])
+	}
+}
+
+func TestHTTPRoutesServerRelaysXtreamHLSWithoutExposingUpstream(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/live/demo/secret/1001.m3u8":
+			http.Redirect(w, r, "/cdn/index.m3u8", http.StatusFound)
+		case "/cdn/index.m3u8":
+			w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+			_, _ = w.Write([]byte("#EXTM3U\n#EXTINF:2,\nsegment.ts\n"))
+		case "/cdn/segment.ts":
+			w.Header().Set("Content-Type", "video/mp2t")
+			_, _ = w.Write([]byte("transport-stream"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer upstream.Close()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:1001", Name: "News HD"}}}})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: upstream.URL, XtreamUsername: "demo", XtreamPassword: "secret", XtreamLiveFormat: "m3u8", ChannelRefreshH: 24, EPGRefreshH: 24}
+	})
+	query, _ := structpb.NewStruct(map[string]any{"channel_id": "xtream:1001"})
+	manifest, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/stream", Query: query})
+	if err != nil {
+		t.Fatalf("relay manifest: %v", err)
+	}
+	if manifest.GetStatusCode() != http.StatusOK || !strings.Contains(string(manifest.GetBody()), "stream?relay_token=") {
+		t.Fatalf("expected rewritten HLS manifest, got status=%d body=%q", manifest.GetStatusCode(), manifest.GetBody())
+	}
+	if strings.Contains(string(manifest.GetBody()), upstream.URL) || strings.Contains(string(manifest.GetBody()), "secret") {
+		t.Fatalf("relay manifest exposed upstream credentials: %q", manifest.GetBody())
+	}
+	segmentLine := ""
+	for _, line := range strings.Split(string(manifest.GetBody()), "\n") {
+		if strings.HasPrefix(line, "stream?relay_token=") {
+			segmentLine = line
+			break
+		}
+	}
+	segmentURL, err := url.Parse(segmentLine)
+	if err != nil || segmentURL.Query().Get("relay_token") == "" {
+		t.Fatalf("parse relayed segment url %q: %v", segmentLine, err)
+	}
+	segmentQuery, _ := structpb.NewStruct(map[string]any{"relay_token": segmentURL.Query().Get("relay_token")})
+	segment, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/stream", Query: segmentQuery})
+	if err != nil {
+		t.Fatalf("relay segment: %v", err)
+	}
+	if segment.GetStatusCode() != http.StatusOK || string(segment.GetBody()) != "transport-stream" {
+		t.Fatalf("unexpected relayed segment status=%d body=%q", segment.GetStatusCode(), segment.GetBody())
 	}
 }
 
@@ -2625,12 +2684,13 @@ func TestHTTPRoutesServerStreamPreservesBrowserPlaybackQuery(t *testing.T) {
 	})
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{
-			SourceMode:      config.SourceModeXtream,
-			XtreamBaseURL:   "https://dispatcharr.example.com",
-			XtreamUsername:  "demo",
-			XtreamPassword:  "secret",
-			ChannelRefreshH: config.DefaultChannelRefreshHours,
-			EPGRefreshH:     config.DefaultEPGRefreshHours,
+			SourceMode:       config.SourceModeXtream,
+			XtreamBaseURL:    "https://dispatcharr.example.com",
+			XtreamUsername:   "demo",
+			XtreamPassword:   "secret",
+			XtreamLiveFormat: "ts",
+			ChannelRefreshH:  config.DefaultChannelRefreshHours,
+			EPGRefreshH:      config.DefaultEPGRefreshHours,
 		}
 	})
 	query, _ := structpb.NewStruct(map[string]any{
