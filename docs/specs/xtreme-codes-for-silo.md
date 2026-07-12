@@ -189,6 +189,8 @@ features are excluded.
   handlers are removed; Xtream provider Catch-up remains the only replay path.
 - Complete: Dispatcharr sports and event-discovery providers, matching logic,
   route handlers, and tests are removed from the Xtreme plugin.
+- Complete: the runtime constructs no on-disk catalog storage; every plugin
+  process begins with an in-memory catalog and refreshes its configured source.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin
