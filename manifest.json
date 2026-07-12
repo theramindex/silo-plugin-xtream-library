@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.3.14",
+  "version": "0.1.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -20,21 +20,21 @@
   "capabilities": [
     {
       "type": "scheduled_task.v1",
-      "id": "dispatcharr-sync",
+      "id": "xtream-sync",
       "display_name": "Xtreme Codes for Silo",
       "description": "Xtream-first IPTV app with Live TV, guide, VOD catalog, and series catalog routes."
     },
     {
       "type": "scheduled_task.v1",
-      "id": "dispatcharr-refresh-channels",
+      "id": "xtream-refresh-channels",
       "display_name": "Refresh Live TV Channels",
-      "description": "Refreshes Dispatcharr channel and group metadata."
+      "description": "Refreshes source channel and group metadata."
     },
     {
       "type": "scheduled_task.v1",
-      "id": "dispatcharr-refresh-epg",
+      "id": "xtream-refresh-epg",
       "display_name": "Refresh Live TV Guide",
-      "description": "Purges stale guide data and refreshes Dispatcharr EPG programs."
+      "description": "Purges stale guide data and refreshes source EPG programs."
     },
     {
       "type": "http_routes.v1",
