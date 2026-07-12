@@ -278,12 +278,16 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64, options syncOptions) error {
 	sources := settings.EffectiveXtreamSources()
 	merged := model.CatalogState{Source: model.LiveTVSource(sourceMode)}
+	successfulSources := 0
+	failures := make([]string, 0)
 	for _, source := range sources {
 		catalog, err := s.loadXtreamSource(ctx, settings, source, nowUnix, options)
 		if err != nil {
-			s.store.RecordFailure(nowUnix, fmt.Sprintf("%s: %v", source.Name, err))
-			return err
+			failures = append(failures, fmt.Sprintf("%s: %v", source.Name, err))
+			appendStaleXtreamSource(&merged, s.store.Current().Catalog, source.ID)
+			continue
 		}
+		successfulSources++
 		merged.Channels = append(merged.Channels, catalog.Channels...)
 		merged.Programs = append(merged.Programs, catalog.Programs...)
 		merged.Content.LiveCategories = append(merged.Content.LiveCategories, catalog.Content.LiveCategories...)
@@ -292,12 +296,41 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		merged.Content.VODItems = append(merged.Content.VODItems, catalog.Content.VODItems...)
 		merged.Content.SeriesItems = append(merged.Content.SeriesItems, catalog.Content.SeriesItems...)
 	}
+	if successfulSources == 0 {
+		message := strings.Join(failures, "; ")
+		s.store.RecordFailure(nowUnix, message)
+		return fmt.Errorf("all Xtreme sources failed: %s", message)
+	}
 	sortChannelsByLineupNumber(merged.Channels)
 	merged.Health = s.syncHealthForOperation(settings, nowUnix, len(merged.Programs), options)
 	state := cache.SnapshotFromCatalog(merged)
 	state.Health.LastSuccessUnix = nowUnix
 	state.ConfigKey = config.CatalogCacheKey(settings)
-	return s.replaceSnapshotAfterSync(state, options.exactGuide)
+	if err := s.replaceSnapshotAfterSync(state, options.exactGuide); err != nil {
+		return err
+	}
+	if len(failures) > 0 {
+		s.store.RecordFailure(nowUnix, strings.Join(failures, "; "))
+		return s.persistSnapshot()
+	}
+	return nil
+}
+
+func appendStaleXtreamSource(target *model.CatalogState, current model.CatalogState, sourceID string) {
+	ownedChannels := make(map[string]bool)
+	wantedSourceID := "xtream-source:" + sourceID
+	for _, channel := range current.Channels {
+		if channel.SourceID != wantedSourceID {
+			continue
+		}
+		target.Channels = append(target.Channels, channel)
+		ownedChannels[channel.ID] = true
+	}
+	for _, program := range current.Programs {
+		if ownedChannels[program.ChannelID] {
+			target.Programs = append(target.Programs, program)
+		}
+	}
 }
 
 func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings, source config.XtreamSource, nowUnix int64, options syncOptions) (model.CatalogState, error) {
@@ -384,12 +417,15 @@ func namespaceXtreamContent(content *model.ContentState, source config.XtreamSou
 	}
 	for index := range content.LiveCategories {
 		content.LiveCategories[index].ID = source.ID + ":" + content.LiveCategories[index].ID
+		content.LiveCategories[index].Name = source.Name + " · " + content.LiveCategories[index].Name
 	}
 	for index := range content.VODCategories {
 		content.VODCategories[index].ID = source.ID + ":" + content.VODCategories[index].ID
+		content.VODCategories[index].Name = source.Name + " · " + content.VODCategories[index].Name
 	}
 	for index := range content.SeriesCategories {
 		content.SeriesCategories[index].ID = source.ID + ":" + content.SeriesCategories[index].ID
+		content.SeriesCategories[index].Name = source.Name + " · " + content.SeriesCategories[index].Name
 	}
 	for index := range content.VODItems {
 		content.VODItems[index].ID = "vod:" + source.ID + ":" + strings.TrimPrefix(content.VODItems[index].ID, "vod:")
