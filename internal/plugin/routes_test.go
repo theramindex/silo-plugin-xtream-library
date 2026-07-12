@@ -2843,6 +2843,18 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(recentCards, "currentProgram(channel)") || !strings.Contains(recentCards, `class=\"continue-card recent-channel-card\"`) || strings.Contains(recentCards, "channel.categoryName") {
 		t.Fatal("recently watched cards must show current programming instead of internal channel groups")
 	}
+	categoryCards := functionBody("renderCategoryBrowserChannels")
+	virtualCategoryCards := functionBody("renderVirtualCategoryChannelList")
+	if !strings.Contains(categoryCards, "channelProgramSubtitle(channel)") || !strings.Contains(virtualCategoryCards, "channelProgramSubtitle(channel)") {
+		t.Fatal("category channel cards must show current programming through the shared subtitle helper")
+	}
+	if strings.Contains(categoryCards, "channel.categoryName") || strings.Contains(virtualCategoryCards, "channel.categoryName") {
+		t.Fatal("category channel cards must not repeat their category as the subtitle")
+	}
+	programSubtitle := functionBody("channelProgramSubtitle")
+	if !strings.Contains(programSubtitle, `"Live channel"`) || !strings.Contains(programSubtitle, "currentProgram(channel)") {
+		t.Fatal("category channel subtitle must prefer current guide data with a neutral live fallback")
+	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
 	// and exact player return state. These checks keep their public hooks stable.
