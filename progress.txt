@@ -49,3 +49,7 @@ Notes: Startup no longer loads or passes an on-disk catalog snapshot, so the run
 [2026-07-12 04:00] Feature: Align scheduled Xtreme refresh tasks
 Status: Complete
 Notes: Scheduled task execution now accepts the same xtream-prefixed catalog, channel, and guide task identifiers advertised by the manifest.
+
+[2026-07-12 04:10] Feature: Validate standalone connection on configure
+Status: Complete
+Notes: Invalid Xtream or M3U settings are rejected by runtime configuration before they can reach a refresh task.

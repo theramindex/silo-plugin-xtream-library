@@ -38,6 +38,20 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	}
 }
 
+func TestRuntimeConfigureRejectsInvalidStandaloneConnection(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	server := &runtimeServer{settings: state}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
+		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo"})},
+	}}
+
+	if _, err := server.Configure(context.Background(), request); err == nil {
+		t.Fatal("expected invalid Xtream connection to be rejected")
+	}
+}
+
 func TestManifestIdentifiesStandaloneXtremeCodesPlugin(t *testing.T) {
 	t.Parallel()
 
@@ -160,7 +174,7 @@ func TestRuntimeConfigurePreservesSecretsOmittedByHost(t *testing.T) {
 func TestRuntimeConfigureMapsXtreamSharedConnectionFields(t *testing.T) {
 	t.Parallel()
 
-	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret", LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	server := &runtimeServer{settings: state}
 
 	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
@@ -260,7 +274,7 @@ func TestRuntimeConfigureMapsM3UXMLTVFromConnectionEntry(t *testing.T) {
 func TestRuntimeConfigureIgnoresRetiredCategorySettings(t *testing.T) {
 	t.Parallel()
 
-	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret", LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	server := &runtimeServer{settings: state}
 
 	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
