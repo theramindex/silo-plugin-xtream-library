@@ -65,6 +65,13 @@ func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
 			t.Fatalf("manifest exposes legacy public route %q", route.GetPath())
 		}
 	}
+	for _, route := range manifest.GetHttpRoutes() {
+		for _, retired := range []string{"recordings", "sports", "events", "timeshift"} {
+			if strings.Contains(route.GetPath(), retired) {
+				t.Fatalf("manifest exposes retired Xtreme route %q", route.GetPath())
+			}
+		}
+	}
 	for _, expected := range []string{"/xtream", "/xtream/api/app", "/xtream/assets/app.js"} {
 		found := false
 		for _, route := range manifest.GetHttpRoutes() {
