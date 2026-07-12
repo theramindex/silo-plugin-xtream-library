@@ -1522,10 +1522,9 @@ async function tickGuideAutoRefresh() {
 function renderHome() {
   const root = byId("view");
   const recent = recentChannels(5);
-  const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);
+  const watched = recent;
   const favorites = homeFavoriteChannels();
-  root.innerHTML = sectionHeader("Recently watched")
-    + rowCards(watched)
+  root.innerHTML = (watched.length ? sectionHeader("Recently watched") + rowCards(watched) : "")
     + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
     + sectionHeaderWithActions("TV Guide", guideFreshnessHTML())
     + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
@@ -2650,7 +2649,7 @@ function guideFilterCategories() {
 function adminListingTitle() {
   const mode = adminSettings().mode || "normal";
   if (mode === "delimiter") return configuredGroupLabel();
-  return "Channel Groups";
+  return "Categories";
 }
 function organizationRootLabel() {
   return useProfileGroupVirtualPaths() ? "Channel Profiles" : "Channel Groups";

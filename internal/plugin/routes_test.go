@@ -545,12 +545,13 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `return pool.filter(channelHasCurrentGuide).slice(0, 5);`) {
 		t.Fatalf("expected home guide preview to be capped at 5 channels")
 	}
-	if !strings.Contains(body, `const watched = recent.length ? recent : visibleChannels(false).slice(0, 5);`) ||
+	if !strings.Contains(body, `const watched = recent;`) ||
+		!strings.Contains(body, `root.innerHTML = (watched.length ? sectionHeader("Recently watched") + rowCards(watched) : "")`) ||
 		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
 		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", guideFreshnessHTML())`) ||
 		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
 		!strings.Contains(body, `+ categoryGrid();`) {
-		t.Fatalf("expected home page order to be continue watching, favorites, guide grid, then group sections")
+		t.Fatalf("expected home page to use only saved recently watched channels before favorites, guide, and categories")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
 	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", "")`)
