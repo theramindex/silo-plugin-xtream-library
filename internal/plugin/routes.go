@@ -962,7 +962,11 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 		return textResponse(http.StatusServiceUnavailable, "source registry unavailable"), nil
 	}
 	if request.GetMethod() == http.MethodGet {
-		return s.respondJSON(http.StatusOK, map[string]any{"sources": s.adminSourceList()})
+		sources, err := s.adminSourceList()
+		if err != nil {
+			return textResponse(http.StatusInternalServerError, "could not load source registry"), nil
+		}
+		return s.respondJSON(http.StatusOK, map[string]any{"sources": sources})
 	}
 	if request.GetMethod() != http.MethodPost && request.GetMethod() != http.MethodDelete {
 		return textResponse(http.StatusMethodNotAllowed, "source manager requires GET, POST, or DELETE"), nil
@@ -994,7 +998,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 			return textResponse(http.StatusBadRequest, err.Error()), nil
 		}
 		s.queueSourceRefresh()
-		return s.respondJSON(http.StatusOK, map[string]any{"sources": s.adminSourceList()})
+		return s.respondAdminSourceList()
 	}
 	password := payload.Password
 	if password == "" && index >= 0 {
@@ -1024,7 +1028,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
 	s.queueSourceRefresh()
-	return s.respondJSON(http.StatusOK, map[string]any{"sources": s.adminSourceList()})
+	return s.respondAdminSourceList()
 }
 
 func (s *HTTPRoutesServer) mutableSourceRegistry() ([]config.XtreamSource, error) {
@@ -1048,10 +1052,10 @@ func hasEnabledXtreamSource(sources []config.XtreamSource) bool {
 	return false
 }
 
-func (s *HTTPRoutesServer) adminSourceList() []adminSourcePayload {
+func (s *HTTPRoutesServer) adminSourceList() ([]adminSourcePayload, error) {
 	sources, err := s.mutableSourceRegistry()
 	if err != nil {
-		return []adminSourcePayload{}
+		return nil, err
 	}
 	counts := map[string]int{}
 	for _, channel := range s.store.Current().Catalog.Channels {
@@ -1061,7 +1065,15 @@ func (s *HTTPRoutesServer) adminSourceList() []adminSourcePayload {
 	for _, source := range sources {
 		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID]})
 	}
-	return result
+	return result, nil
+}
+
+func (s *HTTPRoutesServer) respondAdminSourceList() (*pluginv1.HandleHTTPResponse, error) {
+	sources, err := s.adminSourceList()
+	if err != nil {
+		return textResponse(http.StatusInternalServerError, "could not load source registry"), nil
+	}
+	return s.respondJSON(http.StatusOK, map[string]any{"sources": sources})
 }
 
 func (s *HTTPRoutesServer) queueSourceRefresh() {

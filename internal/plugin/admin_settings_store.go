@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/category-settings.json"
+const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.xtream/category-settings.json"
 const defaultAdminECMURL = ""
 
 type adminSettingsStorage interface {

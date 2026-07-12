@@ -2319,6 +2319,23 @@ func TestHTTPRoutesServerAdminSourcesRequiresAdmin(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerAdminSourcesReportsCorruptRegistry(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "sources.json")
+	if err := os.WriteFile(path, []byte("not-json"), 0o600); err != nil {
+		t.Fatalf("write corrupt registry: %v", err)
+	}
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings { return config.Settings{} })
+	server.sourceRegistry = config.NewSourceRegistry(path)
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
+	if err != nil {
+		t.Fatalf("load sources: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusInternalServerError {
+		t.Fatalf("expected registry failure, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+}
+
 func TestHTTPRoutesServerAdminSettingsRouteReportsHostPersistFailure(t *testing.T) {
 	t.Parallel()
 

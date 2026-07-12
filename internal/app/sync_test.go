@@ -197,6 +197,38 @@ func TestSyncXtreamMergesEnabledSourcesWithScopedChannelIDs(t *testing.T) {
 	}
 }
 
+func TestSyncXtreamKeepsFailedSourceStaleWhileRefreshingHealthySource(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Channels: []model.Channel{{ID: "xtream:backup:1001", SourceID: "xtream-source:backup", Name: "Stale Backup"}},
+		Programs: []model.Program{{ID: "old-program", ChannelID: "xtream:backup:1001", Title: "Still Available"}},
+	}})
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(baseURL, _, _ string) XtreamClient {
+			if strings.Contains(baseURL, "backup") {
+				return &stubXtreamClient{streamsErr: errors.New("backup unavailable")}
+			}
+			return &stubXtreamClient{streams: []xtream.LiveStream{{Num: 1, Name: "Fresh Primary", StreamID: 2002}}}
+		},
+	})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+		{ID: "primary", Name: "Primary", BaseURL: "https://primary.example", Username: "one", Password: "secret", Enabled: true},
+		{ID: "backup", Name: "Backup", BaseURL: "https://backup.example", Username: "two", Password: "secret", Enabled: true},
+	}}
+	if err := service.SyncNow(context.Background(), settings, 1_700_000_001); err != nil {
+		t.Fatalf("partial source failure should not fail refresh: %v", err)
+	}
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Channels) != 2 || snapshot.Catalog.Channels[0].Name != "Fresh Primary" || snapshot.Catalog.Channels[1].Name != "Stale Backup" {
+		t.Fatalf("expected fresh primary plus stale backup: %+v", snapshot.Catalog.Channels)
+	}
+	if snapshot.Health.LastError == "" || !strings.Contains(snapshot.Health.LastError, "Backup") {
+		t.Fatalf("expected partial failure health detail: %+v", snapshot.Health)
+	}
+}
+
 func TestSyncKeepsStaleSnapshotOnFailure(t *testing.T) {
 	t.Parallel()
 
