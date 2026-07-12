@@ -121,8 +121,8 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 	t.Parallel()
 
 	schema := GlobalConfigSchema()
-	if len(schema) != 2 {
-		t.Fatalf("expected two config schema entries, got %d", len(schema))
+	if len(schema) != 1 {
+		t.Fatalf("expected one config schema entry, got %d", len(schema))
 	}
 
 	byKey := map[string]bool{}
@@ -130,7 +130,7 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 		byKey[item.GetKey()] = true
 	}
 
-	for _, key := range []string{"connection", "category_settings"} {
+	for _, key := range []string{"connection"} {
 		if !byKey[key] {
 			t.Fatalf("expected schema key %q", key)
 		}
@@ -174,15 +174,15 @@ func TestUserConfigSchema_DeclaresCurrentPreferenceShape(t *testing.T) {
 	t.Parallel()
 
 	userSchema := UserConfigSchema()
-	if len(userSchema) != 2 {
-		t.Fatalf("expected two user config schema entries, got %d", len(userSchema))
+	if len(userSchema) != 1 {
+		t.Fatalf("expected one user config schema entry, got %d", len(userSchema))
 	}
 
 	byKey := map[string]bool{}
 	for _, item := range userSchema {
 		byKey[item.GetKey()] = true
 	}
-	for _, key := range []string{"preferences", "adminCategorySettings"} {
+	for _, key := range []string{"preferences"} {
 		if !byKey[key] {
 			t.Fatalf("expected user schema key %q", key)
 		}
@@ -224,6 +224,7 @@ func TestUserConfigSchema_AcceptsProfileSelection(t *testing.T) {
 
 func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 	t.Parallel()
+	t.Skip("retired Dispatcharr admin category settings are not part of Xtreme")
 
 	adminSettings := mustFindSchema(t, UserConfigSchema(), "adminCategorySettings")
 	var schema map[string]any
@@ -249,6 +250,7 @@ func TestUserConfigSchema_DeclaresAdminCategorySettingsShape(t *testing.T) {
 
 func TestUserConfigSchema_DeclaresEventKeywordRuleOptions(t *testing.T) {
 	t.Parallel()
+	t.Skip("retired Dispatcharr event settings are not part of Xtreme")
 
 	adminSettings := mustFindSchema(t, UserConfigSchema(), "adminCategorySettings")
 	var schema map[string]any
