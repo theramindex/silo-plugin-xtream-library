@@ -111,7 +111,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], hiddenCategories: {}, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], hiddenCategories: {}, groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -187,7 +187,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { mode: "delimiter", delimiter: "pipe", virtualGroupLabel: "Categories", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { mode: "normal", delimiter: "pipe", virtualGroupLabel: "Categories", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -268,6 +268,7 @@ function mergePrefs(remote) {
     favorites: Object.assign({}, remote.favorites),
     favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
+    groupCategoriesByPipe: remote.groupCategoriesByPipe === true,
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
     recentChannels: uniqueIDs(items(remote.recentChannels)).slice(0, 24),
     continueWatching: Object.assign({}, remote.continueWatching),
@@ -723,9 +724,8 @@ function featuredCategoryID(path) { return "featured:" + String(path || ""); }
 function virtualCategoryPath(id) { return String(id || "").indexOf("virtual:") === 0 ? String(id || "").slice("virtual:".length) : ""; }
 function featuredCategoryPath(id) { return String(id || "").indexOf("featured:") === 0 ? String(id || "").slice("featured:".length) : ""; }
 function categoryParsing() {
-  const settings = adminSettings();
-  const delimiterEnabled = settings.mode === "delimiter";
-  return { enabled: delimiterEnabled, mode: delimiterEnabled ? "delimiter" : "off", delimiter: settings.delimiter || "pipe", regex: "", output: "" };
+  const delimiterEnabled = prefs().groupCategoriesByPipe === true || (sourceMode() !== "xtream" && adminSettings().mode === "delimiter");
+  return { enabled: delimiterEnabled, mode: delimiterEnabled ? "delimiter" : "off", delimiter: "pipe", regex: "", output: "" };
 }
 function customGroups() {
   return items(prefs().customGroups).slice().filter(function(group) {
@@ -3769,6 +3769,7 @@ function renderSettings() {
   byId("view").innerHTML = "<div class=\"settings-stack\">"
     + (isDispatcharrDirectSource() ? "<div class=\"settings-card profile-settings-card\"><div class=\"settings-card-head\"><div><h2>Live TV profiles</h2><p>Choose which Dispatcharr profile lineups appear in your Live TV experience.</p></div><span id=\"profile-selection-summary\" class=\"profile-selection-summary\"></span></div><div id=\"profile-settings\"></div></div>" : "")
     + "<div class=\"settings-card custom-groups-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\"></div></div>"
+    + "<div class=\"settings-card\"><h2>Category organization</h2><label class=\"settings-row\"><span><strong>Group categories by <code>|</code></strong><small>Turn provider paths such as USA | Sports into browsable folders.</small></span><input type=\"checkbox\" data-category-grouping=\"pipe\"" + (prefs().groupCategoriesByPipe ? " checked" : "") + "></label></div>"
     + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden channel groups</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
     + "</div>";
   renderProfileSettings();
@@ -5375,6 +5376,14 @@ document.addEventListener("change", function(event) {
     state.customGroupQuery = "";
     state.customGroupChannelID = "";
     renderSettings();
+    return;
+  }
+  const categoryGrouping = event.target.getAttribute("data-category-grouping");
+  if (categoryGrouping) {
+    state.app.preferences.groupCategoriesByPipe = event.target.checked;
+    state.category = "";
+    savePrefs();
+    render();
     return;
   }
   const id = event.target.getAttribute("data-hide");
