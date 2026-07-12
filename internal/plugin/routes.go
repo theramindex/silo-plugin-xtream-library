@@ -113,6 +113,8 @@ type PublicChannel struct {
 	CategoryName string   `json:"categoryName,omitempty"`
 	ProfileIDs   []string `json:"profileIds,omitempty"`
 	StreamFormat string   `json:"streamFormat,omitempty"`
+	Catchup      bool     `json:"catchup,omitempty"`
+	CatchupMins  int      `json:"catchupMinutes,omitempty"`
 }
 
 type PublicVODItem struct {
@@ -337,9 +339,59 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
 		return redirectResponse(streamURL), nil
+	case "/dispatcharr/catchup/stream":
+		streamURL, err := s.resolveCatchupStreamURL(request)
+		if err != nil {
+			return textResponse(http.StatusNotFound, err.Error()), nil
+		}
+		return redirectResponse(streamURL), nil
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
+}
+
+func (s *HTTPRoutesServer) resolveCatchupStreamURL(request *pluginv1.HandleHTTPRequest) (string, error) {
+	if s.settingsProvider == nil {
+		return "", fmt.Errorf("source settings are unavailable")
+	}
+	channelID := queryValue(request, "channel_id")
+	startUnix, err := strconv.ParseInt(queryValue(request, "start_unix"), 10, 64)
+	if err != nil || startUnix <= 0 {
+		return "", fmt.Errorf("invalid catchup start time")
+	}
+	endUnix, err := strconv.ParseInt(queryValue(request, "end_unix"), 10, 64)
+	if err != nil || endUnix <= startUnix {
+		return "", fmt.Errorf("invalid catchup end time")
+	}
+	var channel model.Channel
+	found := false
+	for _, candidate := range s.store.Current().Catalog.Channels {
+		if candidate.ID == channelID {
+			channel, found = candidate, true
+			break
+		}
+	}
+	if !found || !channel.Catchup || !strings.HasPrefix(channel.ID, "xtream:") {
+		return "", fmt.Errorf("catchup is unavailable for channel")
+	}
+	streamID, err := strconv.ParseInt(strings.TrimPrefix(channel.ID, "xtream:"), 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid xtream channel id")
+	}
+	duration := int((endUnix - startUnix + 59) / 60)
+	if duration <= 0 || duration > channel.CatchupMins {
+		return "", fmt.Errorf("catchup duration is unavailable")
+	}
+	settings := s.settingsProvider()
+	if settings.EffectiveSourceMode() != config.SourceModeXtream {
+		return "", fmt.Errorf("catchup is available only for Xtream Codes")
+	}
+	baseURL, username, password := xtreamConnectionSettings(settings)
+	target := xtream.NewClient(baseURL, username, password).ResolveCatchupStreamURL(streamID, duration, time.Unix(startUnix, 0).UTC().Format("2006-01-02:15-04"))
+	if target == "" {
+		return "", fmt.Errorf("unable to resolve catchup stream")
+	}
+	return target, nil
 }
 
 func (s *HTTPRoutesServer) handleSeriesInfo(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -642,6 +694,8 @@ func publicChannels(channels []model.Channel) []PublicChannel {
 			CategoryName: channel.CategoryName,
 			ProfileIDs:   append([]string(nil), channel.ProfileIDs...),
 			StreamFormat: publicStreamFormat(channel.StreamURL),
+			Catchup:      channel.Catchup,
+			CatchupMins:  channel.CatchupMins,
 		})
 	}
 	return result

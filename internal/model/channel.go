@@ -25,6 +25,8 @@ type Channel struct {
 	CategoryID   string   `json:"categoryId,omitempty"`
 	CategoryName string   `json:"categoryName,omitempty"`
 	ProfileIDs   []string `json:"profileIds,omitempty"`
+	Catchup      bool     `json:"catchup,omitempty"`
+	CatchupMins  int      `json:"catchupMinutes,omitempty"`
 }
 
 func StableChannelID(mode SourceMode, identity ChannelIdentity) string {
