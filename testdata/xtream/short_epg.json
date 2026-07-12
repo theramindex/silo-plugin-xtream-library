@@ -1,0 +1,11 @@
+{
+  "epg_listings": [
+    {
+      "id": "epg-1",
+      "title": "Morning News",
+      "description": "Top headlines and weather.",
+      "start_timestamp": "1700000000",
+      "stop_timestamp": "1700003600"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+stages:
+  - test
+  - build
+
+default:
+  image: golang:1.26
+  cache:
+    key: "${CI_PROJECT_NAME}-gomod"
+    paths:
+      - .go/pkg/mod
+      - .cache/go-build
+  variables:
+    GOPATH: "${CI_PROJECT_DIR}/.go"
+    GOCACHE: "${CI_PROJECT_DIR}/.cache/go-build"
+    GOFLAGS: "-mod=readonly"
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
+
+test:
+  stage: test
+  script:
+    - go version
+    - go vet ./...
+    - go test ./...
+    - go test -race ./...
+
+build:linux:
+  stage: build
+  parallel:
+    matrix:
+      - GOOS: ["linux"]
+        GOARCH: ["amd64", "arm64"]
+  script:
+    - |
+      if [ -n "${CI_COMMIT_TAG}" ]; then
+        VERSION="${CI_COMMIT_TAG#v}"
+      else
+        VERSION="0.0.0-${CI_COMMIT_SHORT_SHA}"
+      fi
+      mkdir -p dist
+      BIN="dispatcharr-${VERSION}-${GOOS}-${GOARCH}"
+      CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" \
+        go build -trimpath -ldflags "-s -w -X main.buildVersion=${VERSION}" -o "dist/${BIN}" .
+      go run ./cmd/package-upload \
+        -binary "dist/${BIN}" \
+        -version "${VERSION}" \
+        -goos "${GOOS}" \
+        -goarch "${GOARCH}" \
+        -plugin-id "silo.ramindex.dispatcharr"
+      echo "${VERSION}" > dist/VERSION
+  artifacts:
+    name: "dispatcharr-${CI_COMMIT_REF_SLUG}-${GOOS}-${GOARCH}"
+    expire_in: 30 days
+    paths:
+      - dist/
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH

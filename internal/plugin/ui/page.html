@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" data-silo-theme="__SILO_THEME__">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="dispatcharr-asset-version" content="__ASSET_VERSION__">
+<title>__APP_TITLE__</title>
+<link rel="stylesheet" href="__ASSET_PREFIX__/app.css?v=__ASSET_VERSION__">
+<script defer src="__ASSET_PREFIX__/lineup.js?v=__ASSET_VERSION__"></script>
+<script defer src="__ASSET_PREFIX__/app.js?v=__ASSET_VERSION__"></script>
+</head>
+<body>
+<div class="shell __ROUTE_CLASS__">
+  <main class="main">
+    <!-- USER_TOPBAR_START --><div class="topbar">
+      <div class="topbar-primary">
+        <div class="brand">
+          <a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a>
+          <h1>__APP_TITLE__</h1>
+        </div>
+        <!-- USER_NAV_START --><nav class="nav topnav" aria-label="Live TV sections">
+          <button type="button" class="active" data-view="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 10.75 12 4l8.25 6.75M6.25 9.25v9.5h11.5v-9.5M9.75 18.75v-5h4.5v5"/></svg><span>Home</span></button>
+          <button type="button" data-view="guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15M4.5 12h15M4.5 17.25h15M8.25 4.5v15M15.75 4.5v15"/></svg><span>Guide</span></button>
+          <button type="button" data-view="onlater"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.25v5.85l3.5 2.1"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a8.75 8.75 0 1 0 0-17.5 8.75 8.75 0 0 0 0 17.5Z"/></svg><span>On Later</span></button>
+          <button type="button" data-view="sports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 4.75h8v3.5a4 4 0 0 1-8 0v-3.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8 6.25H5.75A1.75 1.75 0 0 0 4 8v.5A3.5 3.5 0 0 0 7.5 12"/><path stroke-linecap="round" stroke-linejoin="round" d="M16 6.25h2.25A1.75 1.75 0 0 1 20 8v.5A3.5 3.5 0 0 1 16.5 12"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 12.25v4.5M9 19.25h6M10 16.75h4"/></svg><span>Sports</span></button>
+          <button type="button" data-view="events"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 4.75v2.5M17 4.75v2.5M5.25 9.5h13.5M6.5 6.25h11a1.75 1.75 0 0 1 1.75 1.75v9.5a1.75 1.75 0 0 1-1.75 1.75h-11a1.75 1.75 0 0 1-1.75-1.75V8A1.75 1.75 0 0 1 6.5 6.25Z"/></svg><span>Events</span></button>
+        </nav><!-- USER_NAV_END -->
+      </div>
+      <div id="sports-topbar-tabs" class="sports-topbar-tabs"></div>
+      <div class="topbar-actions">
+        <button id="app-search-button" class="topbar-icon" type="button" data-view="search" aria-label="Search Live TV" title="Search Live TV">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m20 20-4.5-4.5M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
+        </button>
+        <div class="settings-menu">
+          <button id="settings-menu-button" class="topbar-icon" type="button" aria-label="Live TV settings" title="Settings" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8.25a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.23.64.84 1 1.51 1H21a2 2 0 0 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15Z"/></svg>
+          </button>
+          <div id="settings-menu" class="settings-dropdown" role="menu">
+            <button type="button" data-view="favorites" role="menuitem">Favorites <small id="favorite-count">0</small></button>
+            <button type="button" data-view="recordings" role="menuitem">Recordings</button>
+            <button type="button" data-view="settings" role="menuitem">Settings</button>
+            <button type="button" data-guide-refresh="true" role="menuitem">Refresh guide</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- USER_TOPBAR_END -->
+    <div id="view"><div class="empty" role="status" aria-live="polite">Loading Live TV...</div></div>
+  </main>
+</div>
+</body>
+</html>
