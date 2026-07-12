@@ -65,6 +65,7 @@ func main() {
 	}
 	manifest.GlobalConfigSchema = config.GlobalConfigSchema()
 	manifest.UserConfigSchema = config.UserConfigSchema()
+	rewritePublicManifestForXtream(manifest)
 
 	baseName := filepath.Base(*binaryPath)
 	outManifestPath := filepath.Join(filepath.Dir(*binaryPath), baseName+".manifest.json")
@@ -90,6 +91,33 @@ func main() {
 	fmt.Printf("manifest=%s\n", outManifestPath)
 	fmt.Printf("checksum=%s\n", outChecksumPath)
 	fmt.Printf("silo_plugin_zip=%s\n", outZipPath)
+}
+
+func rewritePublicManifestForXtream(manifest *pluginv1.PluginManifest) {
+	routes := make([]*pluginv1.HttpRouteDescriptor, 0, len(manifest.GetHttpRoutes()))
+	for _, route := range manifest.GetHttpRoutes() {
+		if isRetiredPublicRoute(route.GetPath()) {
+			continue
+		}
+		route.Id = strings.Replace(route.GetId(), "dispatcharr", "xtream", 1)
+		route.Path = strings.Replace(route.GetPath(), "/dispatcharr", "/xtream", 1)
+		routes = append(routes, route)
+	}
+	manifest.HttpRoutes = routes
+	for _, capability := range manifest.GetCapabilities() {
+		capability.Id = strings.Replace(capability.GetId(), "dispatcharr", "xtream", 1)
+		capability.DisplayName = strings.ReplaceAll(capability.GetDisplayName(), "Dispatcharr", "Xtreme Codes")
+		capability.Description = strings.ReplaceAll(capability.GetDescription(), "Dispatcharr", "Xtream")
+	}
+}
+
+func isRetiredPublicRoute(path string) bool {
+	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
+		if strings.Contains(path, segment) {
+			return true
+		}
+	}
+	return false
 }
 
 func writeUploadZip(path string, binaryData, manifestData []byte) error {
