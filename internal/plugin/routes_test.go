@@ -16,9 +16,9 @@ import (
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 

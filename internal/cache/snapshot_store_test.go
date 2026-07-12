@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 )
 
 func TestFileSnapshotStorageRoundTripsCatalogSnapshot(t *testing.T) {

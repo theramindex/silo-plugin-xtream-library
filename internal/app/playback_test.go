@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 )
 
 func TestResolvePlaybackUsesFreshXtreamResolution(t *testing.T) {

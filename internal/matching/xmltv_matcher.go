@@ -3,8 +3,8 @@ package matching
 import (
 	"strings"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/m3u"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 )
 
 type Index struct {

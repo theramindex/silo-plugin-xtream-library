@@ -1,4 +1,4 @@
-module github.com/theramindex/silo-plugin-dispatcharr
+module github.com/theramindex/silo-plugin-xtream-library
 
 go 1.26.0
 

@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
+	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
 )
 
 type Client struct {

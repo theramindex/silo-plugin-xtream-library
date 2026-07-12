@@ -6,12 +6,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
-	sharedhttp "github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/httpclient"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
 
 type XtreamClient interface {

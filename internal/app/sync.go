@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/mapping"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/matching"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xmltv"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/mapping"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/matching"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/m3u"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
 
 const (

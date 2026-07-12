@@ -1,8 +1,8 @@
 package plugin
 
 import (
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 )
 
 type HealthPayload struct {
