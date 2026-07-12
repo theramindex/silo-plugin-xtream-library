@@ -1425,11 +1425,12 @@ func liveCategories(snapshot cache.Snapshot) []model.Category {
 }
 
 func appCapabilities(sourceMode model.SourceMode) AppCapabilities {
+	fullCatalog := sourceMode != model.SourceModeM3UXMLTV
 	return AppCapabilities{
 		LiveTV:                true,
 		Guide:                 true,
-		VOD:                   true,
-		Series:                true,
+		VOD:                   fullCatalog,
+		Series:                fullCatalog,
 		Recordings:            dvrEnabledForSource(sourceMode),
 		Favorites:             true,
 		HiddenCategories:      true,

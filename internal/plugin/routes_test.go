@@ -96,6 +96,15 @@ func TestXtreamPublicAppPayloadRedactsStreamTargets(t *testing.T) {
 	}
 }
 
+func TestM3UXMLTVAppCapabilitiesHideXtreamOnlyContent(t *testing.T) {
+	t.Parallel()
+
+	capabilities := appCapabilities(model.SourceModeM3UXMLTV)
+	if !capabilities.LiveTV || !capabilities.Guide || capabilities.VOD || capabilities.Series {
+		t.Fatalf("unexpected M3U/XMLTV capabilities: %+v", capabilities)
+	}
+}
+
 func TestXtreamSeriesInfoRouteRedactsEpisodeTargets(t *testing.T) {
 	t.Parallel()
 
