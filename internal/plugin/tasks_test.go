@@ -65,7 +65,7 @@ func TestScheduledTaskServerRunsSiloNamespacedSyncTask(t *testing.T) {
 	})
 	server := NewScheduledTaskServer(service, config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6})
 
-	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: "plugin:14:dispatcharr-sync"}); err != nil {
+	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: "plugin:14:xtream-sync"}); err != nil {
 		t.Fatalf("run namespaced task: %v", err)
 	}
 	waitForScheduledTask(t, server)

@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	SyncTaskKey           = "dispatcharr-sync"
-	ChannelRefreshTaskKey = "dispatcharr-refresh-channels"
-	EPGRefreshTaskKey     = "dispatcharr-refresh-epg"
+	SyncTaskKey           = "xtream-sync"
+	ChannelRefreshTaskKey = "xtream-refresh-channels"
+	EPGRefreshTaskKey     = "xtream-refresh-epg"
 )
 
 type ScheduledTaskServer struct {
