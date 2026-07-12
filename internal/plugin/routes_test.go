@@ -507,7 +507,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function recordingSchedulingEnabled()`,
 		`/dispatcharr/api/recordings/capability`,
 		`Scheduling requires a Dispatcharr admin account or Admin API Key.`,
-		`Search movies, tv shows, channels and more`,
+		`Channels, programs, movies or shows`,
 		`function renderSportsPage()`,
 		`function renderSportsTopbarTabs()`,
 		`error.status = response.status`,
@@ -663,6 +663,31 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `data-tooltip-always=\"true\"`) || strings.Contains(body, `epgProgramTooltip(`) {
 		t.Fatalf("expected guide program details to use modal instead of large hover tooltip")
+	}
+}
+
+func TestPlayerSearchUsesXtreamFocusedCompactScopes(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{`class=\"search-input-shell\"`, `class=\"search-scope-row\"`, `{ id: "guide", label: "Guide" }`, `data-search-query-clear`} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("expected compact search marker %q", expected)
+		}
+	}
+	start := strings.Index(script, "function searchFilters()")
+	end := strings.Index(script[start:], "function searchResultSections")
+	if start < 0 || end < 0 {
+		t.Fatal("expected search filter function")
+	}
+	filters := script[start : start+end]
+	for _, removed := range []string{`label: "Sports"`, `label: "Events"`, `label: "Recordings"`} {
+		if strings.Contains(filters, removed) {
+			t.Fatalf("expected Xtreme search to omit legacy search control %q", removed)
+		}
+	}
+	if strings.Contains(script[strings.Index(script, "function renderSearchStart()"):strings.Index(script, "function renderSearchPage()")], `class=\"search-category-grid\"`) {
+		t.Fatal("expected search start to avoid duplicating scope controls as large category tiles")
 	}
 }
 
