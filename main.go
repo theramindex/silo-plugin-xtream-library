@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	goruntime "runtime"
+	"strings"
 	"sync"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -225,8 +226,21 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 	}
 	manifest.GlobalConfigSchema = config.GlobalConfigSchema()
 	manifest.UserConfigSchema = config.UserConfigSchema()
+	rewritePublicManifestForXtream(manifest)
 
 	return manifest, nil
+}
+
+func rewritePublicManifestForXtream(manifest *pluginv1.PluginManifest) {
+	for _, route := range manifest.GetHttpRoutes() {
+		route.Id = strings.Replace(route.GetId(), "dispatcharr", "xtream", 1)
+		route.Path = strings.Replace(route.GetPath(), "/dispatcharr", "/xtream", 1)
+	}
+	for _, capability := range manifest.GetCapabilities() {
+		capability.Id = strings.Replace(capability.GetId(), "dispatcharr", "xtream", 1)
+		capability.DisplayName = strings.ReplaceAll(capability.GetDisplayName(), "Dispatcharr", "Xtreme Codes")
+		capability.Description = strings.ReplaceAll(capability.GetDescription(), "Dispatcharr", "Xtream")
+	}
 }
 
 func asString(value any) string {

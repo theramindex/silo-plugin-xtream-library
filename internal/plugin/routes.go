@@ -966,8 +966,8 @@ func playerUIAssetResponse(path string, contentType string) (*pluginv1.HandleHTT
 func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) string {
 	body := strings.Replace(playerPageHTMLTemplate, "__SILO_THEME__", html.EscapeString(sanitizeThemeSlug(queryValue(request, "theme"))), 1)
 	assetPrefix := "assets"
-	if request.GetPath() == "/dispatcharr" {
-		assetPrefix = "dispatcharr/assets"
+	if request.GetPath() == "/xtream" {
+		assetPrefix = "xtream/assets"
 	}
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
 	body = strings.ReplaceAll(body, "__ASSET_VERSION__", pluginAssetVersion())

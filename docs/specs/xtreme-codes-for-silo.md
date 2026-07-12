@@ -177,6 +177,9 @@ features are excluded.
   and streaming response bodies as v1 assumptions.
 - Complete: Xtream source identifiers, episode discovery, and provider
   Catch-up metadata are documented and covered by upstream-adapter tests.
+- Complete: the manifest and browser client expose the standalone `/xtream`
+  namespace; a handler adapter keeps existing implementation routes reachable
+  while later features remove inherited behavior.
 
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.

@@ -245,7 +245,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 
 	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{
 		Method: "GET",
-		Path:   "/dispatcharr",
+		Path:   "/xtream",
 		Query:  &structpb.Struct{Fields: map[string]*structpb.Value{"theme": structpb.NewStringValue("midnight-cinema")}},
 	})
 	if err != nil {
@@ -257,7 +257,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if response.GetHeaders()["cache-control"] != "no-store" {
 		t.Fatalf("expected app shell to disable browser caching, got %q", response.GetHeaders()["cache-control"])
 	}
-	if !strings.Contains(string(response.GetBody()), `src="dispatcharr/assets/app.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
+	if !strings.Contains(string(response.GetBody()), `src="xtream/assets/app.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
 		t.Fatalf("expected root app shell to reference versioned assets: %s", string(response.GetBody()))
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
@@ -351,7 +351,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`/dispatcharr/api/sports`,
 		`data-sports-tab=`,
 		`sportsFavoriteTeams`,
-		`const isAdminRoute = path.endsWith("/dispatcharr/admin")`,
+		`const isAdminRoute = path.endsWith("/xtream/admin")`,
 		`if (state.view === "admin" && !isAdminRoute) state.view = "home"`,
 		`delimiter: "pipe"`,
 		`if (!settings.delimiter) settings.delimiter = "pipe"`,
@@ -373,7 +373,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`data-silo-theme="midnight-cinema"`,
 		`function applySiloTheme()`,
 		`--silo-bg`,
-		`const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix`,
+		`const appCacheKey = "silo.ramindex.xtream.appSnapshot.v1." + localCacheSuffix`,
 		`function readLocalAppCache()`,
 		`function writeLocalAppCache(payload)`,
 		`await hydrateApp(cached, { localCache: true })`,
@@ -1027,7 +1027,7 @@ function makeElement() {
 const mainElement = makeElement();
 const documentListeners = {};
 const sandbox = {
-  window: { location: { pathname: "/api/v1/plugins/14/dispatcharr/admin", search: "" }, innerHeight: 800, scrollY: 0, scrollTo: function(x, y) { this.lastScroll = [x, y]; }, addEventListener: () => {} },
+  window: { location: { pathname: "/api/v1/plugins/14/xtream/admin", search: "" }, innerHeight: 800, scrollY: 0, scrollTo: function(x, y) { this.lastScroll = [x, y]; }, addEventListener: () => {} },
   document: { documentElement: { dataset: {} }, body: makeElement(), elements: {}, fullscreenElement: null, activeElement: null, querySelectorAll: () => [], querySelector: (selector) => selector === ".main" ? mainElement : makeElement(), getElementById: function(id) { this.elements[id] = this.elements[id] || makeElement(); return this.elements[id]; }, addEventListener: function(name, handler) { this.listeners[name] = this.listeners[name] || []; this.listeners[name].push(handler); }, listeners: documentListeners, contains: () => true },
   localStorage: { getItem: () => null, setItem: () => {} },
   navigator: { sendBeacon: () => true },
