@@ -723,13 +723,12 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Save`,
 		`Discard`,
 		`function effectiveChannel(channel)`,
-		`/dispatcharr/api/admin-settings`,
 		`/dispatcharr/api/refresh-channels`,
 		`Retry profiles`,
 		`data-admin-profile-refresh`,
 		`/api/v1/admin/plugins/installations/`,
 		`key: "category_settings"`,
-		`state.adminCategorySettings = await loadAdminCategorySettings().catch(function()`,
+		`state.adminCategorySettings = defaultAdminCategorySettings();`,
 		`row.keywords.join("\n")`,
 	} {
 		if !strings.Contains(body, want) {

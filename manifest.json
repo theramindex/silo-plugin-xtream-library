@@ -50,7 +50,7 @@
       "path": "/dispatcharr",
       "access": "authenticated",
       "navigable": true,
-      "navigation_label": "Live TV",
+      "navigation_label": "Live TV (Xtreme Codes)",
       "navigation_kind": "user"
     },
     {
