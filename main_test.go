@@ -367,7 +367,7 @@ func TestManifestUserPreferenceSchemaAcceptsBrowserPayload(t *testing.T) {
 	}
 }
 
-func TestManifestOmitsInheritedAdminRoutes(t *testing.T) {
+func TestManifestExposesXtremeAdminRoutes(t *testing.T) {
 	t.Parallel()
 
 	manifest, err := loadManifest()
@@ -375,9 +375,13 @@ func TestManifestOmitsInheritedAdminRoutes(t *testing.T) {
 		t.Fatalf("load manifest: %v", err)
 	}
 
+	paths := map[string]bool{}
 	for _, route := range manifest.GetHttpRoutes() {
-		if route.GetPath() == "/xtream/admin" || route.GetPath() == "/xtream/api/admin-settings" {
-			t.Fatalf("manifest exposes inherited admin route: %+v", route)
+		paths[route.GetPath()] = true
+	}
+	for _, path := range []string{"/xtream/admin", "/xtream/api/admin-settings", "/xtream/api/admin-sources"} {
+		if !paths[path] {
+			t.Fatalf("manifest must expose Xtreme admin route %s", path)
 		}
 	}
 }

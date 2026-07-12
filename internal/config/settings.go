@@ -34,6 +34,7 @@ type Settings struct {
 	XtreamUsername    string
 	XtreamPassword    string
 	XtreamLiveFormat  string
+	XtreamSources     []XtreamSource
 	M3UURL            string
 	EPGXMLURL         string
 	LiveTVEnabled     bool
@@ -41,6 +42,46 @@ type Settings struct {
 	EPGRefreshH       int
 	ModeSwitchWarning string
 	AdminSettings     json.RawMessage
+}
+
+type XtreamSource struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	BaseURL    string `json:"baseUrl"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	LiveFormat string `json:"liveFormat"`
+	Enabled    bool   `json:"enabled"`
+}
+
+func (s XtreamSource) EffectiveLiveFormat() string {
+	if strings.EqualFold(strings.TrimSpace(s.LiveFormat), "ts") {
+		return "ts"
+	}
+	return "m3u8"
+}
+
+func (s Settings) EffectiveXtreamSources() []XtreamSource {
+	if len(s.XtreamSources) == 0 {
+		return []XtreamSource{{ID: "primary", Name: "Primary", BaseURL: s.XtreamBaseURL, Username: s.XtreamUsername, Password: s.XtreamPassword, LiveFormat: s.EffectiveXtreamLiveFormat(), Enabled: true}}
+	}
+	result := make([]XtreamSource, 0, len(s.XtreamSources))
+	for _, source := range s.XtreamSources {
+		if source.Enabled {
+			result = append(result, source)
+		}
+	}
+	return result
+}
+
+func (s Settings) XtreamSourceByID(id string) (XtreamSource, bool) {
+	id = strings.TrimSpace(id)
+	for _, source := range s.EffectiveXtreamSources() {
+		if source.ID == id {
+			return source, true
+		}
+	}
+	return XtreamSource{}, false
 }
 
 func (s Settings) EffectiveXtreamLiveFormat() string {
@@ -85,14 +126,22 @@ func (s *Settings) Validate() error {
 			return fmt.Errorf("dispatcharr api key is required")
 		}
 	case SourceModeXtream:
-		if strings.TrimSpace(s.XtreamBaseURL) == "" {
-			return fmt.Errorf("xtream base url is required")
+		sources := s.EffectiveXtreamSources()
+		if len(sources) == 0 {
+			return fmt.Errorf("at least one enabled xtream source is required")
 		}
-		if strings.TrimSpace(s.XtreamUsername) == "" {
-			return fmt.Errorf("xtream username is required")
-		}
-		if strings.TrimSpace(s.XtreamPassword) == "" {
-			return fmt.Errorf("xtream password is required")
+		seen := map[string]bool{}
+		for _, source := range sources {
+			if strings.TrimSpace(source.ID) == "" {
+				return fmt.Errorf("xtream source id is required")
+			}
+			if seen[source.ID] {
+				return fmt.Errorf("xtream source id %q is duplicated", source.ID)
+			}
+			seen[source.ID] = true
+			if strings.TrimSpace(source.BaseURL) == "" || strings.TrimSpace(source.Username) == "" || strings.TrimSpace(source.Password) == "" {
+				return fmt.Errorf("xtream source %q credentials are incomplete", source.ID)
+			}
 		}
 	case SourceModeM3UXMLTV:
 		if strings.TrimSpace(s.M3UURL) == "" {
@@ -132,6 +181,9 @@ func CatalogCacheKey(settings Settings) string {
 		strings.TrimSpace(settings.XtreamUsername),
 		strings.TrimSpace(settings.M3UURL),
 		strings.TrimSpace(settings.EPGXMLURL),
+	}
+	for _, source := range settings.EffectiveXtreamSources() {
+		parts = append(parts, source.ID, source.Name, source.BaseURL, source.Username, source.EffectiveLiveFormat())
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])

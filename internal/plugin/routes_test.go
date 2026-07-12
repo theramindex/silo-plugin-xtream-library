@@ -89,8 +89,6 @@ func TestXtreamPublicNamespaceRejectsRetiredDispatcharrFeatures(t *testing.T) {
 		"/xtream/api/sports",
 		"/xtream/api/events",
 		"/xtream/api/timeshift/start",
-		"/xtream/admin",
-		"/xtream/api/admin-settings",
 	} {
 		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: path})
 		if err != nil {
@@ -99,6 +97,10 @@ func TestXtreamPublicNamespaceRejectsRetiredDispatcharrFeatures(t *testing.T) {
 		if response.GetStatusCode() != http.StatusNotFound {
 			t.Fatalf("expected retired route %s to be unavailable, got %d", path, response.GetStatusCode())
 		}
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/admin"})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected Xtreme admin app to be available, got %d, %v", response.GetStatusCode(), err)
 	}
 }
 
@@ -710,8 +712,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
-		`<title>Live TV Admin</title>`,
-		`<h1>Live TV Admin</h1>`,
+		`<title>Live TV (Xtreme Codes) Admin</title>`,
+		`<h1>Live TV (Xtreme Codes) Admin</h1>`,
 		`<div class="shell is-admin">`,
 		`.shell.is-admin .rail { display: none; }`,
 		`.shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }`,
@@ -721,13 +723,13 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`<nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav>`,
 		`<div id="admin-actions" class="admin-actions"></div>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
-		`adminTab: "settings"`,
+		`state.adminTab = "sources"`,
 		`function defaultAdminCategorySettings()`,
 		`function renderAdminPage()`,
 		`function renderAdminTopbarTabs()`,
 		`function renderAdminTopbarActions()`,
 		`function renderAdminSettingsTab()`,
-		`function renderAdminIntegrationsTab()`,
+		`function renderAdminSourcesTab()`,
 		`Connection Status`,
 		`function adminStatusPanel()`,
 		`function refreshAdminStatus()`,
@@ -772,10 +774,10 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`ecm-url-row`,
 		`.settings-row.ecm-url-row input`,
 		`data-admin-tab=\"settings\"`,
-		`data-admin-tab=\"integrations\"`,
-		`data-admin-tab=\"manager\"`,
-		`data-admin-ecm-field=\"url\"`,
-		`byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager()`,
+		`data-admin-tab=\"sources\"`,
+		`data-source-action=\"edit\"`,
+		`data-source-action=\"test\"`,
+		`state.adminTab === "sources" ? renderAdminSourcesTab()`,
 		`data-admin-category-field=\"mode\"`,
 		`data-admin-alias-action=\"add\"`,
 		`data-admin-alias-action=\"remove\"`,
@@ -784,7 +786,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Saved plugin settings.`,
 		`renderAdminTopbarActions();`,
 		`function renderExternalChannelManager()`,
-		`classList.toggle("is-admin-manager"`,
+		`classList.remove("is-admin-manager"`,
 		`class=\"external-manager-surface\"`,
 		`class=\"external-manager-frame\"`,
 		`Unsaved changes.`,
@@ -2277,6 +2279,43 @@ func TestHTTPRoutesServerAdminSettingsRoutePersistsPayload(t *testing.T) {
 	persistedAliases, ok := persisted["categoryAliases"].([]map[string]string)
 	if !ok || len(persistedAliases) != 2 {
 		t.Fatalf("expected category aliases to write through to host config: %+v", persisted)
+	}
+}
+
+func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "sources.json")
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://primary.example", XtreamUsername: "primary", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 24}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(path)
+	headers := map[string]string{"x-silo-user-role": "admin"}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"id":"backup","name":"Backup","baseUrl":"https://backup.example","username":"backup","password":"second-secret","liveFormat":"m3u8","enabled":true}`)})
+	if err != nil {
+		t.Fatalf("save source: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected save success, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	if strings.Contains(string(response.GetBody()), "second-secret") || !strings.Contains(string(response.GetBody()), `"passwordConfigured":true`) {
+		t.Fatalf("source response must redact credentials: %s", response.GetBody())
+	}
+	sources, err := server.sourceRegistry.Load()
+	if err != nil || len(sources) != 2 || sources[0].ID != "primary" || sources[1].ID != "backup" {
+		t.Fatalf("expected migrated primary and new source, got %+v, %v", sources, err)
+	}
+}
+
+func TestHTTPRoutesServerAdminSourcesRequiresAdmin(t *testing.T) {
+	t.Parallel()
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings { return config.Settings{} })
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources"})
+	if err != nil {
+		t.Fatalf("load sources: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusForbidden {
+		t.Fatalf("expected admin requirement, got %d", response.GetStatusCode())
 	}
 }
 

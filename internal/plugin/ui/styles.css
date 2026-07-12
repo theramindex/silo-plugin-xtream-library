@@ -678,6 +678,46 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .settings-card { padding: 1rem; }
 .settings-card-compact { padding: 0.92rem 1rem; }
 .settings-card h2 { margin: 0; font-size: 1.05rem; line-height: 1.15; font-weight: 800; }
+.source-add { min-height: 2.35rem; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); border-radius: 999px; background: var(--accent); color: white; padding: 0.45rem 0.85rem; font-weight: 850; }
+.source-table { display: grid; gap: 0.5rem; }
+.source-table-row { min-width: 0; display: grid; grid-template-columns: minmax(12rem, 1.7fr) minmax(7rem, 0.8fr) 5.5rem 6rem 6.5rem auto; align-items: center; gap: 0.8rem; border: 1px solid color-mix(in srgb, var(--line) 82%, transparent); border-radius: 0.62rem; background: var(--panel); padding: 0.72rem 0.78rem; }
+.source-primary, .source-user, .source-count, .source-format { min-width: 0; display: grid; gap: 0.16rem; }
+.source-primary strong, .source-primary small, .source-user span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-primary strong { color: var(--text); font-size: 0.94rem; }
+.source-primary small, .source-user small, .source-count small, .source-format small { color: var(--muted); font-size: 0.68rem; font-weight: 720; }
+.source-user span, .source-format span { color: var(--text); font-size: 0.8rem; font-weight: 780; }
+.source-count strong { color: var(--text); font-size: 1rem; }
+.source-status { display: inline-flex; width: max-content; border-radius: 999px; background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--muted); padding: 0.28rem 0.52rem; font-size: 0.72rem; font-weight: 850; }
+.source-status.enabled { background: color-mix(in srgb, var(--green) 24%, transparent); color: color-mix(in srgb, var(--green) 55%, white); }
+.source-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
+.source-actions button, .source-editor-actions button { min-height: 2rem; border: 1px solid var(--line); border-radius: 999px; background: var(--rail-2); color: var(--text); padding: 0.35rem 0.58rem; font-size: 0.74rem; font-weight: 820; }
+.source-actions button:hover, .source-editor-actions button:hover { background: var(--panel-2); }
+.source-actions button.danger { color: #ffb6b6; }
+.source-editor-card { margin-top: 0; }
+.source-close { width: 2.2rem; height: 2.2rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: grid; place-items: center; }
+.source-close svg { width: 1rem; height: 1rem; }
+.source-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.source-form label { min-width: 0; display: grid; gap: 0.32rem; color: var(--muted); font-size: 0.76rem; font-weight: 820; }
+.source-form input, .source-form select { width: 100%; min-width: 0; box-sizing: border-box; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); padding: 0.66rem 0.7rem; font: inherit; }
+.source-field-wide { grid-column: 1 / -1; }
+.source-enabled { display: flex !important; align-items: center; justify-content: space-between; border-radius: 0.5rem; background: var(--panel); padding: 0.55rem 0.7rem; }
+.source-enabled > span { display: grid; gap: 0.12rem; }
+.source-enabled strong { color: var(--text); }
+.source-enabled small { color: var(--muted); font-size: 0.7rem; }
+.source-enabled input { width: 1.1rem; accent-color: var(--accent); }
+.source-editor-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.9rem; }
+.source-editor-actions .admin-save { border-color: var(--accent); background: var(--accent); color: white; }
+@media (max-width: 960px) {
+  .source-table-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .source-user, .source-format { display: none; }
+  .source-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 620px) {
+  .source-table-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .source-state { display: none; }
+  .source-form { grid-template-columns: 1fr; }
+  .source-field-wide { grid-column: auto; }
+}
 .settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; }
 .settings-card-head p { margin: 0.32rem 0 0; max-width: 48rem; color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
 .profile-selection-summary { flex: 0 0 auto; color: var(--muted); font-size: 0.78rem; font-weight: 800; white-space: nowrap; }

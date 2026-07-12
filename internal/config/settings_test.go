@@ -364,6 +364,28 @@ func TestCatalogCacheKeyChangesForDifferentSourceSettings(t *testing.T) {
 	}
 }
 
+func TestSettingsValidateAcceptsMultipleXtreamSources(t *testing.T) {
+	t.Parallel()
+	settings := Settings{SourceMode: SourceModeXtream, XtreamSources: []XtreamSource{
+		{ID: "primary", Name: "Primary", BaseURL: "https://one.example", Username: "one", Password: "secret", Enabled: true},
+		{ID: "backup", Name: "Backup", BaseURL: "https://two.example", Username: "two", Password: "secret", LiveFormat: "ts", Enabled: true},
+	}}
+	if err := settings.Validate(); err != nil {
+		t.Fatalf("validate multiple sources: %v", err)
+	}
+	if got := settings.EffectiveXtreamSources(); len(got) != 2 || got[1].EffectiveLiveFormat() != "ts" {
+		t.Fatalf("unexpected effective sources: %+v", got)
+	}
+}
+
+func TestSettingsValidateRejectsNoEnabledXtreamSources(t *testing.T) {
+	t.Parallel()
+	settings := Settings{SourceMode: SourceModeXtream, XtreamSources: []XtreamSource{{ID: "off", BaseURL: "https://one.example", Username: "one", Password: "secret", Enabled: false}}}
+	if err := settings.Validate(); err == nil || !strings.Contains(err.Error(), "enabled xtream source") {
+		t.Fatalf("expected enabled source validation error, got %v", err)
+	}
+}
+
 func mustFindSchema(t *testing.T, schema []*ConfigSchema, key string) *ConfigSchema {
 	t.Helper()
 	for _, item := range schema {
