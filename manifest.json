@@ -147,6 +147,13 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-catchup-stream",
+      "method": "GET",
+      "path": "/dispatcharr/catchup/stream",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-app",
       "method": "GET",
       "path": "/dispatcharr/api/app",

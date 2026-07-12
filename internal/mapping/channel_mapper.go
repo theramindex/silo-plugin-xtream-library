@@ -17,12 +17,14 @@ func MapXtreamChannel(stream xtream.LiveStream) model.Channel {
 			LogoURL:    stream.StreamIcon,
 			StreamURL:  strconv.FormatInt(stream.StreamID, 10),
 		}),
-		SourceID:   model.LiveTVSourceID,
-		Name:       stream.Name,
-		Number:     strconv.Itoa(stream.Num),
-		GuideID:    stream.EPGChannelID,
-		LogoURL:    stream.StreamIcon,
-		CategoryID: stream.CategoryID,
+		SourceID:    model.LiveTVSourceID,
+		Name:        stream.Name,
+		Number:      strconv.Itoa(stream.Num),
+		GuideID:     stream.EPGChannelID,
+		LogoURL:     stream.StreamIcon,
+		CategoryID:  stream.CategoryID,
+		Catchup:     stream.CatchupAvailable(),
+		CatchupMins: stream.TVArchiveDurationMinutes,
 	}
 }
 
