@@ -119,11 +119,19 @@ func (c *Client) ShortEPG(ctx context.Context, streamID int64) (ShortEPGResponse
 }
 
 func (c *Client) ResolveLiveStreamURL(streamID int64) string {
+	return c.ResolveLiveStreamURLWithExtension(streamID, "ts")
+}
+
+func (c *Client) ResolveLiveStreamURLWithExtension(streamID int64, extension string) string {
 	resolved, err := url.Parse(c.baseURL)
 	if err != nil {
 		return ""
 	}
-	resolved.Path = path.Join(resolved.Path, "live", c.username, c.password, strconv.FormatInt(streamID, 10)+".ts")
+	extension = strings.TrimPrefix(strings.TrimSpace(extension), ".")
+	if extension != "m3u8" {
+		extension = "ts"
+	}
+	resolved.Path = path.Join(resolved.Path, "live", c.username, c.password, strconv.FormatInt(streamID, 10)+"."+extension)
 	return resolved.String()
 }
 

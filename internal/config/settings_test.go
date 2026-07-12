@@ -306,7 +306,7 @@ func TestGlobalConfigSchema_UsesObjectSchemasForConfigurePayloads(t *testing.T) 
 	if !ok {
 		t.Fatalf("expected connection schema properties, got %q", connection.GetJsonSchema())
 	}
-	for _, key := range []string{"source_mode", "base_url", "username", "password", "m3u_url", "epg_xml_url"} {
+	for _, key := range []string{"source_mode", "base_url", "username", "password", "live_stream_format", "m3u_url", "epg_xml_url"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("expected connection schema property %q", key)
 		}
@@ -318,7 +318,7 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
 
-	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 6 {
+	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 7 {
 		t.Fatalf("expected connection admin form fields, got %+v", connection.GetAdminForm())
 	}
 
@@ -335,7 +335,7 @@ func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
 	for _, field := range connection.GetAdminForm().GetFields() {
 		fieldKeys[field.GetKey()] = true
 	}
-	for _, key := range []string{"base_url", "username", "password", "m3u_url", "epg_xml_url"} {
+	for _, key := range []string{"base_url", "username", "password", "live_stream_format", "m3u_url", "epg_xml_url"} {
 		if !fieldKeys[key] {
 			t.Fatalf("expected admin form field %q", key)
 		}

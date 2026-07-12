@@ -26,6 +26,11 @@ const connectionJSONSchema = `{
       "type": "string",
       "writeOnly": true
     },
+	    "live_stream_format": {
+	      "type": "string",
+	      "enum": ["m3u8", "ts"],
+	      "default": "m3u8"
+	    },
     "m3u_url": {
       "type": "string",
       "format": "uri"
@@ -234,6 +239,10 @@ func GlobalConfigSchema() []*ConfigSchema {
 			{Key: "base_url", Label: "Server URL", Description: "Required for Xtream Codes. Use the provider base URL, not the full player_api.php URL.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://provider.example.com"},
 			{Key: "username", Label: "Username", Description: "Required for Xtream Codes.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT},
 			{Key: "password", Label: "Password", Description: "Required for Xtream Codes and stored as a Silo plugin secret.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_PASSWORD, Secret: true},
+			{Key: "live_stream_format", Label: "Live Stream Format", Description: "HLS is recommended for browser playback. Choose MPEG-TS only when your Xtream provider does not offer HLS.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_SELECT, DefaultValue: structpb.NewStringValue("m3u8"), Options: []*pluginv1.AdminFormOption{
+				{Value: "m3u8", Label: "HLS (.m3u8)", Description: "Recommended browser-compatible Xtream output."},
+				{Value: "ts", Label: "MPEG-TS (.ts)", Description: "Provider compatibility fallback."},
+			}},
 			{Key: "m3u_url", Label: "M3U Playlist URL", Description: "Required only for M3U + XMLTV.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://provider.example.com/playlist.m3u"},
 			{Key: "epg_xml_url", Label: "XMLTV URL", Description: "Required only for M3U + XMLTV.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_TEXT, Placeholder: "https://provider.example.com/guide.xml"},
 		}, "Save Xtreme Codes for Silo settings"),

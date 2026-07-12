@@ -618,10 +618,11 @@ func (s *HTTPRoutesServer) startBackgroundGuideWarm(settings config.Settings) (b
 
 func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
 	snapshot := s.store.Current()
+	streamFormat := s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)
 	return AppPayload{
 		Status:       s.healthPayload(),
 		Source:       snapshot.Catalog.Source,
-		Channels:     publicChannels(snapshot.Catalog.Channels),
+		Channels:     publicChannels(snapshot.Catalog.Channels, streamFormat),
 		Categories:   liveCategories(snapshot),
 		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode),
 	}
@@ -641,7 +642,7 @@ func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {
 	snapshot := s.store.Current()
 	return ChannelsPayload{
 		SourceName: snapshot.Catalog.Source.Name,
-		Channels:   publicChannels(snapshot.Catalog.Channels),
+		Channels:   publicChannels(snapshot.Catalog.Channels, s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)),
 		Categories: liveCategories(snapshot),
 	}
 }
@@ -667,9 +668,23 @@ func (s *HTTPRoutesServer) vodPayload() ContentPayload {
 	}
 }
 
-func publicChannels(channels []model.Channel) []PublicChannel {
+func (s *HTTPRoutesServer) xtreamLiveStreamFormat(sourceMode model.SourceMode) string {
+	if sourceMode != model.SourceModeXtream || s.settingsProvider == nil {
+		return ""
+	}
+	if s.settingsProvider().EffectiveXtreamLiveFormat() == "m3u8" {
+		return "hls"
+	}
+	return "mpegts"
+}
+
+func publicChannels(channels []model.Channel, xtreamFormat string) []PublicChannel {
 	result := make([]PublicChannel, 0, len(channels))
 	for _, channel := range channels {
+		streamFormat := publicStreamFormat(channel.StreamURL)
+		if streamFormat == "" && strings.HasPrefix(channel.ID, "xtream:") {
+			streamFormat = xtreamFormat
+		}
 		result = append(result, PublicChannel{
 			ID:           channel.ID,
 			SourceID:     channel.SourceID,
@@ -680,7 +695,7 @@ func publicChannels(channels []model.Channel) []PublicChannel {
 			CategoryID:   channel.CategoryID,
 			CategoryName: channel.CategoryName,
 			ProfileIDs:   append([]string(nil), channel.ProfileIDs...),
-			StreamFormat: publicStreamFormat(channel.StreamURL),
+			StreamFormat: streamFormat,
 			Catchup:      channel.Catchup,
 			CatchupMins:  channel.CatchupMins,
 		})
@@ -1138,7 +1153,7 @@ func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
 			settings := s.settingsProvider()
 			baseURL, username, password := xtreamConnectionSettings(settings)
 			client := xtream.NewClient(baseURL, username, password)
-			streamURL := client.ResolveLiveStreamURL(streamID)
+			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, settings.EffectiveXtreamLiveFormat())
 			if strings.TrimSpace(streamURL) == "" {
 				return "", fmt.Errorf("unable to resolve stream url")
 			}
