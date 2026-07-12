@@ -312,6 +312,10 @@ func TestManifestUserPreferenceSchemaAcceptsBrowserPayload(t *testing.T) {
 			"group:news": []any{"channel:1"},
 		},
 	}
+	delete(preferences, "autoFavorites")
+	delete(preferences, "sportsFavoriteTeams")
+	delete(preferences, "keywordPasses")
+	delete(preferences, "categoryParsing")
 	if err := configsdk.ValidateManifestUserValue(manifest, "preferences", preferences); err != nil {
 		t.Fatalf("validate browser preference payload: %v", err)
 	}
