@@ -16,13 +16,19 @@ type SeriesCategory struct {
 }
 
 type LiveStream struct {
-	Num          int    `json:"num"`
-	Name         string `json:"name"`
-	StreamType   string `json:"stream_type"`
-	StreamID     int64  `json:"stream_id"`
-	StreamIcon   string `json:"stream_icon"`
-	EPGChannelID string `json:"epg_channel_id"`
-	CategoryID   string `json:"category_id"`
+	Num                      int    `json:"num"`
+	Name                     string `json:"name"`
+	StreamType               string `json:"stream_type"`
+	StreamID                 int64  `json:"stream_id"`
+	StreamIcon               string `json:"stream_icon"`
+	EPGChannelID             string `json:"epg_channel_id"`
+	CategoryID               string `json:"category_id"`
+	TVArchive                int    `json:"tv_archive"`
+	TVArchiveDurationMinutes int    `json:"tv_archive_duration"`
+}
+
+func (stream LiveStream) CatchupAvailable() bool {
+	return stream.TVArchive == 1 && stream.TVArchiveDurationMinutes > 0
 }
 
 type VODStream struct {
@@ -47,6 +53,23 @@ type Series struct {
 	ReleaseDate string `json:"releaseDate"`
 	Rating      string `json:"rating"`
 	CategoryID  string `json:"category_id"`
+}
+
+type SeriesInfo struct {
+	Info     SeriesInfoMetadata
+	Episodes []EpisodeInfo
+}
+
+type SeriesInfoMetadata struct {
+	Name string `json:"name"`
+}
+
+type EpisodeInfo struct {
+	ID                 int64  `json:"id,string"`
+	EpisodeNumber      int    `json:"episode_num"`
+	Title              string `json:"title"`
+	ContainerExtension string `json:"container_extension"`
+	SeasonNumber       int    `json:"-"`
 }
 
 type EPGListing struct {

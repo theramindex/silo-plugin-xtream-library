@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -82,6 +83,32 @@ func (c *Client) Series(ctx context.Context) ([]Series, error) {
 	return series, nil
 }
 
+func (c *Client) SeriesInfo(ctx context.Context, seriesID int64) (SeriesInfo, error) {
+	var response struct {
+		Info     SeriesInfoMetadata       `json:"info"`
+		Episodes map[string][]EpisodeInfo `json:"episodes"`
+	}
+	params := map[string]string{"series_id": strconv.FormatInt(seriesID, 10)}
+	if err := c.getJSON(ctx, "get_series_info", params, &response); err != nil {
+		return SeriesInfo{}, err
+	}
+	result := SeriesInfo{Info: response.Info}
+	for season, episodes := range response.Episodes {
+		seasonNumber, _ := strconv.Atoi(season)
+		for index := range episodes {
+			episodes[index].SeasonNumber = seasonNumber
+		}
+		result.Episodes = append(result.Episodes, episodes...)
+	}
+	sort.Slice(result.Episodes, func(left, right int) bool {
+		if result.Episodes[left].SeasonNumber != result.Episodes[right].SeasonNumber {
+			return result.Episodes[left].SeasonNumber < result.Episodes[right].SeasonNumber
+		}
+		return result.Episodes[left].EpisodeNumber < result.Episodes[right].EpisodeNumber
+	})
+	return result, nil
+}
+
 func (c *Client) ShortEPG(ctx context.Context, streamID int64) (ShortEPGResponse, error) {
 	var response ShortEPGResponse
 	params := map[string]string{"stream_id": strconv.FormatInt(streamID, 10)}
@@ -110,6 +137,38 @@ func (c *Client) ResolveVODStreamURL(streamID int64, extension string) string {
 		extension = "mp4"
 	}
 	resolved.Path = path.Join(resolved.Path, "movie", c.username, c.password, strconv.FormatInt(streamID, 10)+"."+extension)
+	return resolved.String()
+}
+
+func (c *Client) ResolveEpisodeStreamURL(episode EpisodeInfo) string {
+	return c.resolveMediaURL("series", episode.ID, episode.ContainerExtension)
+}
+
+func (c *Client) ResolveCatchupStreamURL(streamID int64, durationMinutes int, start string) string {
+	if durationMinutes <= 0 || strings.TrimSpace(start) == "" {
+		return ""
+	}
+	resolved, err := url.Parse(c.baseURL)
+	if err != nil {
+		return ""
+	}
+	resolved.Path = path.Join(resolved.Path, "timeshift", c.username, c.password, strconv.Itoa(durationMinutes), start, strconv.FormatInt(streamID, 10)+".ts")
+	return resolved.String()
+}
+
+func (c *Client) resolveMediaURL(kind string, streamID int64, extension string) string {
+	if streamID <= 0 {
+		return ""
+	}
+	resolved, err := url.Parse(c.baseURL)
+	if err != nil {
+		return ""
+	}
+	extension = strings.TrimPrefix(strings.TrimSpace(extension), ".")
+	if extension == "" {
+		extension = "mp4"
+	}
+	resolved.Path = path.Join(resolved.Path, kind, c.username, c.password, strconv.FormatInt(streamID, 10)+"."+extension)
 	return resolved.String()
 }
 

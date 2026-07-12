@@ -6,7 +6,9 @@
     "stream_id": 1001,
     "stream_icon": "https://dispatcharr.example.com/logos/news.png",
     "epg_channel_id": "news.hd",
-    "category_id": "10"
+    "category_id": "10",
+    "tv_archive": 1,
+    "tv_archive_duration": 60
   },
   {
     "num": 2,

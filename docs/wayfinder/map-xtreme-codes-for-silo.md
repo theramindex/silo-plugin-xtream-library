@@ -25,6 +25,7 @@ four-tile multiview.
 <!-- Closed child issues are indexed here as they resolve. -->
 
 - [Verify the Silo SDK contract for Xtreme Codes routes and playback](ticket-verify-silo-sdk-contract.md) — v0.8.1 exposes finite request/response payloads but no typed viewer identity or streaming body.
+- [Verify Xtream and M3U/XMLTV catalog and provider catch-up contracts](ticket-verify-source-contracts.md) — Xtream provider IDs drive the full catalog and Catch-up; M3U/XMLTV is a reduced Live TV/guide source.
 
 ## Not yet specified
 

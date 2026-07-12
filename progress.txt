@@ -1,3 +1,7 @@
 [2026-07-11 00:00] Feature: Verify and codify the Silo SDK capability contract
 Status: Complete
 Notes: Route requests have no typed trusted viewer identity and responses have finite byte bodies; do not build a server proxy or per-user stream enforcement into v1.
+
+[2026-07-11 00:00] Feature: Verify Xtream and M3U/XMLTV source contracts
+Status: Complete
+Notes: Series info is normalized into ordered episodes; provider Catch-up requires archive metadata and M3U/XMLTV remains a reduced source.

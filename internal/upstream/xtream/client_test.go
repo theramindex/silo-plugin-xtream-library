@@ -25,6 +25,9 @@ func TestClientConnectionAndCatalogFetch(t *testing.T) {
 	if len(channels) != 2 {
 		t.Fatalf("expected 2 channels, got %d", len(channels))
 	}
+	if !channels[0].CatchupAvailable() || channels[0].TVArchiveDurationMinutes != 60 {
+		t.Fatalf("expected provider catchup metadata, got %+v", channels[0])
+	}
 }
 
 func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
@@ -50,12 +53,35 @@ func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
 	}
 }
 
+func TestClientSeriesEpisodesAndCatchupResolution(t *testing.T) {
+	t.Parallel()
+
+	server := newFixtureServer(t)
+	client := NewClient(server.URL, "demo", "secret")
+
+	series, err := client.SeriesInfo(t.Context(), 501)
+	if err != nil {
+		t.Fatalf("load series info: %v", err)
+	}
+	if len(series.Episodes) != 2 || series.Episodes[0].ID != 9001 || series.Episodes[0].SeasonNumber != 1 {
+		t.Fatalf("unexpected series episodes: %+v", series.Episodes)
+	}
+
+	if resolved := client.ResolveEpisodeStreamURL(series.Episodes[0]); resolved != server.URL+"/series/demo/secret/9001.mkv" {
+		t.Fatalf("unexpected episode url %q", resolved)
+	}
+	if resolved := client.ResolveCatchupStreamURL(1001, 60, "2026-07-11:20-30"); resolved != server.URL+"/timeshift/demo/secret/60/2026-07-11:20-30/1001.ts" {
+		t.Fatalf("unexpected catchup url %q", resolved)
+	}
+}
+
 func newFixtureServer(t *testing.T) *httptest.Server {
 	t.Helper()
 
 	liveCategories := readFixture(t, "live_categories.json")
 	liveStreams := readFixture(t, "live_streams.json")
 	shortEPG := readFixture(t, "short_epg.json")
+	seriesInfo := readFixture(t, "series_info.json")
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/player_api.php" {
@@ -68,6 +94,9 @@ func newFixtureServer(t *testing.T) *httptest.Server {
 				return
 			case "get_short_epg":
 				_, _ = w.Write(shortEPG)
+				return
+			case "get_series_info":
+				_, _ = w.Write(seriesInfo)
 				return
 			}
 		}
