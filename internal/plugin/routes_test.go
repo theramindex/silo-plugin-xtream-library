@@ -79,6 +79,26 @@ func TestHTTPRoutesServerSupportsXtreamPublicNamespace(t *testing.T) {
 	}
 }
 
+func TestXtreamPublicNamespaceRejectsRetiredDispatcharrFeatures(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServer(cache.NewStore())
+	for _, path := range []string{
+		"/xtream/api/recordings",
+		"/xtream/api/sports",
+		"/xtream/api/events",
+		"/xtream/api/timeshift/start",
+	} {
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: path})
+		if err != nil {
+			t.Fatalf("handle retired route %s: %v", path, err)
+		}
+		if response.GetStatusCode() != http.StatusNotFound {
+			t.Fatalf("expected retired route %s to be unavailable, got %d", path, response.GetStatusCode())
+		}
+	}
+}
+
 func TestXtreamPublicAppPayloadRedactsStreamTargets(t *testing.T) {
 	t.Parallel()
 
