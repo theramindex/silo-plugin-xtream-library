@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
 	goruntime "runtime"
@@ -56,18 +55,6 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 		switch entry.GetKey() {
 		case "connection":
 			applyConnectionConfig(&current, values)
-		case "general":
-			applyLegacyGeneralConfig(&current, values)
-		case "dispatcharr":
-			applyDispatcharrConfig(&current, values)
-		case "xtream":
-			applyXtreamConfig(&current, values)
-		case "m3u_xmltv":
-			applyM3UConfig(&current, values)
-		case "category_settings":
-			if encoded, err := json.Marshal(values); err == nil {
-				current.AdminSettings = encoded
-			}
 		}
 	}
 	if current.ChannelRefreshH == 0 {
@@ -82,7 +69,6 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 
 func applyConnectionConfig(settings *config.Settings, values map[string]any) {
 	applySourceMode(settings, values)
-	applyDispatcharrConfig(settings, values)
 	applyFirstPresentString(&settings.XtreamBaseURL, values, "xtream_base_url", "base_url")
 	applyFirstPresentString(&settings.XtreamUsername, values, "xtream_username", "username")
 	applyFirstPresentString(&settings.XtreamPassword, values, "xtream_password", "password")
@@ -93,11 +79,6 @@ func applyConnectionConfig(settings *config.Settings, values map[string]any) {
 	}
 }
 
-func applyLegacyGeneralConfig(settings *config.Settings, values map[string]any) {
-	applySourceMode(settings, values)
-	applyLegacyScheduleConfig(settings, values)
-}
-
 func applySourceMode(settings *config.Settings, values map[string]any) {
 	if value, ok := values["source_mode"].(string); ok {
 		switch config.SourceMode(value) {
@@ -105,20 +86,6 @@ func applySourceMode(settings *config.Settings, values map[string]any) {
 			settings.SourceMode = config.SourceMode(value)
 		}
 	}
-}
-
-func applyDispatcharrConfig(settings *config.Settings, values map[string]any) {
-	applyStringIfPresent(&settings.DispatcharrURL, values, "base_url")
-	applyStringIfPresent(&settings.DispatcharrUser, values, "username")
-	applyStringIfPresent(&settings.DispatcharrPass, values, "password")
-	applyStringIfPresent(&settings.DispatcharrAPIKey, values, "api_key")
-	applyStringIfPresent(&settings.ChannelProfile, values, "channel_profile")
-}
-
-func applyXtreamConfig(settings *config.Settings, values map[string]any) {
-	applyStringIfPresent(&settings.XtreamBaseURL, values, "base_url")
-	applyStringIfPresent(&settings.XtreamUsername, values, "username")
-	applyStringIfPresent(&settings.XtreamPassword, values, "password")
 }
 
 func applyM3UConfig(settings *config.Settings, values map[string]any) {

@@ -29,3 +29,7 @@ Notes: The Xtreme namespace returns 404 for recordings, sports, events, and loca
 [2026-07-12 03:10] Feature: Establish Xtreme module identity
 Status: Complete
 Notes: The Go module and all in-repository imports now resolve through the standalone Xtreme repository path.
+
+[2026-07-12 03:20] Feature: Restrict runtime configuration to Xtreme sources
+Status: Complete
+Notes: Runtime configuration ignores inherited Dispatcharr and category entries; only the documented standalone connection object is applied.
