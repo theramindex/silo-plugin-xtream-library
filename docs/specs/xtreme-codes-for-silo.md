@@ -180,6 +180,8 @@ features are excluded.
 - Complete: the manifest and browser client expose the standalone `/xtream`
   namespace; a handler adapter keeps existing implementation routes reachable
   while later features remove inherited behavior.
+- Complete: Live TV, guide responses, and provider-bound playback are available
+  through the Xtreme namespace; normal Catalog payloads redact provider targets.
 
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.

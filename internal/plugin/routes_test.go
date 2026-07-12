@@ -2427,7 +2427,7 @@ func TestHTTPRoutesServerStreamM3URoute(t *testing.T) {
 	server := NewHTTPRoutesServer(store)
 	query, _ := structpb.NewStruct(map[string]any{"channel_id": "m3u:news.hd"})
 
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/stream", Query: query})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/xtream/stream", Query: query})
 	if err != nil {
 		t.Fatalf("stream route: %v", err)
 	}
