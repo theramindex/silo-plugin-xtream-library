@@ -1,13 +1,13 @@
 const path = window.location.pathname;
-const base = path.endsWith("/dispatcharr/player") ? path.slice(0, -"/dispatcharr/player".length) : (path.endsWith("/dispatcharr/admin") ? path.slice(0, -"/dispatcharr/admin".length) : (path.endsWith("/dispatcharr") ? path.slice(0, -"/dispatcharr".length) : ""));
-const isAdminRoute = path.endsWith("/dispatcharr/admin");
+const base = path.endsWith("/xtream/player") ? path.slice(0, -"/xtream/player".length) : (path.endsWith("/xtream/admin") ? path.slice(0, -"/xtream/admin".length) : (path.endsWith("/xtream") ? path.slice(0, -"/xtream".length) : ""));
+const isAdminRoute = path.endsWith("/xtream/admin");
 const adminSettingsKey = "adminCategorySettings";
 const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
 const localCacheSuffix = pluginInstallationID || "default";
-const appCacheKey = "silo.ramindex.dispatcharr.appSnapshot.v1." + localCacheSuffix;
-const assetVersionMeta = document.querySelector('meta[name="dispatcharr-asset-version"]');
+const appCacheKey = "silo.ramindex.xtream.appSnapshot.v1." + localCacheSuffix;
+const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
-const assetPrefix = path.endsWith("/dispatcharr") ? "dispatcharr/assets" : "assets";
+const assetPrefix = path.endsWith("/xtream") ? "xtream/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
@@ -18,7 +18,7 @@ function applySiloTheme() {
 
 applySiloTheme();
 
-function route(url) { return base + url; }
+function route(url) { return base + String(url || "").replace(/^\/dispatcharr(?=\/|$)/, "/xtream"); }
 function assetURL(filename) {
   return assetPrefix + "/" + filename + (assetVersion ? "?v=" + encodeURIComponent(assetVersion) : "");
 }

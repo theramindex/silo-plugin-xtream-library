@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -49,6 +50,29 @@ func TestManifestIdentifiesStandaloneXtremeCodesPlugin(t *testing.T) {
 	}
 	if displayName, _ := manifest.GetMetadata().AsMap()["display_name"].(string); displayName != "Xtreme Codes for Silo" {
 		t.Fatalf("expected standalone display name, got %q", displayName)
+	}
+}
+
+func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	for _, route := range manifest.GetHttpRoutes() {
+		if strings.HasPrefix(route.GetPath(), "/dispatcharr") {
+			t.Fatalf("manifest exposes legacy public route %q", route.GetPath())
+		}
+	}
+	for _, expected := range []string{"/xtream", "/xtream/api/app", "/xtream/assets/app.js"} {
+		found := false
+		for _, route := range manifest.GetHttpRoutes() {
+			found = found || route.GetPath() == expected
+		}
+		if !found {
+			t.Fatalf("manifest is missing public Xtreme route %q", expected)
+		}
 	}
 }
 
@@ -295,7 +319,7 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 	}
 
 	for _, route := range manifest.GetHttpRoutes() {
-		if route.GetPath() != "/dispatcharr/admin" {
+		if route.GetPath() != "/xtream/admin" {
 			continue
 		}
 		if !route.GetNavigable() || route.GetNavigationKind() != "admin" || route.GetNavigationLabel() != "Live TV Admin" || route.GetAccess() != "admin" {
@@ -303,7 +327,7 @@ func TestManifestExposesAdminNavigationRoute(t *testing.T) {
 		}
 		return
 	}
-	t.Fatalf("expected manifest to expose /dispatcharr/admin as a navigable admin route")
+	t.Fatalf("expected manifest to expose /xtream/admin as a navigable admin route")
 }
 
 func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
@@ -316,7 +340,7 @@ func TestManifestExposesAdminSettingsAPIRoutes(t *testing.T) {
 
 	found := map[string]bool{}
 	for _, route := range manifest.GetHttpRoutes() {
-		if route.GetPath() != "/dispatcharr/api/admin-settings" {
+		if route.GetPath() != "/xtream/api/admin-settings" {
 			continue
 		}
 		expectedAccess := "authenticated"

@@ -5,3 +5,7 @@ Notes: Route requests have no typed trusted viewer identity and responses have f
 [2026-07-11 00:00] Feature: Verify Xtream and M3U/XMLTV source contracts
 Status: Complete
 Notes: Series info is normalized into ordered episodes; provider Catch-up requires archive metadata and M3U/XMLTV remains a reduced source.
+
+[2026-07-12 02:10] Feature: Deliver standalone Xtreme app shell and public routes
+Status: Complete
+Notes: The manifest and browser app use `/xtream`; keep the internal path adapter only until the remaining Dispatcharr handlers are removed.
