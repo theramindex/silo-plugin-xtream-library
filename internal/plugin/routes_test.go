@@ -79,6 +79,23 @@ func TestHTTPRoutesServerSupportsXtreamPublicNamespace(t *testing.T) {
 	}
 }
 
+func TestXtreamPublicAppPayloadRedactsStreamTargets(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:1", Name: "News", StreamURL: "https://provider.example/live/demo/secret/1.ts"}}}})
+	response, err := NewHTTPRoutesServer(store).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/app"})
+	if err != nil {
+		t.Fatalf("handle xtream app route: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected app route success, got %d", response.GetStatusCode())
+	}
+	if strings.Contains(string(response.GetBody()), "provider.example") || strings.Contains(string(response.GetBody()), "secret") {
+		t.Fatalf("app payload exposed a provider target: %s", response.GetBody())
+	}
+}
+
 func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	t.Parallel()
 
