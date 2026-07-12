@@ -24,6 +24,8 @@ four-tile multiview.
 
 <!-- Closed child issues are indexed here as they resolve. -->
 
+- [Verify the Silo SDK contract for Xtreme Codes routes and playback](ticket-verify-silo-sdk-contract.md) — v0.8.1 exposes finite request/response payloads but no typed viewer identity or streaming body.
+
 ## Not yet specified
 
 - Silo SDK's verified capabilities for authenticated identity, response
