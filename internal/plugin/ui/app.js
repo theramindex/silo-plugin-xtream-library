@@ -2814,8 +2814,7 @@ function renderVirtualCategoryViewToggle() {
 function renderVirtualCategoryChannelList(channels) {
   if (!channels.length) return sectionHeader("Channels") + "<div class=\"empty\">No channels in this virtual group yet.</div>";
   return sectionHeader("Channels") + "<div class=\"channel-button-list\">" + channels.map(function(channel) {
-    const program = currentProgram(channel) || {};
-    const subtitle = program.title || channel.categoryName || "Live TV";
+    const subtitle = channelProgramSubtitle(channel);
     return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(subtitle) + "</span></span></button>";
   }).join("") + "</div>";
 }
@@ -2898,12 +2897,10 @@ function categoryBrowserHeader(title) {
 function renderCategoryBrowserChannels(channels) {
   if (!channels.length) return emptyStateHTML("No channels in this category.", "Try a different filter or refresh the source.");
   if (state.categoryBrowseView === "list") return "<div class=\"channel-button-list\">" + channels.map(function(channel) {
-    const program = currentProgram(channel) || {};
-    return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(program.title || channel.categoryName || "Live TV") + "</span></span></button>";
+    return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(channelProgramSubtitle(channel)) + "</span></span></button>";
   }).join("") + "</div>";
   return "<div class=\"category-channel-grid\">" + channels.map(function(channel) {
-    const program = currentProgram(channel) || {};
-    return "<button class=\"category-channel-card\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(program.title || "Live channel") + "</span></button>";
+    return "<button class=\"category-channel-card\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(channelProgramSubtitle(channel)) + "</span></button>";
   }).join("") + "</div>";
 }
 function recordingCustom(recording) {
@@ -3178,6 +3175,12 @@ function currentProgram(channel) {
   return programsFor(channel.id).find(function(program) {
     return (!program.startUnix || program.startUnix <= now + 600) && (!program.endUnix || program.endUnix >= now);
   }) || programsFor(channel.id)[0] || null;
+}
+function channelProgramSubtitle(channel) {
+  const program = currentProgram(channel) || {};
+  const title = String(program.title || "").trim();
+  const channelName = String(channel && channel.name || "").trim();
+  return title && lower(title) !== lower(channelName) ? title : "Live channel";
 }
 function liveProgram(channel) {
   if (!channel) return null;
