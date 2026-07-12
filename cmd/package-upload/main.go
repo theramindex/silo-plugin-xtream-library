@@ -25,7 +25,7 @@ func main() {
 		version    = flag.String("version", "", "plugin version to set in manifest")
 		goos       = flag.String("goos", "linux", "target os")
 		goarch     = flag.String("goarch", "amd64", "target arch")
-		pluginID   = flag.String("plugin-id", "silo.ramindex.dispatcharr", "plugin_id value")
+		pluginID   = flag.String("plugin-id", "silo.ramindex.xtream", "plugin_id value")
 	)
 	flag.Parse()
 
