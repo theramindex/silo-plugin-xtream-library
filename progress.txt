@@ -41,3 +41,7 @@ Notes: The local buffer manager and all timeshift routes were deleted; provider 
 [2026-07-12 03:40] Feature: Remove Dispatcharr sports and event discovery
 Status: Complete
 Notes: Sports/event providers, matching logic, route handlers, and tests are removed; the public Xtreme namespace remains limited to supported media features.
+
+[2026-07-12 03:50] Feature: Remove runtime catalog persistence
+Status: Complete
+Notes: Startup no longer loads or passes an on-disk catalog snapshot, so the running plugin uses a disposable in-memory catalog only.
