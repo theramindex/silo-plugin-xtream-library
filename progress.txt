@@ -37,3 +37,7 @@ Notes: Runtime configuration ignores inherited Dispatcharr and category entries;
 [2026-07-12 03:30] Feature: Remove inherited local-timeshift implementation
 Status: Complete
 Notes: The local buffer manager and all timeshift routes were deleted; provider Catch-up remains the supported replay feature.
+
+[2026-07-12 03:40] Feature: Remove Dispatcharr sports and event discovery
+Status: Complete
+Notes: Sports/event providers, matching logic, route handlers, and tests are removed; the public Xtreme namespace remains limited to supported media features.

@@ -44,9 +44,6 @@ type HTTPRoutesServer struct {
 	refreshMu           sync.Mutex
 	guideWarmLastUnix   int64
 	profileWarmLastUnix int64
-	sportsProvider      sportsProvider
-	sportsCache         sportsEventCache
-	sportsMu            sync.Mutex
 }
 
 type catalogSyncer interface {
@@ -87,7 +84,7 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sportsProvider: newESPNSportsProvider(&http.Client{Timeout: 8 * time.Second})}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -272,14 +269,6 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return s.handleScheduleRecording(ctx, request)
 		}
 		return s.handleRecordings(ctx)
-	case "/dispatcharr/api/sports":
-		s.ensureCatalogHydrated(ctx)
-		return s.handleSports(ctx, request)
-	case "/dispatcharr/api/sports/favorites":
-		return s.handleSportsFavorite(request)
-	case "/dispatcharr/api/events":
-		s.ensureCatalogHydrated(ctx)
-		return s.handleEvents(ctx, request)
 	case "/dispatcharr/api/preferences":
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":

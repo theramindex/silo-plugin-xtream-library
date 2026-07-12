@@ -187,6 +187,8 @@ features are excluded.
   entries cannot activate or change unsupported behavior.
 - Complete: the inherited local-timeshift manager, media endpoint, and route
   handlers are removed; Xtream provider Catch-up remains the only replay path.
+- Complete: Dispatcharr sports and event-discovery providers, matching logic,
+  route handlers, and tests are removed from the Xtreme plugin.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin
