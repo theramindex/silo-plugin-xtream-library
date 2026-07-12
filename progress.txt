@@ -1,0 +1,3 @@
+[2026-07-11 00:00] Feature: Verify and codify the Silo SDK capability contract
+Status: Complete
+Notes: Route requests have no typed trusted viewer identity and responses have finite byte bodies; do not build a server proxy or per-user stream enforcement into v1.

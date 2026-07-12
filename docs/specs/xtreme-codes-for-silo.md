@@ -170,6 +170,12 @@ features are excluded.
 
 ## Further Notes
 
+### Delivery status
+
+- Complete: the SDK capability contract is verified against SDK v0.8.1 and
+  encoded in a regression test. The contract rules out typed viewer identity
+  and streaming response bodies as v1 assumptions.
+
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.
 - Provider playback URLs may contain sensitive upstream credentials. Their

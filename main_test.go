@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"reflect"
+	"sort"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -49,6 +50,36 @@ func TestManifestIdentifiesStandaloneXtremeCodesPlugin(t *testing.T) {
 	if displayName, _ := manifest.GetMetadata().AsMap()["display_name"].(string); displayName != "Xtreme Codes for Silo" {
 		t.Fatalf("expected standalone display name, got %q", displayName)
 	}
+}
+
+func TestSDKHTTPRouteContractHasNoTypedViewerIdentityOrStreamingBody(t *testing.T) {
+	t.Parallel()
+
+	requestType := reflect.TypeOf(pluginv1.HandleHTTPRequest{})
+	requestFields := exportedFieldNames(requestType)
+	if !reflect.DeepEqual(requestFields, []string{"Body", "Headers", "Method", "Path", "Query"}) {
+		t.Fatalf("unexpected SDK request fields: %v", requestFields)
+	}
+
+	responseBody, ok := reflect.TypeOf(pluginv1.HandleHTTPResponse{}).FieldByName("Body")
+	if !ok {
+		t.Fatal("SDK HTTP response must expose a body field")
+	}
+	if responseBody.Type != reflect.TypeOf([]byte(nil)) {
+		t.Fatalf("expected finite []byte SDK response body, got %s", responseBody.Type)
+	}
+}
+
+func exportedFieldNames(typ reflect.Type) []string {
+	fields := make([]string, 0, typ.NumField())
+	for index := 0; index < typ.NumField(); index++ {
+		field := typ.Field(index)
+		if field.PkgPath == "" {
+			fields = append(fields, field.Name)
+		}
+	}
+	sort.Strings(fields)
+	return fields
 }
 
 func TestRuntimeConfigurePreservesSecretsOmittedByHost(t *testing.T) {
