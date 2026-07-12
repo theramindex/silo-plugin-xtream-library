@@ -1,0 +1,282 @@
+{
+  "plugin_id": "silo.ramindex.xtream",
+  "version": "0.3.14",
+  "checksum": "__CHECKSUM__",
+  "silo_api_version": "v1",
+  "supported_platforms": [
+    {
+      "os": "darwin",
+      "arch": "arm64"
+    },
+    {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    {
+      "os": "linux",
+      "arch": "arm64"
+    }
+  ],
+  "capabilities": [
+    {
+      "type": "scheduled_task.v1",
+      "id": "dispatcharr-sync",
+      "display_name": "Xtreme Codes for Silo",
+      "description": "Xtream-first IPTV app with Live TV, guide, VOD catalog, and series catalog routes."
+    },
+    {
+      "type": "scheduled_task.v1",
+      "id": "dispatcharr-refresh-channels",
+      "display_name": "Refresh Live TV Channels",
+      "description": "Refreshes Dispatcharr channel and group metadata."
+    },
+    {
+      "type": "scheduled_task.v1",
+      "id": "dispatcharr-refresh-epg",
+      "display_name": "Refresh Live TV Guide",
+      "description": "Purges stale guide data and refreshes Dispatcharr EPG programs."
+    },
+    {
+      "type": "http_routes.v1",
+      "id": "dispatcharr-routes",
+      "display_name": "Live TV App",
+      "description": "Serves the Dispatcharr IPTV app, API, and playback routes."
+    }
+  ],
+  "http_routes": [
+    {
+      "id": "dispatcharr-app",
+      "method": "GET",
+      "path": "/dispatcharr",
+      "access": "authenticated",
+      "navigable": true,
+      "navigation_label": "Live TV",
+      "navigation_kind": "user"
+    },
+    {
+      "id": "dispatcharr-admin",
+      "method": "GET",
+      "path": "/dispatcharr/admin",
+      "access": "admin",
+      "navigable": true,
+      "navigation_label": "Live TV Admin",
+      "navigation_kind": "admin"
+    },
+    {
+      "id": "dispatcharr-status",
+      "method": "GET",
+      "path": "/dispatcharr/status",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-player",
+      "method": "GET",
+      "path": "/dispatcharr/player",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-hls",
+      "method": "GET",
+      "path": "/dispatcharr/assets/hls.min.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-mpegts",
+      "method": "GET",
+      "path": "/dispatcharr/assets/mpegts.min.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-app-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/app.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-lineup-js",
+      "method": "GET",
+      "path": "/dispatcharr/assets/lineup.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-app-css",
+      "method": "GET",
+      "path": "/dispatcharr/assets/app.css",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-channels",
+      "method": "GET",
+      "path": "/dispatcharr/channels",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-guide",
+      "method": "GET",
+      "path": "/dispatcharr/guide",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-stream",
+      "method": "GET",
+      "path": "/dispatcharr/stream",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-vod-stream",
+      "method": "GET",
+      "path": "/dispatcharr/vod/stream",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-app",
+      "method": "GET",
+      "path": "/dispatcharr/api/app",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-status",
+      "method": "GET",
+      "path": "/dispatcharr/api/status",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-refresh",
+      "method": "POST",
+      "path": "/dispatcharr/api/refresh",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-refresh-channels",
+      "method": "POST",
+      "path": "/dispatcharr/api/refresh-channels",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-channels",
+      "method": "GET",
+      "path": "/dispatcharr/api/channels",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-guide",
+      "method": "GET",
+      "path": "/dispatcharr/api/guide",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-categories",
+      "method": "GET",
+      "path": "/dispatcharr/api/categories",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-vod",
+      "method": "GET",
+      "path": "/dispatcharr/api/vod",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-series",
+      "method": "GET",
+      "path": "/dispatcharr/api/series",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-recordings",
+      "method": "GET",
+      "path": "/dispatcharr/api/recordings",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-recordings-capability",
+      "method": "GET",
+      "path": "/dispatcharr/api/recordings/capability",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-recordings-schedule",
+      "method": "POST",
+      "path": "/dispatcharr/api/recordings",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-events",
+      "method": "GET",
+      "path": "/dispatcharr/api/events",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-admin-settings",
+      "method": "GET",
+      "path": "/dispatcharr/api/admin-settings",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-admin-settings-update",
+      "method": "POST",
+      "path": "/dispatcharr/api/admin-settings",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-watch-start",
+      "method": "POST",
+      "path": "/dispatcharr/api/watch/start",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-watch-heartbeat",
+      "method": "POST",
+      "path": "/dispatcharr/api/watch/heartbeat",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-watch-stop",
+      "method": "POST",
+      "path": "/dispatcharr/api/watch/stop",
+      "access": "authenticated",
+      "navigable": false
+    }
+  ],
+  "metadata": {
+    "display_name": "Xtreme Codes for Silo",
+    "summary": "Silo-hosted Xtream-first IPTV app with Live TV, guide, VOD, and series routes.",
+    "jellyfin_api_integration": false
+  },
+  "category": "Video/Live TV"
+}

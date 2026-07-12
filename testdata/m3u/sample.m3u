@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="news.hd" tvg-logo="https://dispatcharr.example.com/logos/news.png",News HD
+https://dispatcharr.example.com/live/news-hd.m3u8
+#EXTINF:-1 tvg-id="sports.central" tvg-logo="https://dispatcharr.example.com/logos/sports.png",Sports Central
+https://dispatcharr.example.com/live/sports-central.m3u8

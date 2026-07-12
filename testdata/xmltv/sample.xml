@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv>
+  <channel id="news.hd">
+    <display-name>News HD</display-name>
+  </channel>
+  <programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="news.hd">
+    <title>Morning News</title>
+    <desc>Top headlines and weather.</desc>
+  </programme>
+</tv>
