@@ -45,3 +45,7 @@ Notes: Sports/event providers, matching logic, route handlers, and tests are rem
 [2026-07-12 03:50] Feature: Remove runtime catalog persistence
 Status: Complete
 Notes: Startup no longer loads or passes an on-disk catalog snapshot, so the running plugin uses a disposable in-memory catalog only.
+
+[2026-07-12 04:00] Feature: Align scheduled Xtreme refresh tasks
+Status: Complete
+Notes: Scheduled task execution now accepts the same xtream-prefixed catalog, channel, and guide task identifiers advertised by the manifest.
