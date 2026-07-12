@@ -337,6 +337,58 @@ func TestPublicStreamFormatUsesUpstreamPathWithoutExposingIt(t *testing.T) {
 	}
 }
 
+func TestPlayerAppCoreRequestRefreshesExpiredSiloSession(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	appScriptPath := filepath.Join(dir, "app.js")
+	runnerPath := filepath.Join(dir, "runner.js")
+	if err := os.WriteFile(appScriptPath, []byte(playerAppJavaScript()), 0o600); err != nil {
+		t.Fatalf("write app script: %v", err)
+	}
+	nodeScript := fmt.Sprintf(`
+const fs = require("fs");
+const vm = require("vm");
+const source = fs.readFileSync(%q, "utf8").replace(/startGuideAutoRefresh\(\);[\s\S]*$/, "");
+const stored = { refresh_token: "stale-refresh" };
+const calls = [];
+function response(status, body) { return { ok: status >= 200 && status < 300, status, text: async () => body ? JSON.stringify(body) : "", json: async () => body || {} }; }
+const sandbox = {
+  window: { location: { pathname: "/api/v1/plugins/18/xtream", search: "" }, addEventListener: () => {}, innerHeight: 800, scrollY: 0 },
+  document: { documentElement: { dataset: {} }, body: {}, querySelectorAll: () => [], querySelector: () => null, getElementById: () => null, addEventListener: () => {}, contains: () => true },
+  localStorage: { getItem: (key) => stored[key] || null, setItem: (key, value) => { stored[key] = String(value); } },
+  sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} }, navigator: { sendBeacon: () => true }, console, URLSearchParams,
+  requestAnimationFrame: (callback) => { callback(); return 1; }, cancelAnimationFrame: () => {}, getComputedStyle: () => ({ getPropertyValue: () => "", fontSize: "16px" }), setTimeout, clearTimeout, setInterval, clearInterval,
+  fetch: async (url, options = {}) => { const auth = options.headers && (options.headers.Authorization || options.headers.authorization) || ""; calls.push({ url: String(url), auth }); if (String(url) === "/api/v1/auth/refresh") return response(200, { access_token: "fresh-access", refresh_token: "fresh-refresh" }); if (!auth) return response(401, { error: "unauthorized" }); return response(204); },
+};
+vm.createContext(sandbox); vm.runInContext(source, sandbox);
+(async () => { await vm.runInContext('corePutNoContent("/api/v1/settings/plugins/18", { values: {} })', sandbox); process.stdout.write(JSON.stringify({ calls, refreshToken: stored.refresh_token })); })().catch((error) => { console.error(error); process.exit(1); });
+`, appScriptPath)
+	if err := os.WriteFile(runnerPath, []byte(nodeScript), 0o600); err != nil {
+		t.Fatalf("write runner: %v", err)
+	}
+	output, err := exec.Command("node", runnerPath).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run core auth regression: %v\n%s", err, output)
+	}
+	var result struct {
+		Calls []struct {
+			URL  string `json:"url"`
+			Auth string `json:"auth"`
+		} `json:"calls"`
+		RefreshToken string `json:"refreshToken"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("decode core auth regression: %v\n%s", err, output)
+	}
+	if len(result.Calls) != 3 || result.Calls[0].Auth != "" || result.Calls[1].URL != "/api/v1/auth/refresh" || result.Calls[2].Auth != "Bearer fresh-access" {
+		t.Fatalf("expected protected request, token refresh, and authorized retry; got %+v", result.Calls)
+	}
+	if result.RefreshToken != "fresh-refresh" {
+		t.Fatalf("expected rotated refresh token, got %q", result.RefreshToken)
+	}
+}
+
 func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	t.Parallel()
 

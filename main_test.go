@@ -21,7 +21,7 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	server := &runtimeServer{settings: state}
 
 	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "live_tv_enabled": true})},
+		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "live_stream_format": "m3u8", "live_tv_enabled": true})},
 	}}
 
 	if _, err := server.Configure(context.Background(), req); err != nil {
@@ -34,6 +34,9 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	}
 	if settings.XtreamBaseURL == "" || settings.XtreamUsername == "" || settings.XtreamPassword == "" {
 		t.Fatalf("expected xtream connection to be loaded, got %+v", settings)
+	}
+	if settings.EffectiveXtreamLiveFormat() != "m3u8" {
+		t.Fatalf("expected HLS Xtream output to be loaded, got %q", settings.EffectiveXtreamLiveFormat())
 	}
 }
 

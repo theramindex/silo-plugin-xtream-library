@@ -33,6 +33,7 @@ type Settings struct {
 	XtreamBaseURL     string
 	XtreamUsername    string
 	XtreamPassword    string
+	XtreamLiveFormat  string
 	M3UURL            string
 	EPGXMLURL         string
 	LiveTVEnabled     bool
@@ -40,6 +41,13 @@ type Settings struct {
 	EPGRefreshH       int
 	ModeSwitchWarning string
 	AdminSettings     json.RawMessage
+}
+
+func (s Settings) EffectiveXtreamLiveFormat() string {
+	if strings.EqualFold(strings.TrimSpace(s.XtreamLiveFormat), "ts") {
+		return "ts"
+	}
+	return "m3u8"
 }
 
 func (s Settings) EffectiveSourceMode() SourceMode {

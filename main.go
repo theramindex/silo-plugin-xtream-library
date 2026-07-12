@@ -75,6 +75,7 @@ func applyConnectionConfig(settings *config.Settings, values map[string]any) {
 	applyFirstPresentString(&settings.XtreamBaseURL, values, "xtream_base_url", "base_url")
 	applyFirstPresentString(&settings.XtreamUsername, values, "xtream_username", "username")
 	applyFirstPresentString(&settings.XtreamPassword, values, "xtream_password", "password")
+	applyStringIfPresent(&settings.XtreamLiveFormat, values, "live_stream_format")
 	applyM3UConfig(settings, values)
 	applyLegacyScheduleConfig(settings, values)
 	if settings.SourceMode == "" {

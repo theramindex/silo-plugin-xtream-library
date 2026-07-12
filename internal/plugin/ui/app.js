@@ -660,13 +660,61 @@ async function postJSON(url, body) {
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
+let coreAccessToken = "";
+let coreRefreshPromise = null;
+function coreStoredValue(key) {
+  try { return localStorage.getItem(key) || ""; }
+  catch (_) { return ""; }
+}
+function coreStoreValue(key, value) {
+  try {
+    if (value) localStorage.setItem(key, value);
+  } catch (_) {}
+}
+function coreRequestOptions(options) {
+  const next = Object.assign({}, options || {});
+  const headers = Object.assign({}, next.headers || {});
+  if (coreAccessToken) headers.Authorization = "Bearer " + coreAccessToken;
+  const profileID = coreStoredValue("profile_id");
+  const profileToken = coreStoredValue("profile_token");
+  if (profileID) headers["X-Profile-Id"] = profileID;
+  if (profileToken) headers["X-Profile-Token"] = profileToken;
+  next.credentials = "include";
+  next.headers = headers;
+  return next;
+}
+async function refreshCoreSession() {
+  const refreshToken = coreStoredValue("refresh_token");
+  if (!refreshToken) return false;
+  const response = await fetch("/api/v1/auth/refresh", {
+    method: "POST",
+    credentials: "include",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken })
+  });
+  if (!response.ok) return false;
+  const payload = await response.json().catch(function() { return {}; });
+  if (!payload.access_token) return false;
+  coreAccessToken = String(payload.access_token);
+  if (payload.refresh_token) coreStoreValue("refresh_token", String(payload.refresh_token));
+  return true;
+}
+async function coreFetch(url, options) {
+  let response = await fetch(url, coreRequestOptions(options));
+  if (response.status !== 401) return response;
+  if (!coreRefreshPromise) {
+    coreRefreshPromise = refreshCoreSession().finally(function() { coreRefreshPromise = null; });
+  }
+  if (await coreRefreshPromise) response = await fetch(url, coreRequestOptions(options));
+  return response;
+}
 async function coreGetJSON(url) {
-  const response = await fetch(url, { credentials: "include" });
+  const response = await coreFetch(url);
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
 async function corePutNoContent(url, body) {
-  const response = await fetch(url, { method: "PUT", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await coreFetch(url, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw await requestError(response);
 }
 async function requestError(response) {

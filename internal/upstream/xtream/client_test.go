@@ -64,6 +64,12 @@ func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
 	if resolved != server.URL+"/live/demo/secret/1001.ts" {
 		t.Fatalf("unexpected resolved url %q", resolved)
 	}
+	if resolved := client.ResolveLiveStreamURLWithExtension(1001, "m3u8"); resolved != server.URL+"/live/demo/secret/1001.m3u8" {
+		t.Fatalf("unexpected HLS resolved url %q", resolved)
+	}
+	if resolved := client.ResolveLiveStreamURLWithExtension(1001, "unsupported"); resolved != server.URL+"/live/demo/secret/1001.ts" {
+		t.Fatalf("expected unsupported format to fall back to MPEG-TS, got %q", resolved)
+	}
 }
 
 func TestClientSeriesEpisodesAndCatchupResolution(t *testing.T) {
