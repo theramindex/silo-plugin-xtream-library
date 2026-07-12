@@ -3039,11 +3039,12 @@ function programDetailsModalHTML(details) {
   const channelName = channel.name || channel.categoryName || "Live TV";
   const tags = programDetailTags(program, channel);
   const canSchedule = recordingSchedulingEnabled() && end > Math.floor(Date.now() / 1000);
+	const canCatchup = !!(channel.catchup && Number(channel.catchupMinutes || 0) > 0 && end > start && end <= Math.floor(Date.now() / 1000));
   return "<div class=\"program-modal-backdrop\" data-program-modal-close=\"true\"></div><section class=\"program-modal\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"program-modal-title\" aria-describedby=\"program-modal-description\">"
     + "<button class=\"program-modal-close\" type=\"button\" data-program-modal-close=\"true\" aria-label=\"Close\">" + icon("x") + "</button>"
     + "<div class=\"program-modal-head\"><div class=\"program-modal-art\">" + logoHTML(channel) + "</div><div class=\"program-modal-title\"><h2 id=\"program-modal-title\">" + escapeHTML(title) + "</h2><p>" + escapeHTML(channelName) + "</p><div class=\"program-modal-time\">" + icon("clock") + "<span>" + escapeHTML(timeText || (programIsLive(program) ? "Live now" : "Guide airing")) + "</span></div><div class=\"program-modal-tags\">" + tags.map(function(tag) { return "<span" + (tag === "Live now" ? " class=\"is-live\"" : "") + ">" + escapeHTML(tag) + "</span>"; }).join("") + "</div></div></div>"
     + "<div id=\"program-modal-description\" class=\"program-modal-body\">" + (description ? escapeHTML(description) : "No additional details are available for this airing.") + "</div>"
-    + "<div class=\"program-modal-actions\"><button type=\"button\" data-search-airing=\"" + escapeHTML(title) + "\">" + icon("search") + "<span>More Airings</span></button><button type=\"button\" data-program-detail-watch=\"" + escapeHTML(channel.id) + "\">" + icon("play") + "<span>Watch Now</span></button>" + (canSchedule ? "<button type=\"button\" data-program-detail-schedule=\"" + escapeHTML(channel.id) + "\" data-program-detail-program=\"" + escapeHTML(program.id || "") + "\">" + icon("record") + "<span>Record</span></button>" : "") + "</div>"
+    + "<div class=\"program-modal-actions\"><button type=\"button\" data-search-airing=\"" + escapeHTML(title) + "\">" + icon("search") + "<span>More Airings</span></button><button type=\"button\" data-program-detail-watch=\"" + escapeHTML(channel.id) + "\">" + icon("play") + "<span>Watch Now</span></button>" + (canCatchup ? "<button type=\"button\" data-catchup-channel=\"" + escapeHTML(channel.id) + "\" data-catchup-start=\"" + escapeHTML(String(start)) + "\" data-catchup-end=\"" + escapeHTML(String(end)) + "\">" + icon("rewind") + "<span>Replay</span></button>" : "") + (canSchedule ? "<button type=\"button\" data-program-detail-schedule=\"" + escapeHTML(channel.id) + "\" data-program-detail-program=\"" + escapeHTML(program.id || "") + "\">" + icon("record") + "<span>Record</span></button>" : "") + "</div>"
     + "</section>";
 }
 function renderProgramDetailsModal() {
@@ -4924,6 +4925,17 @@ document.addEventListener("click", function(event) {
     const channel = channelByID(programDetailWatch.getAttribute("data-program-detail-watch"));
     closeProgramDetails();
     if (channel) playChannel(channel);
+    return;
+  }
+  const catchupTarget = event.target.closest("[data-catchup-channel]");
+  if (catchupTarget) {
+    event.preventDefault();
+    const channelID = catchupTarget.getAttribute("data-catchup-channel");
+    const start = catchupTarget.getAttribute("data-catchup-start");
+    const end = catchupTarget.getAttribute("data-catchup-end");
+    const channel = channelByID(channelID);
+    closeProgramDetails();
+    if (channel) playOnDemand(channel.name || "Replay", "/dispatcharr/catchup/stream?channel_id=" + encodeURIComponent(channelID || "") + "&start_unix=" + encodeURIComponent(start || "") + "&end_unix=" + encodeURIComponent(end || ""));
     return;
   }
   const programDetailSchedule = event.target.closest("[data-program-detail-schedule]");

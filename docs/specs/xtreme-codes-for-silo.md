@@ -184,6 +184,8 @@ features are excluded.
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin
   Browser Player using redacted detail and provider-bound gateway routes.
+- Complete: eligible archived guide programs expose Xtream provider Catch-up;
+  replay uses the Browser Player without local buffering or recording.
 
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.
