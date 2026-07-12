@@ -185,6 +185,8 @@ features are excluded.
 - Complete: runtime configuration accepts only the standalone `connection`
   object; inherited Dispatcharr, category, and split legacy configuration
   entries cannot activate or change unsupported behavior.
+- Complete: the inherited local-timeshift manager, media endpoint, and route
+  handlers are removed; Xtream provider Catch-up remains the only replay path.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin
