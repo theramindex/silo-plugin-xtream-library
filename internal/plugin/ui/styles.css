@@ -203,6 +203,19 @@ button { cursor: pointer; }
 .program.live { background: color-mix(in srgb, var(--green) 34%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 48%, transparent); }
 .program time { color: var(--muted); font-size: 0.78rem; display: block; }
 .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.75rem, 1fr)); gap: 0.5rem; }
+.category-browser-title { gap: 0.6rem; }
+.category-browser-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.category-browser-title .view-toggle { margin-left: auto; }
+.category-browser-back { width: 2.25rem; height: 2.25rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; flex: 0 0 auto; }
+.category-browser-back:hover { background: var(--panel-2); }
+.category-browser-back svg { width: 1.1rem; height: 1.1rem; }
+.category-channel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: 0.65rem; }
+.category-channel-card { min-width: 0; border: 1px solid var(--line); border-radius: 0.7rem; overflow: hidden; background: var(--panel); color: var(--text); padding: 0; text-align: left; display: grid; grid-template-rows: 7.5rem auto auto; }
+.category-channel-card:hover { background: var(--panel-2); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.category-channel-card .logo, .category-channel-card .logo-fallback { width: 100%; height: 7.5rem; border-radius: 0; background: var(--rail-2); object-fit: contain; }
+.category-channel-card strong, .category-channel-card > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.65rem; }
+.category-channel-card strong { padding-top: 0.55rem; font-size: 0.92rem; }
+.category-channel-card > span { padding-bottom: 0.6rem; color: var(--muted); font-size: 0.8rem; }
 .folder-filter { margin: 0.55rem 0 0.8rem; max-width: 100%; display: flex; align-items: center; gap: 0.8rem; }
 .folder-filter .search { width: min(34rem, 100%); min-width: 12rem; background: var(--panel); }
 .folder-filter .search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent); outline: none; }
