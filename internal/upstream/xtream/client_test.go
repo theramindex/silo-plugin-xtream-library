@@ -1,12 +1,25 @@
 package xtream
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestLiveStreamAcceptsStringArchiveDuration(t *testing.T) {
+	t.Parallel()
+
+	var stream LiveStream
+	if err := json.Unmarshal([]byte(`{"stream_id":1001,"tv_archive":1,"tv_archive_duration":"60"}`), &stream); err != nil {
+		t.Fatalf("decode provider stream: %v", err)
+	}
+	if !stream.CatchupAvailable() || stream.TVArchiveDurationMinutes != 60 {
+		t.Fatalf("unexpected catchup metadata: %+v", stream)
+	}
+}
 
 func TestClientConnectionAndCatalogFetch(t *testing.T) {
 	t.Parallel()
