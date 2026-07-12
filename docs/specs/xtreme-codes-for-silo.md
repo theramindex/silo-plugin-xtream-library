@@ -196,6 +196,8 @@ features are excluded.
 - Complete: runtime configuration validates the standalone source before it is
   saved, surfacing incomplete Xtream/M3U settings during configuration rather
   than at the first background refresh.
+- Complete: inherited Dispatcharr admin/category routes are absent from the
+  packaged manifest and explicitly unavailable through the Xtreme namespace.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin

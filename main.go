@@ -214,7 +214,7 @@ func rewritePublicManifestForXtream(manifest *pluginv1.PluginManifest) {
 }
 
 func isRetiredPublicRoute(path string) bool {
-	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
+	for _, segment := range []string{"/admin", "/recordings", "/sports", "/events", "/timeshift"} {
 		if strings.Contains(path, segment) {
 			return true
 		}

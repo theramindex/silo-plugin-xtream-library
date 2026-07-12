@@ -329,7 +329,7 @@ func isRetiredXtreamPublicRoute(path string) bool {
 	if !strings.HasPrefix(path, "/xtream/") {
 		return false
 	}
-	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
+	for _, segment := range []string{"/admin", "/recordings", "/sports", "/events", "/timeshift"} {
 		if strings.Contains(path, segment) {
 			return true
 		}

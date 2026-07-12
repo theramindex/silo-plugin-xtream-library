@@ -53,3 +53,7 @@ Notes: Scheduled task execution now accepts the same xtream-prefixed catalog, ch
 [2026-07-12 04:10] Feature: Validate standalone connection on configure
 Status: Complete
 Notes: Invalid Xtream or M3U settings are rejected by runtime configuration before they can reach a refresh task.
+
+[2026-07-12 04:20] Feature: Remove inherited admin route surface
+Status: Complete
+Notes: The packaged manifest and Xtreme router omit/reject legacy admin and category-settings endpoints.
