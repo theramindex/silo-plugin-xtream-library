@@ -287,6 +287,27 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-api-admin-sources",
+      "method": "GET",
+      "path": "/dispatcharr/api/admin-sources",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-admin-sources-update",
+      "method": "POST",
+      "path": "/dispatcharr/api/admin-sources",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-admin-sources-delete",
+      "method": "DELETE",
+      "path": "/dispatcharr/api/admin-sources",
+      "access": "admin",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-watch-start",
       "method": "POST",
       "path": "/dispatcharr/api/watch/start",

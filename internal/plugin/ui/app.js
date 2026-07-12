@@ -13,6 +13,11 @@ state.categoryBrowseSort = "provider";
 state.categoryLogoStyle = "color";
 state.categoryCleanNames = false;
 state.categoryMenuOpen = false;
+state.adminTab = "sources";
+state.adminSources = [];
+state.adminSourcesLoading = false;
+state.adminSourceEditor = null;
+state.adminSourceMessage = "";
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -1374,6 +1379,20 @@ async function loadApp() {
     showAppToast("Showing saved guide. Refresh failed.");
     try { console.warn("Dispatcharr app refresh failed", error); } catch (_) {}
   }
+}
+async function loadAdminApp() {
+  state.app = { preferences: defaultPrefs(), channels: [], programs: [], source: { mode: "xtream" }, status: {} };
+  const results = await Promise.all([
+    getJSON("/dispatcharr/api/status").catch(function() { return {}; }),
+    getJSON("/dispatcharr/api/admin-settings").catch(function() { return defaultAdminCategorySettings(); }),
+    getJSON("/dispatcharr/api/admin-sources")
+  ]);
+  state.app.status = results[0] || {};
+  state.adminCategorySettings = readAdminSettingsValue(results[1]);
+  normalizeAdminCategorySettings();
+  state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
+  state.adminSources = items(results[2] && results[2].sources);
+  render();
 }
 function guideHasPrograms() {
   return items(state.app && state.app.programs).length > 0;
@@ -4056,35 +4075,27 @@ function updateAdminTimeShiftField(field, target) {
 }
 function renderAdminPage() {
   normalizeAdminCategorySettings();
-  if (!adminECMEnabled() && state.adminTab === "manager") state.adminTab = "integrations";
   renderAdminTopbarTabs();
   renderAdminTopbarActions();
   const shell = document.querySelector(".shell");
-  if (shell) shell.classList.toggle("is-admin-manager", state.adminTab === "manager");
-  byId("view").innerHTML = state.adminTab === "manager" ? renderExternalChannelManager() : "<div class=\"settings-stack\">" + (state.adminTab === "integrations" ? renderAdminIntegrationsTab() : renderAdminSettingsTab()) + "</div>";
+  if (shell) shell.classList.remove("is-admin-manager");
+  byId("view").innerHTML = "<div class=\"settings-stack\">" + (state.adminTab === "sources" ? renderAdminSourcesTab() : renderAdminSettingsTab()) + "</div>";
+  if (state.adminTab === "sources") return;
   if (state.adminTab === "settings") {
-    renderAdminRecordingSettings();
-    renderAdminPlayerSettings();
-    renderAdminTimeShiftSettings();
     renderAdminCategorySettings();
     renderAdminCategoryAliasSettings();
-    renderAdminEventKeywordSettings();
-  }
-  if (state.adminTab === "integrations") {
-    renderAdminECMSettings();
   }
 }
 function renderAdminTopbarTabs() {
   const root = byId("admin-tabs");
   if (!root) return;
-  root.innerHTML = "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Settings</span></button>"
-    + "<button type=\"button\" data-admin-tab=\"integrations\" class=\"" + (state.adminTab === "integrations" ? "active" : "") + "\">" + icon("integrations") + "<span>Integrations</span></button>"
-    + (adminECMEnabled() ? "<button type=\"button\" data-admin-tab=\"manager\" class=\"" + (state.adminTab === "manager" ? "active" : "") + "\">" + icon("external") + "<span>Channel Manager</span></button>" : "");
+  root.innerHTML = "<button type=\"button\" data-admin-tab=\"sources\" class=\"" + (state.adminTab === "sources" ? "active" : "") + "\">" + icon("integrations") + "<span>Sources</span></button>"
+    + "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Organization</span></button>";
 }
 function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
-  if (state.adminTab === "manager") {
+  if (state.adminTab === "sources") {
     root.innerHTML = "";
     return;
   }
@@ -4093,20 +4104,72 @@ function renderAdminTopbarActions() {
   root.innerHTML = "<button class=\"admin-save\" data-admin-settings-action=\"save\"" + ((!dirty || saving) ? " disabled" : "") + ">Save</button><button class=\"admin-discard\" data-admin-settings-action=\"discard\"" + ((!dirty || saving) ? " disabled" : "") + ">Discard</button>";
 }
 function setAdminTab(tab) {
-  if (tab === "manager" && adminECMEnabled()) state.adminTab = "manager";
-  else if (tab === "integrations") state.adminTab = "integrations";
-  else state.adminTab = "settings";
+  state.adminTab = tab === "settings" ? "settings" : "sources";
+  renderAdminPage();
+}
+function renderAdminSourcesTab() {
+  const sources = items(state.adminSources);
+  const rows = sources.map(function(source) {
+    const status = source.enabled ? "Enabled" : "Disabled";
+    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
+  }).join("");
+  const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
+  return "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Xtreme Codes sources</h2><p>Combine channels and guide data from multiple provider accounts. Credentials stay on the Silo server.</p></div><button type=\"button\" class=\"source-add\" data-source-action=\"add\">Add source</button></div>" + message + "<div class=\"source-table\">" + (rows || "<div class=\"empty\">No sources configured.</div>") + "</div></div>" + renderAdminSourceEditor();
+}
+function renderAdminSourceEditor() {
+  const source = state.adminSourceEditor;
+  if (!source) return "";
+  const editing = !!source.id;
+  return "<div class=\"settings-card source-editor-card\"><div class=\"settings-card-head\"><div><h2>" + (editing ? "Edit source" : "Add source") + "</h2><p>Use the provider base URL, not the full player_api.php URL.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></div><div class=\"source-form\">"
+    + "<label><span>Display name</span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Primary IPTV\"></label>"
+    + "<label><span>Source ID</span><input id=\"source-id\" value=\"" + escapeHTML(source.id || "") + "\" placeholder=\"primary\"" + (editing ? " readonly" : "") + "></label>"
+    + "<label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"></label>"
+    + "<label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label>"
+    + "<label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"\" autocomplete=\"new-password\"></label>"
+    + "<label><span>Live stream format</span><select id=\"source-format\"><option value=\"m3u8\"" + (source.liveFormat !== "ts" ? " selected" : "") + ">HLS (.m3u8)</option><option value=\"ts\"" + (source.liveFormat === "ts" ? " selected" : "") + ">MPEG-TS (.ts)</option></select></label>"
+    + "<label class=\"source-enabled\"><span><strong>Enabled</strong><small>Include this source in catalog refreshes.</small></span><input id=\"source-enabled\" type=\"checkbox\"" + (source.enabled !== false ? " checked" : "") + "></label>"
+    + "</div><div class=\"source-editor-actions\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">Save source</button></div></div>";
+}
+function adminSourceByID(id) {
+  return items(state.adminSources).find(function(source) { return source.id === id; }) || null;
+}
+function sourceEditorPayload(action) {
+  return { action: action || "save", id: (byId("source-id") || {}).value || "", name: (byId("source-name") || {}).value || "", baseUrl: (byId("source-url") || {}).value || "", username: (byId("source-username") || {}).value || "", password: (byId("source-password") || {}).value || "", liveFormat: (byId("source-format") || {}).value || "m3u8", enabled: !!((byId("source-enabled") || {}).checked) };
+}
+async function refreshAdminSources() {
+  const payload = await getJSON("/dispatcharr/api/admin-sources");
+  state.adminSources = items(payload && payload.sources);
+  if (state.view === "admin") renderAdminPage();
+}
+async function submitAdminSource(payload, successMessage) {
+  state.adminSourceMessage = "";
+  try {
+    const result = await postJSON("/dispatcharr/api/admin-sources", payload);
+    if (result && result.sources) state.adminSources = items(result.sources);
+    state.adminSourceMessage = successMessage;
+    if (payload.action !== "test") state.adminSourceEditor = null;
+  } catch (error) {
+    state.adminSourceMessage = "Could not update source: " + readableError(error);
+  }
+  renderAdminPage();
+}
+function handleAdminSourceAction(action, sourceID) {
+  const source = adminSourceByID(sourceID);
+  if (action === "add") state.adminSourceEditor = { enabled: true, liveFormat: "m3u8" };
+  if (action === "edit" && source) state.adminSourceEditor = Object.assign({}, source);
+  if (action === "cancel") state.adminSourceEditor = null;
+  if (action === "save") return submitAdminSource(sourceEditorPayload("save"), "Source saved. Catalog refresh queued.");
+  if (action === "test-editor") return submitAdminSource(sourceEditorPayload("test"), "Connection successful.");
+  if (action === "test" && source) return submitAdminSource(Object.assign({}, source, { action: "test", password: "" }), "Connection successful.");
+  if (action === "toggle" && source) return submitAdminSource(Object.assign({}, source, { action: "save", enabled: !source.enabled, password: "" }), source.enabled ? "Source disabled." : "Source enabled. Catalog refresh queued.");
+  if (action === "delete" && source) return submitAdminSource({ action: "delete", id: source.id }, "Source deleted. Catalog refresh queued.");
   renderAdminPage();
 }
 function renderAdminSettingsTab() {
   return ""
     + adminStatusPanel()
-    + "<div class=\"settings-card settings-card-compact\"><h2>Recordings</h2><div id=\"admin-recording-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card settings-card-compact\"><h2>Player</h2><div id=\"admin-player-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Live Rewind</h2><p>Bounded shared channel buffers for pause and rewind.</p></div></div><div id=\"admin-timeshift-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate virtual group paths without changing the original Dispatcharr groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Event Keywords</h2><p>Events are detected from the Dispatcharr guide. One keyword per line or comma-separated.</p></div></div><div id=\"admin-event-keyword-settings\" class=\"settings-list event-keyword-list\"></div></div>"
+    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate category paths without changing the provider groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "";
 }
 function renderAdminRecordingSettings() {
@@ -4268,7 +4331,7 @@ function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
   const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
-  const sourceHelp = "Choose whether virtual groups come from Dispatcharr groups, profiles, channel names, or a combination. Every profile and group pipe segment becomes a nested folder.";
+  const sourceHelp = "Choose whether virtual categories come from provider groups, channel names, or a combination. Every delimiter segment becomes a nested folder.";
   const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Delimiter</strong><small>Split source names into nested virtual groups.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
     + "<div class=\"settings-row settings-form-row virtual-label-row\"><span class=\"settings-field-copy\"><strong>Virtual groups label</strong><small>Only the suffix after Virtual is editable.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
@@ -5390,6 +5453,12 @@ document.addEventListener("click", function(event) {
     if (action === "discard") discardAdminCategorySettings();
     return;
   }
+  const sourceAction = event.target.closest("[data-source-action]");
+  if (sourceAction) {
+    event.preventDefault();
+    handleAdminSourceAction(sourceAction.getAttribute("data-source-action"), sourceAction.getAttribute("data-source-id") || "");
+    return;
+  }
   const adminTab = event.target.closest("[data-admin-tab]");
   if (adminTab) {
     event.preventDefault();
@@ -5721,6 +5790,6 @@ window.addEventListener("beforeunload", function() {
   });
 });
 startGuideAutoRefresh();
-loadApp().catch(function() {
-  byId("view").innerHTML = emptyStateHTML("Unable to load Live TV.", "Check your Dispatcharr connection in Live TV Admin, then refresh this page.");
+(isAdminRoute ? loadAdminApp() : loadApp()).catch(function() {
+  byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Xtreme sources." : "Unable to load Live TV.", isAdminRoute ? "Confirm this plugin is enabled, then refresh the admin app." : "Check your Xtreme Codes sources in Live TV Admin, then refresh this page.");
 });

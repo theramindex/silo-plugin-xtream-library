@@ -168,6 +168,35 @@ func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
 	}
 }
 
+func TestSyncXtreamMergesEnabledSourcesWithScopedChannelIDs(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(baseURL, _, _ string) XtreamClient {
+			name := "Primary News"
+			if strings.Contains(baseURL, "backup") {
+				name = "Backup News"
+			}
+			return &stubXtreamClient{streams: []xtream.LiveStream{{Num: 1, Name: name, StreamID: 1001, CategoryID: "10"}}}
+		},
+	})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+		{ID: "primary", Name: "Primary", BaseURL: "https://primary.example", Username: "one", Password: "secret", Enabled: true},
+		{ID: "backup", Name: "Backup", BaseURL: "https://backup.example", Username: "two", Password: "secret", Enabled: true},
+	}}
+	if err := service.SyncNow(context.Background(), settings, 1_700_000_000); err != nil {
+		t.Fatalf("sync sources: %v", err)
+	}
+	channels := store.Current().Catalog.Channels
+	if len(channels) != 2 || channels[0].ID != "xtream:1001" || channels[1].ID != "xtream:backup:1001" {
+		t.Fatalf("unexpected merged channels: %+v", channels)
+	}
+	if channels[0].SourceID != "xtream-source:primary" || channels[1].SourceID != "xtream-source:backup" {
+		t.Fatalf("expected source ownership on channels: %+v", channels)
+	}
+}
+
 func TestSyncKeepsStaleSnapshotOnFailure(t *testing.T) {
 	t.Parallel()
 

@@ -39,6 +39,7 @@ type HTTPRoutesServer struct {
 	settingsProvider    func() config.Settings
 	adminPersister      func(context.Context, map[string]any) error
 	adminStorage        adminSettingsStorage
+	sourceRegistry      *config.SourceRegistry
 	coordinator         *RefreshCoordinator
 	hydrateMu           sync.Mutex
 	refreshMu           sync.Mutex
@@ -85,7 +86,7 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, relay: newHLSRelay()}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sourceRegistry: config.NewSourceRegistry(""), relay: newHLSRelay()}
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -276,6 +277,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":
 		return s.handleAdminSettings(ctx, request)
+	case "/dispatcharr/api/admin-sources":
+		return s.handleAdminSources(ctx, request)
 	case "/dispatcharr/api/favorites":
 		return s.handleFavorite(request)
 	case "/dispatcharr/api/hidden-categories":
@@ -338,7 +341,7 @@ func isRetiredXtreamPublicRoute(path string) bool {
 	if !strings.HasPrefix(path, "/xtream/") {
 		return false
 	}
-	for _, segment := range []string{"/admin", "/recordings", "/sports", "/events", "/timeshift"} {
+	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
 		if strings.Contains(path, segment) {
 			return true
 		}
@@ -370,7 +373,7 @@ func (s *HTTPRoutesServer) resolveCatchupStreamURL(request *pluginv1.HandleHTTPR
 	if !found || !channel.Catchup || !strings.HasPrefix(channel.ID, "xtream:") {
 		return "", fmt.Errorf("catchup is unavailable for channel")
 	}
-	streamID, err := strconv.ParseInt(strings.TrimPrefix(channel.ID, "xtream:"), 10, 64)
+	sourceID, streamID, err := parseScopedXtreamID(channel.ID, "xtream:")
 	if err != nil {
 		return "", fmt.Errorf("invalid xtream channel id")
 	}
@@ -382,8 +385,11 @@ func (s *HTTPRoutesServer) resolveCatchupStreamURL(request *pluginv1.HandleHTTPR
 	if settings.EffectiveSourceMode() != config.SourceModeXtream {
 		return "", fmt.Errorf("catchup is available only for Xtream Codes")
 	}
-	baseURL, username, password := xtreamConnectionSettings(settings)
-	target := xtream.NewClient(baseURL, username, password).ResolveCatchupStreamURL(streamID, duration, time.Unix(startUnix, 0).UTC().Format("2006-01-02:15-04"))
+	source, ok := settings.XtreamSourceByID(sourceID)
+	if !ok {
+		return "", fmt.Errorf("xtream source is unavailable")
+	}
+	target := xtream.NewClient(source.BaseURL, source.Username, source.Password).ResolveCatchupStreamURL(streamID, duration, time.Unix(startUnix, 0).UTC().Format("2006-01-02:15-04"))
 	if target == "" {
 		return "", fmt.Errorf("unable to resolve catchup stream")
 	}
@@ -394,7 +400,7 @@ func (s *HTTPRoutesServer) handleSeriesInfo(ctx context.Context, request *plugin
 	if s.settingsProvider == nil {
 		return s.respondJSON(http.StatusServiceUnavailable, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "source settings are unavailable"})
 	}
-	seriesID, err := strconv.ParseInt(strings.TrimPrefix(queryValue(request, "series_id"), "series:"), 10, 64)
+	sourceID, seriesID, err := parseScopedXtreamID(queryValue(request, "series_id"), "series:")
 	if err != nil || seriesID <= 0 {
 		return s.respondJSON(http.StatusBadRequest, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "invalid series_id"})
 	}
@@ -402,8 +408,11 @@ func (s *HTTPRoutesServer) handleSeriesInfo(ctx context.Context, request *plugin
 	if settings.EffectiveSourceMode() != config.SourceModeXtream {
 		return s.respondJSON(http.StatusOK, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "series are available only for Xtream Codes"})
 	}
-	baseURL, username, password := xtreamConnectionSettings(settings)
-	info, err := xtream.NewClient(baseURL, username, password).SeriesInfo(ctx, seriesID)
+	source, ok := settings.XtreamSourceByID(sourceID)
+	if !ok {
+		return s.respondJSON(http.StatusNotFound, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "xtream source is unavailable"})
+	}
+	info, err := xtream.NewClient(source.BaseURL, source.Username, source.Password).SeriesInfo(ctx, seriesID)
 	if err != nil {
 		return s.respondJSON(http.StatusBadGateway, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "series information is unavailable"})
 	}
@@ -932,6 +941,136 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 	return s.respondJSON(http.StatusOK, json.RawMessage(saved))
 }
 
+type adminSourcePayload struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	BaseURL            string `json:"baseUrl"`
+	Username           string `json:"username"`
+	Password           string `json:"password,omitempty"`
+	LiveFormat         string `json:"liveFormat"`
+	Enabled            bool   `json:"enabled"`
+	PasswordConfigured bool   `json:"passwordConfigured"`
+	ChannelCount       int    `json:"channelCount"`
+	Action             string `json:"action,omitempty"`
+}
+
+func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if !s.adminSettingsAuthorized(request) {
+		return textResponse(http.StatusForbidden, "Silo admin role required"), nil
+	}
+	if s.sourceRegistry == nil || s.settingsProvider == nil {
+		return textResponse(http.StatusServiceUnavailable, "source registry unavailable"), nil
+	}
+	if request.GetMethod() == http.MethodGet {
+		return s.respondJSON(http.StatusOK, map[string]any{"sources": s.adminSourceList()})
+	}
+	if request.GetMethod() != http.MethodPost && request.GetMethod() != http.MethodDelete {
+		return textResponse(http.StatusMethodNotAllowed, "source manager requires GET, POST, or DELETE"), nil
+	}
+	var payload adminSourcePayload
+	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
+		return textResponse(http.StatusBadRequest, "invalid source payload"), nil
+	}
+	sources, err := s.mutableSourceRegistry()
+	if err != nil {
+		return textResponse(http.StatusInternalServerError, "could not load source registry"), nil
+	}
+	index := -1
+	for sourceIndex := range sources {
+		if sources[sourceIndex].ID == config.NormalizeSourceID(payload.ID) {
+			index = sourceIndex
+			break
+		}
+	}
+	if request.GetMethod() == http.MethodDelete || payload.Action == "delete" {
+		if index < 0 {
+			return textResponse(http.StatusNotFound, "source not found"), nil
+		}
+		sources = append(sources[:index], sources[index+1:]...)
+		if !hasEnabledXtreamSource(sources) {
+			return textResponse(http.StatusConflict, "at least one enabled source is required"), nil
+		}
+		if err := s.sourceRegistry.Save(sources); err != nil {
+			return textResponse(http.StatusBadRequest, err.Error()), nil
+		}
+		s.queueSourceRefresh()
+		return s.respondJSON(http.StatusOK, map[string]any{"sources": s.adminSourceList()})
+	}
+	password := payload.Password
+	if password == "" && index >= 0 {
+		password = sources[index].Password
+	}
+	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: payload.ID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled})
+	if err != nil {
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	if payload.Action == "test" {
+		testCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		defer cancel()
+		if err := xtream.NewClient(candidate.BaseURL, candidate.Username, candidate.Password).TestConnection(testCtx); err != nil {
+			return textResponse(http.StatusBadGateway, "connection test failed: "+err.Error()), nil
+		}
+		return s.respondJSON(http.StatusOK, map[string]any{"connected": true})
+	}
+	if index >= 0 {
+		sources[index] = candidate
+	} else {
+		sources = append(sources, candidate)
+	}
+	if !hasEnabledXtreamSource(sources) {
+		return textResponse(http.StatusConflict, "at least one enabled source is required"), nil
+	}
+	if err := s.sourceRegistry.Save(sources); err != nil {
+		return textResponse(http.StatusBadRequest, err.Error()), nil
+	}
+	s.queueSourceRefresh()
+	return s.respondJSON(http.StatusOK, map[string]any{"sources": s.adminSourceList()})
+}
+
+func (s *HTTPRoutesServer) mutableSourceRegistry() ([]config.XtreamSource, error) {
+	sources, err := s.sourceRegistry.Load()
+	if err != nil {
+		return nil, err
+	}
+	if len(sources) > 0 {
+		return sources, nil
+	}
+	settings := s.settingsProvider()
+	return settings.EffectiveXtreamSources(), nil
+}
+
+func hasEnabledXtreamSource(sources []config.XtreamSource) bool {
+	for _, source := range sources {
+		if source.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *HTTPRoutesServer) adminSourceList() []adminSourcePayload {
+	sources, err := s.mutableSourceRegistry()
+	if err != nil {
+		return []adminSourcePayload{}
+	}
+	counts := map[string]int{}
+	for _, channel := range s.store.Current().Catalog.Channels {
+		counts[strings.TrimPrefix(channel.SourceID, "xtream-source:")]++
+	}
+	result := make([]adminSourcePayload, 0, len(sources))
+	for _, source := range sources {
+		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID]})
+	}
+	return result
+}
+
+func (s *HTTPRoutesServer) queueSourceRefresh() {
+	if s.coordinator == nil || s.settingsProvider == nil {
+		return
+	}
+	s.coordinator.Start(RefreshCatalog, s.settingsProvider())
+}
+
 func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequest, settings json.RawMessage) (*pluginv1.HandleHTTPResponse, error) {
 	if s.adminSettingsAuthorized(request) {
 		return s.respondJSON(http.StatusOK, settings)
@@ -1085,7 +1224,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	if request.GetPath() == "/dispatcharr/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
-		body = strings.Replace(body, "__APP_TITLE__", "Live TV Admin", 2)
+		body = strings.Replace(body, "__APP_TITLE__", "Live TV (Xtreme Codes) Admin", 2)
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
 	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
@@ -1132,7 +1271,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
+	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV (Xtreme Codes) Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
 }
 
 func sanitizeThemeSlug(value string) string {
@@ -1155,14 +1294,17 @@ func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
 			return channel.StreamURL, nil
 		}
 		if strings.HasPrefix(channel.ID, "xtream:") && s.settingsProvider != nil {
-			streamID, err := strconv.ParseInt(strings.TrimPrefix(channel.ID, "xtream:"), 10, 64)
+			sourceID, streamID, err := parseScopedXtreamID(channel.ID, "xtream:")
 			if err != nil {
 				return "", fmt.Errorf("invalid xtream channel id")
 			}
 			settings := s.settingsProvider()
-			baseURL, username, password := xtreamConnectionSettings(settings)
-			client := xtream.NewClient(baseURL, username, password)
-			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, settings.EffectiveXtreamLiveFormat())
+			source, ok := settings.XtreamSourceByID(sourceID)
+			if !ok {
+				return "", fmt.Errorf("xtream source is unavailable")
+			}
+			client := xtream.NewClient(source.BaseURL, source.Username, source.Password)
+			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, source.EffectiveLiveFormat())
 			if strings.TrimSpace(streamURL) == "" {
 				return "", fmt.Errorf("unable to resolve stream url")
 			}
@@ -1185,13 +1327,16 @@ func (s *HTTPRoutesServer) resolveVODStreamURL(_ context.Context, itemID string)
 		if !strings.HasPrefix(item.ID, "vod:") || s.settingsProvider == nil {
 			return "", fmt.Errorf("stream url unavailable for item")
 		}
-		streamID, err := strconv.ParseInt(strings.TrimPrefix(item.ID, "vod:"), 10, 64)
+		sourceID, streamID, err := parseScopedXtreamID(item.ID, "vod:")
 		if err != nil {
 			return "", fmt.Errorf("invalid vod item id")
 		}
 		settings := s.settingsProvider()
-		baseURL, username, password := xtreamConnectionSettings(settings)
-		client := xtream.NewClient(baseURL, username, password)
+		source, ok := settings.XtreamSourceByID(sourceID)
+		if !ok {
+			return "", fmt.Errorf("xtream source is unavailable")
+		}
+		client := xtream.NewClient(source.BaseURL, source.Username, source.Password)
 		streamURL := client.ResolveVODStreamURL(streamID, item.Container)
 		if strings.TrimSpace(streamURL) == "" {
 			return "", fmt.Errorf("unable to resolve vod stream url")
@@ -1205,7 +1350,7 @@ func (s *HTTPRoutesServer) resolveEpisodeStreamURL(ctx context.Context, seriesID
 	if s.settingsProvider == nil {
 		return "", fmt.Errorf("source settings are unavailable")
 	}
-	seriesID, err := strconv.ParseInt(strings.TrimPrefix(seriesIDValue, "series:"), 10, 64)
+	sourceID, seriesID, err := parseScopedXtreamID(seriesIDValue, "series:")
 	if err != nil || seriesID <= 0 {
 		return "", fmt.Errorf("invalid series id")
 	}
@@ -1217,8 +1362,11 @@ func (s *HTTPRoutesServer) resolveEpisodeStreamURL(ctx context.Context, seriesID
 	if settings.EffectiveSourceMode() != config.SourceModeXtream {
 		return "", fmt.Errorf("episode playback is available only for Xtream Codes")
 	}
-	baseURL, username, password := xtreamConnectionSettings(settings)
-	client := xtream.NewClient(baseURL, username, password)
+	source, ok := settings.XtreamSourceByID(sourceID)
+	if !ok {
+		return "", fmt.Errorf("xtream source is unavailable")
+	}
+	client := xtream.NewClient(source.BaseURL, source.Username, source.Password)
 	info, err := client.SeriesInfo(ctx, seriesID)
 	if err != nil {
 		return "", fmt.Errorf("series information is unavailable")
@@ -1231,6 +1379,24 @@ func (s *HTTPRoutesServer) resolveEpisodeStreamURL(ctx context.Context, seriesID
 		}
 	}
 	return "", fmt.Errorf("episode not found")
+}
+
+func parseScopedXtreamID(value, prefix string) (string, int64, error) {
+	value = strings.TrimPrefix(strings.TrimSpace(value), prefix)
+	parts := strings.Split(value, ":")
+	sourceID := "primary"
+	numeric := value
+	if len(parts) == 2 {
+		sourceID = parts[0]
+		numeric = parts[1]
+	} else if len(parts) != 1 {
+		return "", 0, fmt.Errorf("invalid scoped xtream id")
+	}
+	id, err := strconv.ParseInt(numeric, 10, 64)
+	if err != nil || id <= 0 {
+		return "", 0, fmt.Errorf("invalid scoped xtream id")
+	}
+	return sourceID, id, nil
 }
 
 func (s *HTTPRoutesServer) dispatcharrClient() (*dispatcharr.Client, error) {

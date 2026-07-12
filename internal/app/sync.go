@@ -276,12 +276,35 @@ func (s *Service) syncDispatcharr(ctx context.Context, settings config.Settings,
 }
 
 func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sourceMode model.SourceMode, nowUnix int64, options syncOptions) error {
-	baseURL, username, password := xtreamConnectionSettings(settings)
-	client := s.xtreamFactory(baseURL, username, password)
+	sources := settings.EffectiveXtreamSources()
+	merged := model.CatalogState{Source: model.LiveTVSource(sourceMode)}
+	for _, source := range sources {
+		catalog, err := s.loadXtreamSource(ctx, settings, source, nowUnix, options)
+		if err != nil {
+			s.store.RecordFailure(nowUnix, fmt.Sprintf("%s: %v", source.Name, err))
+			return err
+		}
+		merged.Channels = append(merged.Channels, catalog.Channels...)
+		merged.Programs = append(merged.Programs, catalog.Programs...)
+		merged.Content.LiveCategories = append(merged.Content.LiveCategories, catalog.Content.LiveCategories...)
+		merged.Content.VODCategories = append(merged.Content.VODCategories, catalog.Content.VODCategories...)
+		merged.Content.SeriesCategories = append(merged.Content.SeriesCategories, catalog.Content.SeriesCategories...)
+		merged.Content.VODItems = append(merged.Content.VODItems, catalog.Content.VODItems...)
+		merged.Content.SeriesItems = append(merged.Content.SeriesItems, catalog.Content.SeriesItems...)
+	}
+	sortChannelsByLineupNumber(merged.Channels)
+	merged.Health = s.syncHealthForOperation(settings, nowUnix, len(merged.Programs), options)
+	state := cache.SnapshotFromCatalog(merged)
+	state.Health.LastSuccessUnix = nowUnix
+	state.ConfigKey = config.CatalogCacheKey(settings)
+	return s.replaceSnapshotAfterSync(state, options.exactGuide)
+}
+
+func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings, source config.XtreamSource, nowUnix int64, options syncOptions) (model.CatalogState, error) {
+	client := s.xtreamFactory(source.BaseURL, source.Username, source.Password)
 	streams, err := client.LiveStreams(ctx)
 	if err != nil {
-		s.store.RecordFailure(nowUnix, err.Error())
-		return err
+		return model.CatalogState{}, err
 	}
 
 	content := model.ContentState{}
@@ -289,6 +312,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	tightDeadline := hasTightDeadline(ctx)
 	if catalogClient, ok := client.(xtreamAppCatalogClient); ok {
 		content = loadXtreamAppCatalog(ctx, catalogClient, !tightDeadline && !options.channelsOnly)
+		namespaceXtreamContent(&content, source)
 		for _, category := range content.LiveCategories {
 			categoryNames[category.ID] = category.Name
 		}
@@ -298,18 +322,22 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	programs := make([]model.Program, 0)
 	for _, stream := range streams {
 		channel := mapping.MapXtreamChannel(stream)
+		namespaceXtreamChannel(&channel, source)
+		channel.StreamURL = client.ResolveLiveStreamURL(stream.StreamID)
+		if resolver, ok := client.(interface{ ResolveLiveStreamURLWithExtension(int64, string) string }); ok {
+			channel.StreamURL = resolver.ResolveLiveStreamURLWithExtension(stream.StreamID, source.EffectiveLiveFormat())
+		}
 		channel.CategoryName = categoryNames[channel.CategoryID]
 		channels = append(channels, channel)
 	}
 
 	if options.channelsOnly {
-		programs = s.preservedPrograms(settings, channels)
-		content = mergePreservedContent(content, s.preservedContent(settings))
+		programs = preservedProgramsForChannels(s.store.Current(), config.CatalogCacheKey(settings), channels)
 	} else if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
 		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, settings.EPGXMLURL, channels)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
-			return err
+			return model.CatalogState{}, err
 		}
 		programs = append(programs, xmltvPrograms...)
 	}
@@ -320,10 +348,11 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 				continue
 			}
 			channel := mapping.MapXtreamChannel(stream)
+			namespaceXtreamChannel(&channel, source)
 			epg, err := client.ShortEPG(ctx, stream.StreamID)
 			if err != nil {
 				s.store.RecordFailure(nowUnix, err.Error())
-				return err
+				return model.CatalogState{}, err
 			}
 			for _, listing := range epg.EPGListings {
 				programs = append(programs, mapping.MapXtreamProgram(channel.ID, listing))
@@ -331,22 +360,62 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		}
 	}
 
-	sortChannelsByLineupNumber(channels)
-
-	catalog := model.CatalogState{
-		Source:   model.LiveTVSource(sourceMode),
+	return model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeXtream),
 		Channels: channels,
 		Programs: programs,
 		Health:   s.syncHealthForOperation(settings, nowUnix, len(programs), options),
 		Content:  content,
+	}, nil
+}
+
+func namespaceXtreamChannel(channel *model.Channel, source config.XtreamSource) {
+	channel.SourceID = "xtream-source:" + source.ID
+	if source.ID == "primary" {
+		return
 	}
-	state := cache.SnapshotFromCatalog(catalog)
-	state.Health.LastSuccessUnix = nowUnix
-	state.ConfigKey = config.CatalogCacheKey(settings)
-	if err := s.replaceSnapshotAfterSync(state, options.exactGuide); err != nil {
-		return err
+	channel.ID = "xtream:" + source.ID + ":" + strings.TrimPrefix(channel.ID, "xtream:")
+	channel.CategoryID = source.ID + ":" + channel.CategoryID
+}
+
+func namespaceXtreamContent(content *model.ContentState, source config.XtreamSource) {
+	if source.ID == "primary" {
+		return
 	}
-	return nil
+	for index := range content.LiveCategories {
+		content.LiveCategories[index].ID = source.ID + ":" + content.LiveCategories[index].ID
+	}
+	for index := range content.VODCategories {
+		content.VODCategories[index].ID = source.ID + ":" + content.VODCategories[index].ID
+	}
+	for index := range content.SeriesCategories {
+		content.SeriesCategories[index].ID = source.ID + ":" + content.SeriesCategories[index].ID
+	}
+	for index := range content.VODItems {
+		content.VODItems[index].ID = "vod:" + source.ID + ":" + strings.TrimPrefix(content.VODItems[index].ID, "vod:")
+		content.VODItems[index].CategoryID = source.ID + ":" + content.VODItems[index].CategoryID
+	}
+	for index := range content.SeriesItems {
+		content.SeriesItems[index].ID = "series:" + source.ID + ":" + strings.TrimPrefix(content.SeriesItems[index].ID, "series:")
+		content.SeriesItems[index].CategoryID = source.ID + ":" + content.SeriesItems[index].CategoryID
+	}
+}
+
+func preservedProgramsForChannels(snapshot cache.Snapshot, configKey string, channels []model.Channel) []model.Program {
+	if snapshot.ConfigKey != configKey {
+		return nil
+	}
+	ids := map[string]bool{}
+	for _, channel := range channels {
+		ids[channel.ID] = true
+	}
+	programs := make([]model.Program, 0)
+	for _, program := range snapshot.Catalog.Programs {
+		if ids[program.ChannelID] {
+			programs = append(programs, program)
+		}
+	}
+	return programs
 }
 
 func requireDispatcharrMinimumVersion(ctx context.Context, client DispatcharrClient) error {

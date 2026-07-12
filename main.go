@@ -150,14 +150,22 @@ func main() {
 	}
 	store := cache.NewStore()
 	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
+	sourceRegistry := config.NewSourceRegistry("")
+	settingsProvider := func() config.Settings {
+		current := settings.Get()
+		if sources, loadErr := sourceRegistry.Load(); loadErr == nil && len(sources) > 0 {
+			current.XtreamSources = sources
+		}
+		return current
+	}
 	service := app.NewService(app.Dependencies{Store: store})
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{
 			Runtime:       &runtimeServer{manifest: manifest, settings: settings},
-			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settings.Get),
-			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settings.Get, coordinator, ""),
+			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider),
+			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settingsProvider, coordinator, ""),
 		},
 	})
 }
@@ -215,7 +223,7 @@ func rewritePublicManifestForXtream(manifest *pluginv1.PluginManifest) {
 }
 
 func isRetiredPublicRoute(path string) bool {
-	for _, segment := range []string{"/admin", "/recordings", "/sports", "/events", "/timeshift"} {
+	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
 		if strings.Contains(path, segment) {
 			return true
 		}
