@@ -2855,6 +2855,20 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(programSubtitle, `"Live channel"`) || !strings.Contains(programSubtitle, "currentProgram(channel)") {
 		t.Fatal("category channel subtitle must prefer current guide data with a neutral live fallback")
 	}
+	categoryOptions := functionBody("categoryOptionsMenuHTML")
+	for _, option := range []string{"Provider order", "Recently watched", "Clean up names", "Greyscale", `data-category-options-toggle`} {
+		if !strings.Contains(categoryOptions, option) {
+			t.Fatalf("expected category display menu option %q", option)
+		}
+	}
+	categorySettings := functionBody("categoryBrowseSettings")
+	if !strings.Contains(categorySettings, `prefs().categoryBrowse`) {
+		t.Fatal("category display options must come from user preferences")
+	}
+	categorySort := functionBody("sortedCategoryChannels")
+	if !strings.Contains(categorySort, `settings.sort === "name"`) || !strings.Contains(categorySort, `settings.sort === "recent"`) {
+		t.Fatal("category display menu sort options must affect channel ordering")
+	}
 
 	// The VM integration test exercises details-first clicks, guide windowing,
 	// and exact player return state. These checks keep their public hooks stable.

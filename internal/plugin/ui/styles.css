@@ -205,7 +205,19 @@ button { cursor: pointer; }
 .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.75rem, 1fr)); gap: 0.5rem; }
 .category-browser-title { gap: 0.6rem; }
 .category-browser-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.category-browser-title .view-toggle { margin-left: auto; }
+.category-options { position: relative; margin-left: auto; flex: 0 0 auto; }
+.category-options-button { width: 2.45rem; height: 2.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; }
+.category-options-button:hover, .category-options.open .category-options-button { background: var(--panel-2); }
+.category-options-button svg { width: 1.2rem; height: 1.2rem; }
+.category-options-menu { position: absolute; top: calc(100% + 0.5rem); right: 0; z-index: 30; display: none; width: min(19rem, calc(100vw - 2rem)); padding: 0.6rem; border: 1px solid color-mix(in srgb, var(--line) 75%, white 12%); border-radius: 0.85rem; background: color-mix(in srgb, var(--panel) 94%, black 6%); box-shadow: 0 1.25rem 3rem rgba(0,0,0,0.46); backdrop-filter: blur(20px); }
+.category-options.open .category-options-menu { display: grid; gap: 0.08rem; }
+.category-menu-label { padding: 0.42rem 0.62rem 0.28rem; color: color-mix(in srgb, var(--muted) 68%, transparent); font-size: 0.76rem; font-weight: 900; }
+.category-options-menu button { width: 100%; min-height: 2.3rem; border: 0; border-radius: 0.48rem; background: transparent; color: var(--text); display: grid; grid-template-columns: 1.25rem minmax(0, 1fr); align-items: center; gap: 0.45rem; padding: 0.3rem 0.58rem; text-align: left; font-size: 0.96rem; font-weight: 720; }
+.category-options-menu button:hover, .category-options-menu button:focus-visible { background: var(--panel-2); outline: none; }
+.category-menu-check { width: 1.1rem; height: 1.1rem; display: grid; place-items: center; }
+.category-menu-check svg { width: 1.05rem; height: 1.05rem; stroke-width: 2.25; }
+.category-menu-separator { height: 1px; margin: 0.45rem 0.58rem; background: var(--line); }
+.category-logos-greyscale .logo { filter: grayscale(1); }
 .category-browser-back { width: 2.25rem; height: 2.25rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; flex: 0 0 auto; }
 .category-browser-back:hover { background: var(--panel-2); }
 .category-browser-back svg { width: 1.1rem; height: 1.1rem; }

@@ -9,6 +9,10 @@ const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/xtream") ? "xtream/assets" : "assets";
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", categorySettingsQuery: "", categorySettingsOpen: { live: true, north_america: false, international: false }, profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+state.categoryBrowseSort = "provider";
+state.categoryLogoStyle = "color";
+state.categoryCleanNames = false;
+state.categoryMenuOpen = false;
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -79,6 +83,7 @@ function icon(name) {
     "arrow-left": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M15.75 19.5 8.25 12l7.5-7.5'/></svg>",
     "chevron-down": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/></svg>",
     "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
+    "check": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m5 12.5 4.25 4.25L19 7'/></svg>",
     "play": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M8 5.6v12.8c0 .55.6.9 1.08.62l10.1-6.4a.73.73 0 0 0 0-1.24L9.08 4.98A.72.72 0 0 0 8 5.6Z'/></svg>",
     "record": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 20.25a8.25 8.25 0 1 0 0-16.5 8.25 8.25 0 0 0 0 16.5Zm0-4a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Z'/></svg>",
     "pause": "<svg viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M7.25 5.25h3.25v13.5H7.25zM13.5 5.25h3.25v13.5H13.5z'/></svg>",
@@ -111,7 +116,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], hiddenCategories: {}, groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, favoriteOrder: [], hiddenCategories: {}, groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -273,6 +278,7 @@ function mergePrefs(remote) {
     recentChannels: uniqueIDs(items(remote.recentChannels)).slice(0, 24),
     continueWatching: Object.assign({}, remote.continueWatching),
     playback: Object.assign({}, remote.playback),
+    categoryBrowse: Object.assign({}, defaultPrefs().categoryBrowse, remote.categoryBrowse || {}),
     customGroups: items(remote.customGroups),
     customGroupMemberships: Object.assign({}, remote.customGroupMemberships)
   };
@@ -283,6 +289,7 @@ function normalizePreferences() {
   state.app.preferences.recentSearches = uniqueIDs(items(state.app.preferences.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12);
   state.app.preferences.customGroups = items(state.app.preferences.customGroups);
   state.app.preferences.customGroupMemberships = state.app.preferences.customGroupMemberships || {};
+  state.app.preferences.categoryBrowse = Object.assign({}, defaultPrefs().categoryBrowse, state.app.preferences.categoryBrowse || {});
   const valid = {};
   items(state.app.channels).forEach(function(channel) { valid[channel.id] = true; });
   const explicitFavorites = Object.keys(state.app.preferences.favorites || {}).filter(function(id) { return !!state.app.preferences.favorites[id] && !!valid[id]; });
@@ -2746,6 +2753,49 @@ function recentChannels(limit) {
   });
   return channels.slice(0, limit || channels.length);
 }
+function categoryBrowseSettings() {
+  const value = Object.assign({}, defaultPrefs().categoryBrowse, prefs().categoryBrowse || {});
+  value.sort = ["provider", "name", "recent"].indexOf(value.sort) === -1 ? "provider" : value.sort;
+  value.layout = value.layout === "list" ? "list" : "grid";
+  value.logoStyle = value.logoStyle === "greyscale" ? "greyscale" : "color";
+  value.cleanNames = value.cleanNames === true;
+  return value;
+}
+function updateCategoryBrowseSetting(key, value) {
+  if (!state.app || !state.app.preferences) return;
+  const settings = categoryBrowseSettings();
+  settings[key] = value;
+  state.app.preferences.categoryBrowse = settings;
+  state.categoryBrowseView = settings.layout;
+  state.categoryMenuOpen = false;
+  savePrefs({ quiet: true });
+  render();
+}
+function sortedCategoryChannels(channels) {
+  const settings = categoryBrowseSettings();
+  const result = items(channels).slice();
+  if (settings.sort === "name") {
+    return result.sort(function(left, right) { return String(left.name || "").localeCompare(String(right.name || ""), undefined, { numeric: true }); });
+  }
+  if (settings.sort === "recent") {
+    const recent = {};
+    items(prefs().recentChannels).forEach(function(id, index) { recent[id] = index; });
+    return result.map(function(channel, index) { return { channel: channel, index: index }; }).sort(function(left, right) {
+      const leftRecent = Object.prototype.hasOwnProperty.call(recent, left.channel.id) ? recent[left.channel.id] : Number.MAX_SAFE_INTEGER;
+      const rightRecent = Object.prototype.hasOwnProperty.call(recent, right.channel.id) ? recent[right.channel.id] : Number.MAX_SAFE_INTEGER;
+      return leftRecent - rightRecent || left.index - right.index;
+    }).map(function(entry) { return entry.channel; });
+  }
+  return result;
+}
+function categoryChannelName(channel) {
+  const name = String(channel && channel.name || "Untitled").trim();
+  if (!categoryBrowseSettings().cleanNames) return name;
+  return name
+    .replace(/^\s*(?:\[[A-Za-z0-9]{2,4}\]|\([A-Za-z0-9]{2,4}\)|(?:USA?|UK|CA|CAN|AU|NZ))\s*(?:[|:\-]\s*)?/i, "")
+    .replace(/\s*(?:\[(?:SD|HD|FHD|UHD|4K)\]|\((?:SD|HD|FHD|UHD|4K)\))\s*$/i, "")
+    .trim() || name;
+}
 function channelHasCurrentGuide(channel) {
   if (!channel) return false;
   const now = Math.floor(Date.now() / 1000);
@@ -2890,17 +2940,39 @@ function renderLivePage() {
 }
 
 function categoryBrowserHeader(title) {
-  const active = state.categoryBrowseView === "list" ? "list" : "grid";
-  return "<div class=\"section-title category-browser-title\"><button class=\"category-browser-back\" data-category=\"\" aria-label=\"Back to Categories\">" + icon("arrow-left") + "</button><span>" + escapeHTML(title) + "</span><div class=\"view-toggle\" aria-label=\"Category layout\"><button type=\"button\" data-category-browse-view=\"grid\" class=\"" + (active === "grid" ? "active" : "") + "\" aria-pressed=\"" + (active === "grid" ? "true" : "false") + "\">Grid</button><button type=\"button\" data-category-browse-view=\"list\" class=\"" + (active === "list" ? "active" : "") + "\" aria-pressed=\"" + (active === "list" ? "true" : "false") + "\">List</button></div></div>";
+  return "<div class=\"section-title category-browser-title\"><button class=\"category-browser-back\" data-category=\"\" aria-label=\"Back to Categories\">" + icon("arrow-left") + "</button><span>" + escapeHTML(title) + "</span>" + categoryOptionsMenuHTML() + "</div>";
+}
+function categoryMenuItemHTML(group, value, label, selected) {
+  return "<button type=\"button\" role=\"menuitemradio\" data-category-option-group=\"" + escapeHTML(group) + "\" data-category-option-value=\"" + escapeHTML(value) + "\" aria-checked=\"" + (selected ? "true" : "false") + "\"><span class=\"category-menu-check\">" + (selected ? icon("check") : "") + "</span><span>" + escapeHTML(label) + "</span></button>";
+}
+function categoryOptionsMenuHTML() {
+  const settings = categoryBrowseSettings();
+  return "<div class=\"category-options" + (state.categoryMenuOpen ? " open" : "") + "\"><button type=\"button\" class=\"category-options-button\" data-category-options-toggle=\"true\" aria-label=\"Group display options\" aria-haspopup=\"menu\" aria-expanded=\"" + (state.categoryMenuOpen ? "true" : "false") + "\">" + icon("ellipsis") + "</button><div class=\"category-options-menu\" role=\"menu\" aria-label=\"Group display options\">"
+    + "<div class=\"category-menu-label\">Sort by</div>"
+    + categoryMenuItemHTML("sort", "provider", "Provider order", settings.sort === "provider")
+    + categoryMenuItemHTML("sort", "name", "Name", settings.sort === "name")
+    + categoryMenuItemHTML("sort", "recent", "Recently watched", settings.sort === "recent")
+    + "<div class=\"category-menu-separator\"></div><div class=\"category-menu-label\">Layout</div>"
+    + categoryMenuItemHTML("layout", "list", "List", settings.layout === "list")
+    + categoryMenuItemHTML("layout", "grid", "Grid", settings.layout === "grid")
+    + "<div class=\"category-menu-separator\"></div><div class=\"category-menu-label\">Style</div>"
+    + categoryMenuItemHTML("logoStyle", "color", "Colorful", settings.logoStyle === "color")
+    + categoryMenuItemHTML("logoStyle", "greyscale", "Greyscale", settings.logoStyle === "greyscale")
+    + "<div class=\"category-menu-separator\"></div><div class=\"category-menu-label\">Content</div>"
+    + categoryMenuItemHTML("cleanNames", settings.cleanNames ? "false" : "true", "Clean up names", settings.cleanNames)
+    + "</div></div>";
 }
 
 function renderCategoryBrowserChannels(channels) {
   if (!channels.length) return emptyStateHTML("No channels in this category.", "Try a different filter or refresh the source.");
-  if (state.categoryBrowseView === "list") return "<div class=\"channel-button-list\">" + channels.map(function(channel) {
-    return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(channelProgramSubtitle(channel)) + "</span></span></button>";
+  const settings = categoryBrowseSettings();
+  channels = sortedCategoryChannels(channels);
+  const styleClass = settings.logoStyle === "greyscale" ? " category-logos-greyscale" : "";
+  if (settings.layout === "list") return "<div class=\"channel-button-list" + styleClass + "\">" + channels.map(function(channel) {
+    return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(categoryChannelName(channel)) + "</strong><span>" + escapeHTML(channelProgramSubtitle(channel)) + "</span></span></button>";
   }).join("") + "</div>";
-  return "<div class=\"category-channel-grid\">" + channels.map(function(channel) {
-    return "<button class=\"category-channel-card\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(channelProgramSubtitle(channel)) + "</span></button>";
+  return "<div class=\"category-channel-grid" + styleClass + "\">" + channels.map(function(channel) {
+    return "<button class=\"category-channel-card\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(categoryChannelName(channel)) + "</strong><span>" + escapeHTML(channelProgramSubtitle(channel)) + "</span></button>";
   }).join("") + "</div>";
 }
 function recordingCustom(recording) {
@@ -4922,6 +4994,33 @@ function returnFromPlayer() {
   });
 }
 document.addEventListener("click", function(event) {
+  const categoryOption = event.target.closest("[data-category-option-group]");
+  if (categoryOption) {
+    event.preventDefault();
+    event.stopPropagation();
+    const group = categoryOption.getAttribute("data-category-option-group");
+    let value = categoryOption.getAttribute("data-category-option-value");
+    if (group === "cleanNames") value = value === "true";
+    updateCategoryBrowseSetting(group, value);
+    return;
+  }
+  const categoryOptionsToggle = event.target.closest("[data-category-options-toggle]");
+  if (categoryOptionsToggle) {
+    event.preventDefault();
+    event.stopPropagation();
+    state.categoryMenuOpen = !state.categoryMenuOpen;
+    const root = categoryOptionsToggle.closest(".category-options");
+    if (root) root.classList.toggle("open", state.categoryMenuOpen);
+    categoryOptionsToggle.setAttribute("aria-expanded", state.categoryMenuOpen ? "true" : "false");
+    return;
+  }
+  if (state.categoryMenuOpen && !event.target.closest(".category-options")) {
+    state.categoryMenuOpen = false;
+    const categoryOptions = document.querySelector(".category-options");
+    if (categoryOptions) categoryOptions.classList.remove("open");
+    const categoryOptionsButton = document.querySelector("[data-category-options-toggle]");
+    if (categoryOptionsButton) categoryOptionsButton.setAttribute("aria-expanded", "false");
+  }
   const timeShiftAdminAction = event.target.closest("[data-timeshift-admin-action]");
   if (timeShiftAdminAction) {
     const action = timeShiftAdminAction.getAttribute("data-timeshift-admin-action");
@@ -5306,7 +5405,7 @@ document.addEventListener("click", function(event) {
   const categoryBrowseViewTarget = event.target.closest("[data-category-browse-view]");
   if (categoryBrowseViewTarget) {
     state.categoryBrowseView = categoryBrowseViewTarget.getAttribute("data-category-browse-view") === "list" ? "list" : "grid";
-    render();
+    updateCategoryBrowseSetting("layout", state.categoryBrowseView);
     return;
   }
   const favoriteMove = event.target.closest("[data-favorite-move]");
