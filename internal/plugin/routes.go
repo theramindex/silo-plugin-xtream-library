@@ -216,6 +216,9 @@ type watchRequest struct {
 }
 
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if isRetiredXtreamPublicRoute(request.GetPath()) {
+		return textResponse(http.StatusNotFound, "route not found"), nil
+	}
 	path := normalizePublicPath(request.GetPath())
 	if strings.HasPrefix(path, "/dispatcharr/timeshift/") {
 		return s.handleTimeShiftMedia(request), nil
@@ -348,6 +351,18 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
+}
+
+func isRetiredXtreamPublicRoute(path string) bool {
+	if !strings.HasPrefix(path, "/xtream/") {
+		return false
+	}
+	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
+		if strings.Contains(path, segment) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *HTTPRoutesServer) resolveCatchupStreamURL(request *pluginv1.HandleHTTPRequest) (string, error) {

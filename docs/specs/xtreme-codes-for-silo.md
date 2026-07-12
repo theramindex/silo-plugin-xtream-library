@@ -186,6 +186,9 @@ features are excluded.
   Browser Player using redacted detail and provider-bound gateway routes.
 - Complete: eligible archived guide programs expose Xtream provider Catch-up;
   replay uses the Browser Player without local buffering or recording.
+- Complete: Xtreme public requests for inherited recordings, sports, events,
+  and local-timeshift endpoints are explicitly rejected, independently of the
+  manifest route filter.
 
 - The in-memory Catalog is intentionally disposable. After a process restart,
   the plugin refreshes from its configured Source Mode.

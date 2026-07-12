@@ -21,3 +21,7 @@ Notes: Series details are fetched server-side; VOD and episodes enter the existi
 [2026-07-12 02:35] Feature: Add Xtream provider catch-up replay
 Status: Complete
 Notes: Archive eligibility reaches the guide UI; replay resolves through the provider gateway and never creates a local buffer or DVR asset.
+
+[2026-07-12 03:00] Feature: Reject retired Dispatcharr public feature routes
+Status: Complete
+Notes: The Xtreme namespace returns 404 for recordings, sports, events, and local-timeshift routes even when a caller bypasses manifest discovery.
