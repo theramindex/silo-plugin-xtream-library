@@ -3212,7 +3212,7 @@ function renderMultiviewPage() {
   if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
   const countClass = "count-" + Math.max(tiles.length, 1);
   const title = tiles.length ? tiles.length + " channel" + (tiles.length === 1 ? "" : "s") : "Choose channels";
-  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio · each tile uses one provider connection</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
     + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
     + (tiles.length && tiles.length < 4 ? renderMultiviewPicker() : "")
     + "</section>";
