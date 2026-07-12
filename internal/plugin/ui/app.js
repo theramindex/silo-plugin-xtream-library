@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.xtream.appSnapshot.v1." + localCacheSuffix;
 const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/xtream") ? "xtream/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -2830,8 +2830,29 @@ function renderLivePage() {
     return;
   }
   const filteredChannels = channels.filter(channelMatchesFolderQuery);
-  byId("view").innerHTML = categoryGrid() + sectionHeader(categoryName(state.category) || "Channels") + folderFilterHTML("Filter visible channels") + rowCards(filteredChannels.slice(0, 24));
+  if (state.category) {
+    byId("view").innerHTML = categoryBrowserHeader(categoryName(state.category) || "Categories") + folderFilterHTML("Filter this category") + renderCategoryBrowserChannels(filteredChannels);
+  } else {
+    byId("view").innerHTML = categoryGrid() + sectionHeader("Channels") + folderFilterHTML("Filter visible channels") + rowCards(filteredChannels.slice(0, 24));
+  }
   if (state.category) maybeWarmGuideForChannels(filteredChannels, state.category);
+}
+
+function categoryBrowserHeader(title) {
+  const active = state.categoryBrowseView === "list" ? "list" : "grid";
+  return "<div class=\"section-title category-browser-title\"><button class=\"category-browser-back\" data-category=\"\" aria-label=\"Back to Categories\">" + icon("arrow-left") + "</button><span>" + escapeHTML(title) + "</span><div class=\"view-toggle\" aria-label=\"Category layout\"><button type=\"button\" data-category-browse-view=\"grid\" class=\"" + (active === "grid" ? "active" : "") + "\" aria-pressed=\"" + (active === "grid" ? "true" : "false") + "\">Grid</button><button type=\"button\" data-category-browse-view=\"list\" class=\"" + (active === "list" ? "active" : "") + "\" aria-pressed=\"" + (active === "list" ? "true" : "false") + "\">List</button></div></div>";
+}
+
+function renderCategoryBrowserChannels(channels) {
+  if (!channels.length) return emptyStateHTML("No channels in this category.", "Try a different filter or refresh the source.");
+  if (state.categoryBrowseView === "list") return "<div class=\"channel-button-list\">" + channels.map(function(channel) {
+    const program = currentProgram(channel) || {};
+    return "<button class=\"virtual-channel-button\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<span><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(program.title || channel.categoryName || "Live TV") + "</span></span></button>";
+  }).join("") + "</div>";
+  return "<div class=\"category-channel-grid\">" + channels.map(function(channel) {
+    const program = currentProgram(channel) || {};
+    return "<button class=\"category-channel-card\" data-channel=\"" + escapeHTML(channel.id) + "\">" + logoHTML(channel) + "<strong>" + escapeHTML(channel.name || "Untitled") + "</strong><span>" + escapeHTML(program.title || "Live channel") + "</span></button>";
+  }).join("") + "</div>";
 }
 function recordingCustom(recording) {
   return recording && recording.custom_properties && typeof recording.custom_properties === "object" ? recording.custom_properties : {};
@@ -5189,6 +5210,12 @@ document.addEventListener("click", function(event) {
   if (virtualCategoryViewTarget) {
     event.preventDefault();
     setVirtualCategoryView(virtualCategoryViewTarget.getAttribute("data-virtual-category-view"));
+    return;
+  }
+  const categoryBrowseViewTarget = event.target.closest("[data-category-browse-view]");
+  if (categoryBrowseViewTarget) {
+    state.categoryBrowseView = categoryBrowseViewTarget.getAttribute("data-category-browse-view") === "list" ? "list" : "grid";
+    render();
     return;
   }
   const favoriteMove = event.target.closest("[data-favorite-move]");
