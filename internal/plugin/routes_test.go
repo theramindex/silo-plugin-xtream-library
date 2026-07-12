@@ -96,6 +96,37 @@ func TestXtreamPublicAppPayloadRedactsStreamTargets(t *testing.T) {
 	}
 }
 
+func TestXtreamSeriesInfoRouteRedactsEpisodeTargets(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/player_api.php" || request.URL.Query().Get("action") != "get_series_info" {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = writer.Write([]byte(`{"info":{"name":"Example"},"episodes":{"1":[{"id":"9001","episode_num":1,"title":"Pilot","container_extension":"mkv"}]}}`))
+	}))
+	defer upstream.Close()
+
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: upstream.URL, XtreamUsername: "demo", XtreamPassword: "secret"}
+	})
+	query, _ := structpb.NewStruct(map[string]any{"series_id": "series:501"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/series/info", Query: query})
+	if err != nil {
+		t.Fatalf("handle series info: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected series info success, got %d: %s", response.GetStatusCode(), response.GetBody())
+	}
+	if strings.Contains(string(response.GetBody()), "secret") || strings.Contains(string(response.GetBody()), upstream.URL) {
+		t.Fatalf("series info exposed provider target: %s", response.GetBody())
+	}
+	if !strings.Contains(string(response.GetBody()), `"id":"episode:9001"`) {
+		t.Fatalf("expected public episode id, got %s", response.GetBody())
+	}
+}
+
 func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	t.Parallel()
 
