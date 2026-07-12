@@ -1747,20 +1747,16 @@ function groupedUpcomingAirings(programs, query) {
 function searchFilters() {
   return [
     { id: "all", label: "All" },
-    { id: "channels", label: "Channels" },
+    { id: "channels", label: "Live TV" },
     { id: "groups", label: "Groups" },
-    { id: "programs", label: "Programs" },
-    { id: "airings", label: "Upcoming Airings" },
-    { id: "sports", label: "Sports" },
-    { id: "events", label: "Events" },
+    { id: "guide", label: "Guide" },
     { id: "movies", label: "Movies" },
-    { id: "shows", label: "Shows" },
-    { id: "recordings", label: "Recordings" }
+    { id: "shows", label: "Shows" }
   ];
 }
 function searchResultSections(query) {
   const filter = state.searchType || "all";
-  const include = function(id) { return filter === "all" || filter === id; };
+  const include = function(id) { return filter === "all" || filter === id || (filter === "guide" && (id === "programs" || id === "airings")); };
   const sections = [];
   if (include("channels")) {
     const channels = searchableChannels().filter(function(channel) { return channelMatchesSearch(channel, query); }).slice(0, 18);
@@ -1991,30 +1987,20 @@ function renderSearchStart() {
   const passHTML = passes.length ? sectionHeader("Keyword Passes") + "<div class=\"search-chip-row\">" + passes.map(function(pass) {
     return "<button class=\"search-chip\" type=\"button\" data-search-recent=\"" + escapeHTML(pass.keyword) + "\">" + escapeHTML(pass.keyword) + "</button>";
   }).join("") + "</div>" : "";
-  const categoryHTML = sectionHeader("Categories") + "<div class=\"search-category-grid\">" + [
-    { id: "channels", label: "Channels", icon: "guide" },
-    { id: "groups", label: "Groups", icon: "multiview" },
-    { id: "programs", label: "Programs", icon: "search" },
-    { id: "airings", label: "Upcoming Airings", icon: "guide" },
-    { id: "sports", label: "Sports", icon: "search" },
-    { id: "events", label: "Events", icon: "guide" },
-    { id: "movies", label: "Movies", icon: "play" },
-    { id: "shows", label: "Shows", icon: "multiview" }
-  ].map(function(item) {
-    return "<button class=\"search-category-tile\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + icon(item.icon) + "<strong>" + escapeHTML(item.label) + "</strong></button>";
-  }).join("") + "</div>";
   const browsed = recentChannels(10);
   const browsedHTML = browsed.length ? sectionHeader("Recently browsed") + rowCards(browsed) : "";
-  return recentHTML + passHTML + categoryHTML + browsedHTML;
+  if (!recentHTML && !passHTML && !browsedHTML) return "<div class=\"search-start-empty\"><span>" + icon("search") + "</span><strong>Search your entire lineup</strong><p>Find live channels, groups, guide programs, movies, and shows.</p></div>";
+  return recentHTML + passHTML + browsedHTML;
 }
 function renderSearchPage() {
   const root = byId("view");
   const query = state.searchQuery || "";
   const filter = state.searchType || "all";
-  const filterHTML = "<div class=\"search-chip-row\">" + searchFilters().map(function(item) {
+  const filterHTML = "<div class=\"search-scope-row\" aria-label=\"Search scope\">" + searchFilters().map(function(item) {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
-  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><h2>Search</h2><div class=\"search-form\"><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Search movies, tv shows, channels and more\" autocomplete=\"off\"><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Cancel</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\">" + renderSearchPageResults() + "</div></div>";
+  const clear = query ? "<button class=\"search-query-clear\" type=\"button\" data-search-query-clear=\"true\" aria-label=\"Clear search\">" + icon("x") + "</button>" : "";
+  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><div class=\"search-title\"><span>Find</span><h2>Search</h2></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, movies or shows\" autocomplete=\"off\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
@@ -5259,6 +5245,13 @@ document.addEventListener("click", function(event) {
   if (searchClear) {
     event.preventDefault();
     clearRecentSearches();
+    renderSearchPage();
+    return;
+  }
+  const searchQueryClear = event.target.closest("[data-search-query-clear]");
+  if (searchQueryClear) {
+    event.preventDefault();
+    state.searchQuery = "";
     renderSearchPage();
     return;
   }
