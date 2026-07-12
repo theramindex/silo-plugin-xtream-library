@@ -363,7 +363,7 @@ const sandbox = {
   fetch: async (url, options = {}) => { const auth = options.headers && (options.headers.Authorization || options.headers.authorization) || ""; calls.push({ url: String(url), auth }); if (String(url) === "/api/v1/auth/refresh") return response(200, { access_token: "fresh-access", refresh_token: "fresh-refresh" }); if (!auth) return response(401, { error: "unauthorized" }); return response(204); },
 };
 vm.createContext(sandbox); vm.runInContext(source, sandbox);
-(async () => { await vm.runInContext('corePutNoContent("/api/v1/settings/plugins/18", { values: {} })', sandbox); process.stdout.write(JSON.stringify({ calls, refreshToken: stored.refresh_token })); })().catch((error) => { console.error(error); process.exit(1); });
+(async () => { await vm.runInContext('postJSON("/dispatcharr/api/watch/heartbeat", { sessionId: "session-1" })', sandbox); await vm.runInContext('corePutNoContent("/api/v1/settings/plugins/18", { values: {} })', sandbox); process.stdout.write(JSON.stringify({ calls, refreshToken: stored.refresh_token })); })().catch((error) => { console.error(error); process.exit(1); });
 `, appScriptPath)
 	if err := os.WriteFile(runnerPath, []byte(nodeScript), 0o600); err != nil {
 		t.Fatalf("write runner: %v", err)
@@ -382,8 +382,8 @@ vm.createContext(sandbox); vm.runInContext(source, sandbox);
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("decode core auth regression: %v\n%s", err, output)
 	}
-	if len(result.Calls) != 2 || result.Calls[0].URL != "/api/v1/auth/refresh" || result.Calls[1].Auth != "Bearer fresh-access" {
-		t.Fatalf("expected proactive token refresh and authorized request; got %+v", result.Calls)
+	if len(result.Calls) != 3 || result.Calls[0].URL != "/api/v1/auth/refresh" || result.Calls[1].Auth != "Bearer fresh-access" || result.Calls[2].Auth != "Bearer fresh-access" {
+		t.Fatalf("expected proactive token refresh plus authorized plugin and settings requests; got %+v", result.Calls)
 	}
 	if result.RefreshToken != "fresh-refresh" {
 		t.Fatalf("expected rotated refresh token, got %q", result.RefreshToken)

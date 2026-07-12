@@ -651,12 +651,12 @@ function discardAdminCategorySettings() {
   renderAdminPage();
 }
 async function getJSON(url) {
-  const response = await fetch(route(url), { credentials: "include" });
+  const response = await coreFetch(route(url));
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
 async function postJSON(url, body) {
-  const response = await fetch(route(url), { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const response = await coreFetch(route(url), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw await requestError(response);
   return response.json();
 }
