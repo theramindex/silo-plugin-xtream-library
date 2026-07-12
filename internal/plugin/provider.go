@@ -1,6 +1,6 @@
 package plugin
 
-import "github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+import "github.com/theramindex/silo-plugin-xtream-library/internal/model"
 
 type Descriptor struct {
 	SourceID string

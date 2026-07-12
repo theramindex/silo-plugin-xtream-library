@@ -7,12 +7,12 @@ import (
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/app"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
 
 func TestScheduledTaskServerRunsSyncTask(t *testing.T) {

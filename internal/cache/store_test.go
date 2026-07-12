@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 )
 
 func TestStorePrunesExpiredWatchSessions(t *testing.T) {

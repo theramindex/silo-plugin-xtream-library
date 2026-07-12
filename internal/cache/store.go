@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 )
 
 type Snapshot struct {

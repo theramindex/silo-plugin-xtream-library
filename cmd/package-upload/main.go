@@ -15,7 +15,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 

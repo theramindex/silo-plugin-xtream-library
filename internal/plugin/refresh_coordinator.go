@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 )
 
 type RefreshOperation string

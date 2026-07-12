@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/model"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
 )
 
 func MapDispatcharrChannel(channel dispatcharr.Channel, streamURL string) model.Channel {

@@ -16,10 +16,10 @@ import (
 	publicmanifest "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/manifest"
 	sdkruntime "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtime"
 	"github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/runtimedefault"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/app"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/cache"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	pluginimpl "github.com/theramindex/silo-plugin-dispatcharr/internal/plugin"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/app"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	pluginimpl "github.com/theramindex/silo-plugin-xtream-library/internal/plugin"
 )
 
 //go:embed manifest.json

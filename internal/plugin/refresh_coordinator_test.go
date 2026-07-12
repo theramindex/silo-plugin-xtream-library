@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 )
 
 func TestRefreshCoordinatorCancelsObsoleteConfigAndSerializesJobs(t *testing.T) {

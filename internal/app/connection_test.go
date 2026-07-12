@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/dispatcharr"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/xtream"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
 
 func TestServiceTestConnectionXtreamSuccess(t *testing.T) {

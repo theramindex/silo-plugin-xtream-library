@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -11,7 +12,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	configsdk "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -50,6 +51,18 @@ func TestManifestIdentifiesStandaloneXtremeCodesPlugin(t *testing.T) {
 	}
 	if displayName, _ := manifest.GetMetadata().AsMap()["display_name"].(string); displayName != "Xtreme Codes for Silo" {
 		t.Fatalf("expected standalone display name, got %q", displayName)
+	}
+}
+
+func TestModuleIdentifiesXtremePluginRepository(t *testing.T) {
+	t.Parallel()
+
+	contents, err := os.ReadFile("go.mod")
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	if !strings.HasPrefix(string(contents), "module github.com/theramindex/silo-plugin-xtream-library\n") {
+		t.Fatalf("expected Xtreme module identity, got %q", strings.SplitN(string(contents), "\n", 2)[0])
 	}
 }
 

@@ -180,6 +180,8 @@ features are excluded.
 - Complete: the manifest and browser client expose the standalone `/xtream`
   namespace; a handler adapter keeps existing implementation routes reachable
   while later features remove inherited behavior.
+- Complete: the Go module and all internal imports identify the standalone
+  `silo-plugin-xtream-library` repository rather than the Dispatcharr plugin.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin

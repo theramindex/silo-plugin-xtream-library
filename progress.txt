@@ -25,3 +25,7 @@ Notes: Archive eligibility reaches the guide UI; replay resolves through the pro
 [2026-07-12 03:00] Feature: Reject retired Dispatcharr public feature routes
 Status: Complete
 Notes: The Xtreme namespace returns 404 for recordings, sports, events, and local-timeshift routes even when a caller bypasses manifest discovery.
+
+[2026-07-12 03:10] Feature: Establish Xtreme module identity
+Status: Complete
+Notes: The Go module and all in-repository imports now resolve through the standalone Xtreme repository path.

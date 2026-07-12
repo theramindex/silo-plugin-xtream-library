@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/config"
-	"github.com/theramindex/silo-plugin-dispatcharr/internal/upstream/m3u"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/m3u"
 )
 
 func (s *Service) ResolvePlayback(ctx context.Context, settings config.Settings, streamID int64) (string, error) {
