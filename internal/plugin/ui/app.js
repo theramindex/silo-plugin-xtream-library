@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.xtream.appSnapshot.v1." + localCacheSuffix;
 const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/xtream") ? "xtream/assets" : "assets";
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", categorySettingsQuery: "", categorySettingsOpen: { live: true, north_america: false, international: false }, profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -3815,6 +3815,37 @@ function renderGuideWindow(force) {
   root.innerHTML = "<div class=\"guide-window\" style=\"transform:translateY(" + (start * rowHeight) + "px)\">" + rows + "</div>";
   state.guideLoading = false;
 }
+function categorySettingsBuckets(categories) {
+  const buckets = [
+    { id: "live", name: "Live, replay & 24/7", description: "Events, replay feeds, specialty channels, and always-on collections.", categories: [] },
+    { id: "north_america", name: "United States & Canada", description: "US and Canadian channel groups.", categories: [] },
+    { id: "international", name: "International", description: "Regional and country-specific channel groups.", categories: [] }
+  ];
+  items(categories).forEach(function(category) {
+    const name = String(category.name || category.sourceID || "").trim();
+    if (/^(USA|CA)\s*\|/i.test(name)) buckets[1].categories.push(category);
+    else if (/^(Live\s*\||Replay\s*\||24\/7\b|EN✦|XXX\b)/i.test(name) || /(FIFA World Cup|4K\s*\/\s*UHD|Pay-Per View|Game Pass)/i.test(name)) buckets[0].categories.push(category);
+    else buckets[2].categories.push(category);
+  });
+  return buckets.filter(function(bucket) { return bucket.categories.length > 0; });
+}
+function renderCategorySettings() {
+  const root = byId("settings-list");
+  if (!root) return;
+  const query = lower(state.categorySettingsQuery);
+  const buckets = categorySettingsBuckets(sourceCategoriesWithChannels());
+  root.innerHTML = "<label class=\"category-settings-search\">" + icon("search") + "<input id=\"category-settings-filter\" type=\"search\" placeholder=\"Find a channel group\" value=\"" + escapeHTML(state.categorySettingsQuery) + "\" aria-label=\"Find a channel group\"></label>"
+    + buckets.map(function(bucket) {
+      const visible = bucket.categories.filter(function(category) { return !query || lower(category.name || category.sourceID).indexOf(query) !== -1; });
+      if (query && !visible.length) return "";
+      const hiddenCount = bucket.categories.filter(function(category) { return !!hiddenMap()[category.sourceID]; }).length;
+      const expanded = !!query || !!state.categorySettingsOpen[bucket.id];
+      const rows = visible.map(function(category) {
+        return "<label class=\"category-settings-row\"><span>" + escapeHTML(category.name || category.sourceID) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.sourceID) + "\"" + (hiddenMap()[category.sourceID] ? " checked" : "") + "></label>";
+      }).join("");
+      return "<section class=\"category-settings-group" + (expanded ? " is-open" : "") + "\"><div class=\"category-settings-group-head\"><button type=\"button\" data-category-section=\"" + bucket.id + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\"><span class=\"category-settings-chevron\">" + icon("chevron-down") + "</span><span><strong>" + escapeHTML(bucket.name) + "</strong><small>" + escapeHTML(bucket.description) + "</small></span><em>" + hiddenCount + " hidden · " + bucket.categories.length + " total</em></button><label title=\"Hide every group in " + escapeHTML(bucket.name) + "\"><span>Hide all</span><input type=\"checkbox\" data-hide-bucket=\"" + bucket.id + "\"" + (hiddenCount === bucket.categories.length ? " checked" : "") + "></label></div><div class=\"category-settings-rows\">" + rows + "</div></section>";
+    }).join("") || "<div class=\"empty\">No matching channel groups.</div>";
+}
 function renderSettings() {
   ensureSelectedCustomGroup();
   const showSourceCategorySettings = !virtualCategoriesActive();
@@ -3822,16 +3853,12 @@ function renderSettings() {
     + (isDispatcharrDirectSource() ? "<div class=\"settings-card profile-settings-card\"><div class=\"settings-card-head\"><div><h2>Live TV profiles</h2><p>Choose which Dispatcharr profile lineups appear in your Live TV experience.</p></div><span id=\"profile-selection-summary\" class=\"profile-selection-summary\"></span></div><div id=\"profile-settings\"></div></div>" : "")
     + "<div class=\"settings-card custom-groups-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\"></div></div>"
     + "<div class=\"settings-card\"><h2>Category organization</h2><label class=\"settings-row\"><span><strong>Group categories by <code>|</code></strong><small>Turn provider paths such as USA | Sports into browsable folders.</small></span><input type=\"checkbox\" data-category-grouping=\"pipe\"" + (prefs().groupCategoriesByPipe ? " checked" : "") + "></label></div>"
-    + (showSourceCategorySettings ? "<div class=\"settings-card\"><h2>Hidden channel groups</h2><div id=\"settings-list\" class=\"settings-list\"></div></div>" : "")
+    + (showSourceCategorySettings ? "<div class=\"settings-card category-settings-card\"><div class=\"settings-card-head\"><div><h2>Hidden channel groups</h2><p>Search or expand a section. Checked groups stay out of Home, Favorites, and Guide.</p></div></div><div id=\"settings-list\" class=\"settings-list category-settings-list\"></div></div>" : "")
     + "</div>";
   renderProfileSettings();
   renderCustomGroupSettings();
   if (!showSourceCategorySettings) return;
-  const root = byId("settings-list");
-  const categories = sourceCategoriesWithChannels();
-  root.innerHTML = categories.map(function(category) {
-    return "<label><span>" + escapeHTML(category.name || category.sourceID) + "</span><input type=\"checkbox\" data-hide=\"" + escapeHTML(category.sourceID) + "\"" + (hiddenMap()[category.sourceID] ? " checked" : "") + "></label>";
-  }).join("") || "<div class=\"empty\">No channel groups available for this connection.</div>";
+  renderCategorySettings();
 }
 function renderProfileSettings() {
   const root = byId("profile-settings");
@@ -4340,7 +4367,7 @@ function renderCustomGroupSettings() {
       + "<section class=\"custom-group-browser\"><div class=\"custom-group-section-head\"><strong>Add channels</strong><span>" + escapeHTML(searchStatus) + "</span></div><input class=\"custom-channel-search\" id=\"custom-group-channel-search\" role=\"combobox\" aria-controls=\"custom-group-channel-options\" aria-expanded=\"true\" aria-autocomplete=\"list\" placeholder=\"Search channels or groups\" value=\"" + escapeHTML(state.customGroupQuery) + "\"><div id=\"custom-group-channel-options\" class=\"custom-channel-options\" role=\"listbox\">" + resultRows + "</div></section>"
       + "<section class=\"custom-group-members\"><div class=\"custom-group-section-head\"><strong>Group channels</strong><span>" + memberships.length + " saved</span></div><div class=\"custom-member-list\">" + memberRows + "</div></section>"
       + "</div>"
-      : "<div class=\"custom-group-empty\"><strong>Create a group</strong><span>Build a personal channel lineup by adding channels from the current Dispatcharr catalog.</span></div>")
+      : "<div class=\"custom-group-empty\"><strong>Create a group</strong><span>Build a personal channel lineup by adding channels from the current Live TV catalog.</span></div>")
     + "</div>";
 }
 function selectCustomGroupChannel(channelID) {
@@ -4912,6 +4939,14 @@ document.addEventListener("click", function(event) {
     if (profileSelectionAction.getAttribute("data-profile-selection-action") === "all") useAllProfiles();
     return;
   }
+  const categorySection = event.target.closest("[data-category-section]");
+  if (categorySection) {
+    event.preventDefault();
+    const sectionID = categorySection.getAttribute("data-category-section");
+    state.categorySettingsOpen[sectionID] = !state.categorySettingsOpen[sectionID];
+    renderCategorySettings();
+    return;
+  }
   const playerSportsChannel = event.target.closest("[data-player-sports-channel]");
   if (playerSportsChannel) {
     event.preventDefault();
@@ -5438,14 +5473,36 @@ document.addEventListener("change", function(event) {
     render();
     return;
   }
+  const hideBucket = event.target.getAttribute("data-hide-bucket");
+  if (hideBucket) {
+    const bucket = categorySettingsBuckets(sourceCategoriesWithChannels()).find(function(candidate) { return candidate.id === hideBucket; });
+    if (!bucket) return;
+    bucket.categories.forEach(function(category) {
+      if (event.target.checked) state.app.preferences.hiddenCategories[category.sourceID] = true;
+      else delete state.app.preferences.hiddenCategories[category.sourceID];
+    });
+    savePrefs();
+    renderCategorySettings();
+    return;
+  }
   const id = event.target.getAttribute("data-hide");
   if (!id) return;
   if (event.target.checked) state.app.preferences.hiddenCategories[id] = true;
   else delete state.app.preferences.hiddenCategories[id];
   savePrefs();
-  render();
+  renderCategorySettings();
 });
 document.addEventListener("input", function(event) {
+  if (event.target && event.target.id === "category-settings-filter") {
+    state.categorySettingsQuery = event.target.value || "";
+    renderCategorySettings();
+    const input = byId("category-settings-filter");
+    if (input) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    return;
+  }
   if (event.target && event.target.id === "profile-settings-filter") {
     state.profileSettingsQuery = event.target.value || "";
     renderProfileSettings();

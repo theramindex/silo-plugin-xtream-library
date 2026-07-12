@@ -338,6 +338,20 @@ func TestPublicStreamFormatUsesUpstreamPathWithoutExposingIt(t *testing.T) {
 	}
 }
 
+func TestPlayerAppGroupsLargeCategorySettingsLists(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{"categorySettingsBuckets", "Live, replay & 24/7", "United States & Canada", "International", "category-settings-filter", "data-hide-bucket"} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("expected grouped category settings marker %q", expected)
+		}
+	}
+	if strings.Contains(script, "current Dispatcharr catalog") {
+		t.Fatal("Xtreme settings must not describe the catalog as Dispatcharr")
+	}
+}
+
 func TestPlayerAppCoreRequestRefreshesExpiredSiloSession(t *testing.T) {
 	t.Parallel()
 

@@ -686,6 +686,27 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .profile-selection-row input { flex: 0 0 auto; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
 .settings-list { display: grid; gap: 0.62rem; }
 .settings-list > label, .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--panel); border-radius: 0.5rem; padding: 0.75rem 0.8rem; }
+.category-settings-card .settings-card-head { margin-bottom: 0.75rem; }
+.category-settings-list { gap: 0.5rem; }
+.category-settings-search { min-height: 2.75rem; display: flex; align-items: center; gap: 0.55rem; border: 1px solid var(--line); border-radius: 0.55rem; background: var(--panel); padding: 0 0.75rem; }
+.category-settings-search svg { width: 1rem; height: 1rem; color: var(--muted); }
+.category-settings-search input { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; }
+.category-settings-group { border-top: 1px solid var(--line); }
+.category-settings-group-head { min-height: 4rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; }
+.category-settings-group-head > button { min-width: 0; min-height: 4rem; border: 0; background: transparent; color: var(--text); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; padding: 0.55rem 0; text-align: left; }
+.category-settings-group-head > button > span:nth-child(2) { min-width: 0; display: grid; gap: 0.12rem; }
+.category-settings-group-head strong { font-size: 0.94rem; }
+.category-settings-group-head small { color: var(--muted); font-size: 0.76rem; line-height: 1.25; }
+.category-settings-group-head em { color: var(--muted); font-size: 0.75rem; font-style: normal; font-weight: 760; white-space: nowrap; }
+.category-settings-chevron { display: grid; place-items: center; transition: transform 160ms ease-out; }
+.category-settings-chevron svg { width: 1rem; height: 1rem; }
+.category-settings-group.is-open .category-settings-chevron { transform: rotate(180deg); }
+.category-settings-group-head > label { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.75rem; font-weight: 780; white-space: nowrap; }
+.category-settings-group-head input, .category-settings-row input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.category-settings-rows { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem; padding: 0 0 0.75rem 1.7rem; }
+.category-settings-group.is-open .category-settings-rows { display: grid; }
+.category-settings-row { min-width: 0; min-height: 2.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; border-radius: 0.45rem; background: var(--panel); padding: 0.55rem 0.7rem; }
+.category-settings-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .settings-row.settings-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem); align-items: center; gap: 1.1rem; padding: 0.85rem 0.9rem; }
 .settings-field-copy { display: grid; gap: 0.18rem; min-width: 0; }
 .settings-field-copy strong { color: var(--text); font-size: 0.94rem; line-height: 1.2; }
@@ -853,6 +874,11 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .custom-group-section-head { align-items: start; flex-direction: column; gap: 0.2rem; }
   .custom-group-section-head span { text-align: left; }
   .settings-row.settings-form-row { grid-template-columns: 1fr; align-items: stretch; gap: 0.55rem; }
+  .category-settings-group-head { grid-template-columns: minmax(0, 1fr); gap: 0; padding-bottom: 0.55rem; }
+  .category-settings-group-head > label { padding-left: 1.7rem; }
+  .category-settings-group-head > button { grid-template-columns: auto minmax(0, 1fr); }
+  .category-settings-group-head em { grid-column: 2; }
+  .category-settings-rows { grid-template-columns: 1fr; padding-left: 0; }
   .virtual-label-row { align-items: stretch; }
   .virtual-label-control { width: 100%; margin-left: 0; }
   .virtual-label-control > span { text-align: left; }
