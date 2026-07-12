@@ -354,6 +354,20 @@ func TestPlayerAppGroupsLargeCategorySettingsLists(t *testing.T) {
 	}
 }
 
+func TestPlayerGuideUsesSearchableCategoryPicker(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{"renderGuideCategoryPicker", "guide-category-popover", "guide-category-search", "data-guide-category", "guideCategoryOptionsHTML"} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("expected searchable guide category picker marker %q", expected)
+		}
+	}
+	if strings.Contains(script, `id=\"category-select\"`) || strings.Contains(script, `guide-category-options\"><option`) {
+		t.Fatal("expected the native datalist guide category filter to be removed")
+	}
+}
+
 func TestPlayerAppCoreRequestRefreshesExpiredSiloSession(t *testing.T) {
 	t.Parallel()
 
@@ -1441,7 +1455,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     featuredSection: grid.indexOf(">Featured Groups<") !== -1,
     featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
     listingRenamedSection: renamedGrid.indexOf(">Things<") !== -1 && renamedGrid.indexOf(">Channel Groups<") === -1,
-    guideRenamedAllOption: renamedGuideView.indexOf('value="All things"') !== -1 && renamedGuideView.indexOf('value="All channel groups"') === -1,
+    guideRenamedAllOption: renamedGuideView.indexOf('>All things</strong>') !== -1 && renamedGuideView.indexOf('>All channel groups</strong>') === -1,
     virtualRenamedBreadcrumb: renamedVirtualView.indexOf(">Things</button>") !== -1 && renamedVirtualView.indexOf(">Channel Groups</button>") === -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
