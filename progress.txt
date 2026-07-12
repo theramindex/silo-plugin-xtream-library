@@ -13,3 +13,7 @@ Notes: The manifest and browser app use `/xtream`; keep the internal path adapte
 [2026-07-12 02:15] Feature: Deliver Xtream Live TV guide and playback gateway
 Status: Complete
 Notes: Live TV, guide, redacted Catalog payloads, and the provider-bound `/xtream/stream` gateway are verified at the route boundary.
+
+[2026-07-12 02:25] Feature: Deliver Xtream VOD, series, and episode playback
+Status: Complete
+Notes: Series details are fetched server-side; VOD and episodes enter the existing Browser Player through authenticated Xtreme gateways.

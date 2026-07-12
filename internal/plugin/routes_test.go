@@ -127,6 +127,24 @@ func TestXtreamSeriesInfoRouteRedactsEpisodeTargets(t *testing.T) {
 	}
 }
 
+func TestPlayerScriptUsesRedactedVODAndEpisodeGateways(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{
+		`data-vod-playback`,
+		`data-series-open`,
+		`/dispatcharr/api/series/info?series_id=`,
+		`data-episode-playback`,
+		`/dispatcharr/episode/stream?series_id=`,
+		`function playOnDemand(title, gatewayURL)`,
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("expected player script to contain %q", expected)
+		}
+	}
+}
+
 func TestHTTPRoutesServerChannelsAndGuideRoutes(t *testing.T) {
 	t.Parallel()
 
