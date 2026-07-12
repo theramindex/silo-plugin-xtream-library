@@ -232,15 +232,30 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 }
 
 func rewritePublicManifestForXtream(manifest *pluginv1.PluginManifest) {
+	routes := make([]*pluginv1.HttpRouteDescriptor, 0, len(manifest.GetHttpRoutes()))
 	for _, route := range manifest.GetHttpRoutes() {
+		if isRetiredPublicRoute(route.GetPath()) {
+			continue
+		}
 		route.Id = strings.Replace(route.GetId(), "dispatcharr", "xtream", 1)
 		route.Path = strings.Replace(route.GetPath(), "/dispatcharr", "/xtream", 1)
+		routes = append(routes, route)
 	}
+	manifest.HttpRoutes = routes
 	for _, capability := range manifest.GetCapabilities() {
 		capability.Id = strings.Replace(capability.GetId(), "dispatcharr", "xtream", 1)
 		capability.DisplayName = strings.ReplaceAll(capability.GetDisplayName(), "Dispatcharr", "Xtreme Codes")
 		capability.Description = strings.ReplaceAll(capability.GetDescription(), "Dispatcharr", "Xtream")
 	}
+}
+
+func isRetiredPublicRoute(path string) bool {
+	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
+		if strings.Contains(path, segment) {
+			return true
+		}
+	}
+	return false
 }
 
 func asString(value any) string {

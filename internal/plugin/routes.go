@@ -1431,7 +1431,7 @@ func appCapabilities(sourceMode model.SourceMode) AppCapabilities {
 		Guide:                 true,
 		VOD:                   fullCatalog,
 		Series:                fullCatalog,
-		Recordings:            dvrEnabledForSource(sourceMode),
+		Recordings:            false,
 		Favorites:             true,
 		HiddenCategories:      true,
 		BackendProxySupported: false,
