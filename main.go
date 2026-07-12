@@ -63,6 +63,9 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 	if current.EPGRefreshH == 0 {
 		current.EPGRefreshH = config.DefaultEPGRefreshHours
 	}
+	if err := current.Validate(); err != nil {
+		return nil, fmt.Errorf("validate Xtreme connection: %w", err)
+	}
 	s.settings.Set(current)
 	return &pluginv1.ConfigureResponse{}, nil
 }

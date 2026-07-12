@@ -193,6 +193,9 @@ features are excluded.
   process begins with an in-memory catalog and refreshes its configured source.
 - Complete: manifest-scheduled refresh capability IDs and the task executor
   use the same `xtream-*` identifiers for catalog, channel, and guide refresh.
+- Complete: runtime configuration validates the standalone source before it is
+  saved, surfacing incomplete Xtream/M3U settings during configuration rather
+  than at the first background refresh.
 - Complete: Live TV, guide responses, and provider-bound playback are available
   through the Xtreme namespace; normal Catalog payloads redact provider targets.
 - Complete: VOD items and Xtream series episodes open through the in-plugin
