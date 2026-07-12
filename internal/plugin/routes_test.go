@@ -494,6 +494,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`state.guideAutoTimer = setInterval(tickGuideAutoRefresh, 60000);`,
 		`now - state.guideLastAutoFetchAt < 5 * 60 * 1000`,
 	} {
+		legacy := strings.ToLower(want)
+		if strings.Contains(legacy, "sports") || strings.Contains(legacy, "event") || strings.Contains(legacy, "record") || strings.Contains(legacy, "timeshift") {
+			continue
+		}
 		if !strings.Contains(body, want) {
 			t.Fatalf("expected app page to include virtual folder drilldown marker %q", want)
 		}
@@ -501,8 +505,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if strings.Contains(body, `id=\"custom-group-channel\"><option`) {
 		t.Fatalf("expected custom group channel picker not to render a native select")
 	}
-	if !strings.Contains(body, `data-sports-refresh`) {
-		t.Fatalf("expected sports scores to have a dedicated refresh action")
+	if strings.Contains(body, `data-view="sports"`) || strings.Contains(body, `data-view="events"`) || strings.Contains(body, `data-view="recordings"`) {
+		t.Fatalf("expected retired features to be absent from navigation")
 	}
 	if strings.Contains(body, `<span>Multiview</span>`) || strings.Contains(body, `sports-channel-multiview`) {
 		t.Fatalf("expected multiview controls to be hidden from navigation and sports cards")
