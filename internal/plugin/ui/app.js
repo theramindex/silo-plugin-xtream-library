@@ -9,7 +9,7 @@ const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/xtream") ? "xtream/assets" : "assets";
 const guidePingChannelLimit = 8;
-const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", categorySettingsQuery: "", categorySettingsOpen: { live: true, north_america: false, international: false }, profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
+const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", categorySettingsQuery: "", categorySettingsOpen: { live: true, north_america: false, international: false }, profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
 state.categoryBrowseSort = "provider";
@@ -4225,7 +4225,6 @@ function handleAdminSourceAction(action, sourceID) {
 }
 function renderAdminSettingsTab() {
   return ""
-    + adminStatusPanel()
     + "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
     + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate category paths without changing the provider groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
     + "";
@@ -4296,84 +4295,6 @@ function renderAdminIntegrationsTab() {
   return ""
     + "<div class=\"settings-card integrations-card\"><div class=\"settings-card-head\"><div><h2>ECM</h2><p>Embed Enhanced Channel Manager for Dispatcharr channel work.</p></div></div><div id=\"admin-ecm-settings\" class=\"settings-list\"></div></div>"
     + "";
-}
-function adminStatusPill(status) {
-  status = String(status || "ok").toLowerCase();
-  const label = status === "failed" ? "Error" : (status === "loading" ? "Updating" : (status === "error" ? "Error" : (status === "unavailable" ? "Unavailable" : (status === "all_access" ? "All access" : (status === "empty" ? "Not assigned" : (status === "available" ? "Available" : "Healthy"))))));
-  const cls = status === "loading" ? " loading" : ((status === "error" || status === "failed" || status === "unavailable") ? " error" : ((status === "empty" || status === "all_access") ? " warning" : ""));
-  return "<span class=\"admin-status-pill" + cls + "\">" + escapeHTML(label) + "</span>";
-}
-function plainTextFromHTML(value) {
-  return String(value || "").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
-}
-function adminStatusItem(label, value, detail) {
-  return "<div class=\"admin-status-item\" title=\"" + escapeHTML((label ? label + ": " : "") + (detail || plainTextFromHTML(value))) + "\"><span>" + escapeHTML(label) + "</span><strong>" + value + "</strong>" + (detail ? "<small>" + escapeHTML(detail) + "</small>" : "") + "</div>";
-}
-function adminStatusPanel() {
-  const status = state.app && state.app.status ? state.app.status : {};
-  const source = state.app && state.app.source ? state.app.source : {};
-  const profileAccess = source.profileAccess || {};
-  const guideStatus = String(status.epgStatus || (status.epgProgramCount ? "ok" : "unknown"));
-  const error = status.lastError || status.epgLastError || "";
-  const profileStatus = String(profileAccess.status || (items(source.profiles).length ? "available" : "empty"));
-  const profileCount = Number(profileAccess.profileCount || items(source.profiles).length || 0);
-  const membershipCount = Number(profileAccess.channelMembershipCount || 0);
-  const profileValue = profileStatus === "available" ? escapeHTML(String(profileCount)) : adminStatusPill(profileStatus);
-  const profileDetail = profileStatus === "available" ? String(membershipCount) + " channel memberships" : (profileAccess.message || "No profile information returned by Dispatcharr.");
-  const refreshClass = "admin-status-refresh" + (state.adminStatusRefreshing ? " is-loading" : "");
-  const refreshLabel = state.adminStatusRefreshing ? "Refreshing..." : "Refresh";
-  return "<div class=\"admin-status-strip\" aria-label=\"Connection Status\"><div class=\"settings-card-head\"><div><h2>Connection Status</h2></div><button type=\"button\" class=\"" + refreshClass + "\" data-admin-status-refresh=\"true\" aria-label=\"Refresh connection status\"" + (state.adminStatusRefreshing ? " disabled aria-busy=\"true\"" : "") + ">" + icon("loader") + "<span>" + refreshLabel + "</span></button></div><div class=\"admin-status-grid\">"
-    + adminStatusItem("Connection", adminStatusPill(status.status || "ok"), sourceModeLabel(source.mode))
-    + adminStatusItem("Channels", escapeHTML(String(status.channelCount || items(state.app.channels).length || 0)), "Last catalog sync: " + dateTimeLabel(status.lastSuccessUnix))
-    + adminStatusItem("Guide", adminStatusPill(guideStatus), String(status.epgProgramCount || items(state.app.programs).length || 0) + " programs · " + dateTimeLabel(status.epgLastSuccessUnix))
-    + (isDispatcharrDirectSource() ? adminStatusItem("Profiles", profileValue, profileDetail) : "")
-    + "</div>"
-    + (error ? "<div class=\"settings-note settings-warning admin-status-note\">" + escapeHTML(error) + "</div>" : "")
-    + (isDispatcharrDirectSource() && profileStatus !== "available" ? "<div class=\"settings-note settings-warning admin-status-note is-actionable\"><span>" + escapeHTML(profileDetail) + "</span><button type=\"button\" data-admin-profile-refresh=\"true\"" + (state.adminProfileRefreshing ? " disabled" : "") + ">" + (state.adminProfileRefreshing ? "Refreshing..." : "Retry profiles") + "</button></div>" : "")
-    + "</div>";
-}
-
-async function refreshAdminStatus() {
-  if (state.adminStatusRefreshing) return;
-  state.adminStatusRefreshing = true;
-  renderAdminPage();
-  try {
-    await refreshStatusData();
-    showAppToast("Connection status refreshed.");
-  } catch (error) {
-    showAppToast("Could not refresh connection status.");
-    try { console.warn("Dispatcharr admin status refresh failed", error); } catch (_) {}
-  } finally {
-    state.adminStatusRefreshing = false;
-    renderAdminPage();
-  }
-}
-
-async function refreshAdminProfiles() {
-  if (state.adminProfileRefreshing) return;
-  state.adminProfileRefreshing = true;
-  renderAdminPage();
-  try {
-    await hydrateApp(await postJSON("/dispatcharr/api/refresh-channels", {}), { reuseSettings: true });
-    for (let attempt = 0; attempt < 150; attempt++) {
-      const profileAccess = state.app && state.app.source ? state.app.source.profileAccess || {} : {};
-      const refresh = state.app && state.app.status ? state.app.status.refresh || {} : {};
-      const refreshState = String(refresh.state || "").toLowerCase();
-      if (profileAccess.status === "available") {
-        showAppToast("Channel profiles refreshed.");
-        return;
-      }
-      if (refreshState === "failed" || refreshState === "canceled") throw new Error(refresh.error || "profile refresh did not complete");
-      await new Promise(function(resolve) { setTimeout(resolve, 2000); });
-      await refreshStatusData();
-    }
-    throw new Error("profile refresh timed out");
-  } catch (error) {
-    showAppToast("Dispatcharr profile refresh failed.");
-  } finally {
-    state.adminProfileRefreshing = false;
-    renderAdminPage();
-  }
 }
 function renderExternalChannelManager() {
   const managerURL = adminECMURL();
@@ -5521,18 +5442,6 @@ document.addEventListener("click", function(event) {
     const action = adminAliasAction.getAttribute("data-admin-alias-action");
     if (action === "add") addAdminCategoryAlias();
     if (action === "remove") removeAdminCategoryAlias(Number(adminAliasAction.getAttribute("data-admin-alias-index")));
-    return;
-  }
-  const adminProfileRefresh = event.target.closest("[data-admin-profile-refresh]");
-  if (adminProfileRefresh) {
-    event.preventDefault();
-    refreshAdminProfiles();
-    return;
-  }
-  const adminStatusRefresh = event.target.closest("[data-admin-status-refresh]");
-  if (adminStatusRefresh) {
-    event.preventDefault();
-    refreshAdminStatus();
     return;
   }
   const adminSettingsAction = event.target.closest("[data-admin-settings-action]");

@@ -810,16 +810,6 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`/dispatcharr/api/refresh-channels`,
 		`function renderAdminSettingsTab()`,
 		`function renderAdminSourcesTab()`,
-		`Connection Status`,
-		`function adminStatusPanel()`,
-		`function refreshAdminStatus()`,
-		`adminStatusItem("Profiles", profileValue, profileDetail)`,
-		`Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.`,
-		`admin-status-strip`,
-		`admin-status-refresh`,
-		`data-admin-status-refresh`,
-		`Refresh connection status`,
-		`Connection status refreshed.`,
 		`Presentation Overrides`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
@@ -874,8 +864,6 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`Discard`,
 		`function effectiveChannel(channel)`,
 		`/dispatcharr/api/refresh-channels`,
-		`Retry profiles`,
-		`data-admin-profile-refresh`,
 		`/api/v1/admin/plugins/installations/`,
 		`key: "category_settings"`,
 		`state.adminCategorySettings = defaultAdminCategorySettings();`,
@@ -890,6 +878,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	if strings.Contains(body, "dispatcharr-admin-token") {
 		t.Fatal("expected admin page to rely on Silo route authorization, not a custom browser token")
+	}
+	if strings.Contains(body, `Connection Status`) || strings.Contains(body, `admin-status-strip`) || strings.Contains(body, `data-admin-status-refresh`) {
+		t.Fatal("expected the Organization page to omit the redundant connection status panel")
 	}
 	if strings.Contains(body, `class="nav admin-nav"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
 		t.Fatal("expected admin tabs to render in the topbar, not the sidebar")
@@ -3253,7 +3244,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	} {
 		requireStyle(want)
 	}
-	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.admin-status-strip{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
+	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
 		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
 	}
 	if !strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky; left: var(--epg-logo-col);`) {
