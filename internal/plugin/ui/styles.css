@@ -99,7 +99,7 @@ button { cursor: pointer; }
 .topbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.58rem 0.75rem; margin: 0 -1.25rem 1.15rem; min-height: 4.35rem; position: sticky; top: 0; z-index: 8; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(18px); padding: 0.72rem 1.25rem; }
 .shell.is-player .topbar { display: none; }
 .topbar-primary { display: flex; align-items: center; gap: 0.72rem; min-width: 0; overflow: visible; flex: 1 1 0; }
-.topbar-primary .nav { flex: 1 1 auto; }
+.topbar-primary .nav { width: max-content; flex: 0 1 auto; }
 .topbar-actions { display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.45rem; min-width: max-content; margin-left: auto; flex: 0 0 auto; }
 .sports-topbar-tabs { display: none; order: 3; flex: 1 1 100%; min-width: 0; }
 .shell.is-sports .topbar, .shell.is-events .topbar { justify-content: flex-start; }

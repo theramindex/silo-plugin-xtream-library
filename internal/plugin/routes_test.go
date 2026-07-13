@@ -648,6 +648,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `.home-section + .home-guide-section { margin-top: -1.5rem; }`) {
 		t.Fatalf("expected a plain Categories heading and tighter spacing before the home guide")
 	}
+	if !strings.Contains(body, `.topbar-primary .nav { width: max-content; flex: 0 1 auto; }`) {
+		t.Fatalf("expected desktop Live TV navigation to stay compact instead of stretching across the header")
+	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
 	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", "")`)
 	virtualChildrenIndex := strings.Index(body, `+ (filteredChildren.length ? "<div class=\"category-grid\">`)
