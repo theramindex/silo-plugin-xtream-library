@@ -590,16 +590,17 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
-	started, status := s.startBackgroundGuideWarm(settings)
-	responseStatus := http.StatusOK
-	if started {
-		responseStatus = http.StatusAccepted
+	s.store.MarkEPGLoading()
+	if err := s.coordinator.Run(ctx, RefreshGuide, settings, time.Now().Unix()); err != nil {
+		s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
+		return textResponse(http.StatusBadGateway, "guide refresh failed: "+err.Error()), nil
 	}
-	return s.respondJSON(responseStatus, GuidePingPayload{
-		Status:          status,
+	currentPrograms = currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
+	return s.respondJSON(http.StatusOK, GuidePingPayload{
+		Status:          "fresh",
 		CheckedChannels: len(channelIDs),
 		CurrentPrograms: currentPrograms,
-		Refreshing:      started,
+		Refreshing:      false,
 	})
 }
 

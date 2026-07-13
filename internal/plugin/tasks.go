@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"strings"
+	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/app"
@@ -59,17 +60,13 @@ func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunSche
 	if err := settings.Validate(); err != nil {
 		return nil, err
 	}
-	job, started := s.coordinator.Start(operation, settings)
-	if !started && job.State == RefreshFailed {
-		return nil, status.Error(codes.FailedPrecondition, job.Error)
+	if err := s.coordinator.Run(ctx, operation, settings, time.Now().Unix()); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
 	}
-	statusLabel := "queued"
-	if !started {
-		statusLabel = "coalesced"
-	}
+	job := s.coordinator.Status()
 
 	output, err := structpb.NewStruct(map[string]any{
-		"status":    statusLabel,
+		"status":    "completed",
 		"task":      taskKind,
 		"jobId":     job.ID,
 		"operation": string(job.Operation),

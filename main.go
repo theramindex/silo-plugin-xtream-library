@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"os"
 	goruntime "runtime"
 	"strings"
@@ -149,6 +150,12 @@ func main() {
 		panic(err)
 	}
 	store := cache.NewStore()
+	snapshotStorage := cache.NewFileSnapshotStorage("")
+	if snapshot, ok, loadErr := snapshotStorage.Load(); loadErr != nil {
+		log.Printf("xtream: load catalog snapshot failed: %v", loadErr)
+	} else if ok {
+		store.Replace(snapshot)
+	}
 	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	sourceRegistry := config.NewSourceRegistry("")
 	settingsProvider := func() config.Settings {
@@ -158,7 +165,7 @@ func main() {
 		}
 		return current
 	}
-	service := app.NewService(app.Dependencies{Store: store})
+	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{

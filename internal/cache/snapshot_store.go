@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-const DefaultSnapshotFile = "/var/lib/continuum/plugins/silo.ramindex.dispatcharr/catalog-snapshot.json"
+const DefaultSnapshotFile = "/var/lib/continuum/plugins/silo.ramindex.xtream/catalog-snapshot.json"
 
 type SnapshotStorage interface {
 	Load() (Snapshot, bool, error)
@@ -25,7 +25,7 @@ type FileSnapshotStorage struct {
 
 func NewFileSnapshotStorage(path string) *FileSnapshotStorage {
 	if strings.TrimSpace(path) == "" {
-		path = os.Getenv("DISPATCHARR_CATALOG_SNAPSHOT_FILE")
+		path = os.Getenv("XTREAM_CATALOG_SNAPSHOT_FILE")
 	}
 	if strings.TrimSpace(path) == "" {
 		path = DefaultSnapshotFile

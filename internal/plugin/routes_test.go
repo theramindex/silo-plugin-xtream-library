@@ -2115,17 +2115,21 @@ func TestHTTPRoutesServerGuidePingRefreshesWhenAnyCheckedChannelIsMissingGuide(t
 	if err != nil {
 		t.Fatalf("guide ping: %v", err)
 	}
-	if response.GetStatusCode() != http.StatusAccepted {
-		t.Fatalf("expected partial guide to start refresh, got %d", response.GetStatusCode())
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected partial guide to complete refresh, got %d", response.GetStatusCode())
 	}
 	var payload GuidePingPayload
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal guide ping payload: %v", err)
 	}
-	if payload.Status != "refreshing" || payload.CurrentPrograms != 1 {
-		t.Fatalf("expected one covered channel and refreshing status, got %+v", payload)
+	if payload.Status != "fresh" || payload.Refreshing {
+		t.Fatalf("expected completed guide refresh, got %+v", payload)
 	}
-	waitForStubSync(t, done)
+	select {
+	case <-done:
+	default:
+		t.Fatal("guide ping returned before refresh completed")
+	}
 }
 
 func TestHTTPRoutesServerLegacyFavoriteRouteRejectsProcessGlobalState(t *testing.T) {
