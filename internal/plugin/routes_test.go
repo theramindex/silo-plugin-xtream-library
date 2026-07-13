@@ -450,8 +450,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`featuredCategoriesFromPaths("", includeChannel, true)`,
 		`virtualCategoriesFromPaths("", includeChannel, true)`,
 		`const categories = guideFilterCategories();`,
-		`if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0)`,
-		`const children = (featured ? featuredChildCategories : virtualChildCategories)(path,`,
+		`state.view = id ? "guide" : "home";`,
 		`virtualFolderBreadcrumbs(path, featured)`,
 		`const rootLabel = featured ? featuredGroupLabel() : virtualGroupLabel()`,
 		`function featuredGroupLabel()`,
@@ -651,18 +650,21 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `.topbar-primary .nav { width: max-content; flex: 0 1 auto; }`) {
 		t.Fatalf("expected desktop Live TV navigation to stay compact instead of stretching across the header")
 	}
-	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
-	virtualFilterIndex := strings.Index(body, `+ folderFilterHTML("Filter this folder", "")`)
-	virtualChildrenIndex := strings.Index(body, `+ (filteredChildren.length ? "<div class=\"category-grid\">`)
-	virtualContentIndex := strings.Index(body, `+ renderVirtualCategoryContent(filteredChannels)`)
-	if virtualHeaderIndex < 0 || virtualFilterIndex < 0 || virtualChildrenIndex < 0 || virtualContentIndex < 0 {
-		t.Fatalf("expected virtual category drilldown to render breadcrumbs, filter, subfolders, and switchable channel content")
+	if !strings.Contains(body, `state.view = id ? "guide" : "home";`) {
+		t.Fatalf("expected category drilldown to open the shared guide already scoped to the selected folder")
 	}
-	if !(virtualHeaderIndex < virtualFilterIndex && virtualFilterIndex < virtualChildrenIndex && virtualChildrenIndex < virtualContentIndex) {
-		t.Fatalf("expected virtual category drilldown order to be breadcrumbs, filter, subfolders, then channel content")
+	if !strings.Contains(body, `if (state.category) {`) || !strings.Contains(body, `renderGuidePage();`) {
+		t.Fatalf("expected legacy live-category routes to fall back to the shared guide instead of channel cards")
 	}
-	if !strings.Contains(body, `virtual-folder-actions`) || !strings.Contains(body, `guideFreshnessHTML() + renderVirtualCategoryViewToggle()`) {
-		t.Fatalf("expected virtual folder freshness and view toggle to align with breadcrumbs")
+	if strings.Contains(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`) ||
+		strings.Contains(body, `+ folderFilterHTML("Filter this folder", "")`) ||
+		strings.Contains(body, `+ renderVirtualCategoryContent(filteredChannels)`) {
+		t.Fatalf("expected category drilldown not to render an intermediate folder/card wall")
+	}
+	if !strings.Contains(body, `.guide-tools { position: relative; z-index: 12; display: flex;`) ||
+		!strings.Contains(body, `justify-content: flex-end;`) ||
+		!strings.Contains(body, `width: min(100%, 54rem);`) {
+		t.Fatalf("expected the shared guide category picker and search to form a compact right-aligned toolbar")
 	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
@@ -1028,8 +1030,8 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.GuideRenamedAllOption {
 		t.Fatalf("expected guide filter all option to use the configured group label: %+v", result)
 	}
-	if !result.VirtualRenamedBreadcrumb {
-		t.Fatalf("expected virtual folder breadcrumbs to use the configured group label: %+v", result)
+	if !result.VirtualRenamedGuidePicker {
+		t.Fatalf("expected the shared guide picker to preserve the configured group label and selected folder: %+v", result)
 	}
 	if !result.FeaturedAlphabetical {
 		t.Fatalf("expected featured categories to render alphabetically by display name: %+v", result)
@@ -1043,20 +1045,20 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if result.FeaturedSourceCategory {
 		t.Fatalf("expected starred delimiter category to stop linking to the source-card view: %+v", result)
 	}
-	if !result.FeaturedBreadcrumbRoot || !result.FeaturedBreadcrumbPath || !result.FeaturedGuide {
-		t.Fatalf("expected starred delimiter category to render featured breadcrumbs and guide: %+v", result)
+	if !result.FeaturedGuidePicker || !result.FeaturedGuideHeading {
+		t.Fatalf("expected starred delimiter category to open the shared guide with the folder selected: %+v", result)
 	}
-	if result.FeaturedGuideHeading || result.VirtualGuideHeading {
-		t.Fatalf("expected virtual drilldown guide views to omit the redundant TV Guide heading: %+v", result)
+	if result.FeaturedBreadcrumbRoot || result.FeaturedBreadcrumbPath || result.VirtualBreadcrumbRoot {
+		t.Fatalf("expected guide-first category drilldown to replace virtual breadcrumb/card pages: %+v", result)
 	}
-	if !result.FeaturedViewToggle || !result.FeaturedListView {
-		t.Fatalf("expected featured virtual category to toggle between guide and channel list views: %+v", result)
+	if result.FeaturedViewToggle || result.FeaturedListView || result.SimpleFeaturedViewToggle {
+		t.Fatalf("expected the shared guide to replace category-specific guide/list toggles: %+v", result)
 	}
-	if !result.SimpleFeaturedCategory || !result.SimpleFeaturedGuide || !result.SimpleFeaturedViewToggle || result.SimpleFeaturedSourcePage {
-		t.Fatalf("expected simple starred groups to use the featured drilldown guide/list view: %+v", result)
+	if !result.SimpleFeaturedCategory || !result.SimpleFeaturedGuidePicker || result.SimpleFeaturedSourcePage {
+		t.Fatalf("expected simple starred groups to open in the shared scoped guide: %+v", result)
 	}
-	if !result.VirtualBreadcrumbRoot {
-		t.Fatalf("expected normal virtual group breadcrumb root to use the default configured label: %+v", result)
+	if !result.VirtualGuidePicker || !result.VirtualGuideHeading {
+		t.Fatalf("expected normal virtual groups to open in the shared scoped guide: %+v", result)
 	}
 	if result.FeaturedBackButton || result.VirtualBackButton {
 		t.Fatalf("expected virtual drilldowns to omit the redundant Back button: %+v", result)
@@ -1183,7 +1185,7 @@ type virtualAliasResult struct {
 	FeaturedRenamedSection               bool   `json:"featuredRenamedSection"`
 	ListingRenamedSection                bool   `json:"listingRenamedSection"`
 	GuideRenamedAllOption                bool   `json:"guideRenamedAllOption"`
-	VirtualRenamedBreadcrumb             bool   `json:"virtualRenamedBreadcrumb"`
+	VirtualRenamedGuidePicker            bool   `json:"virtualRenamedGuidePicker"`
 	FeaturedCategory                     bool   `json:"featuredCategory"`
 	FeaturedAlphabetical                 bool   `json:"featuredAlphabetical"`
 	FeaturedVirtualCategory              bool   `json:"featuredVirtualCategory"`
@@ -1191,16 +1193,17 @@ type virtualAliasResult struct {
 	FeaturedMarkerVisible                bool   `json:"featuredMarkerVisible"`
 	FeaturedBreadcrumbRoot               bool   `json:"featuredBreadcrumbRoot"`
 	FeaturedBreadcrumbPath               bool   `json:"featuredBreadcrumbPath"`
-	FeaturedGuide                        bool   `json:"featuredGuide"`
+	FeaturedGuidePicker                  bool   `json:"featuredGuidePicker"`
 	FeaturedGuideHeading                 bool   `json:"featuredGuideHeading"`
 	FeaturedViewToggle                   bool   `json:"featuredViewToggle"`
 	FeaturedListView                     bool   `json:"featuredListView"`
 	FeaturedBackButton                   bool   `json:"featuredBackButton"`
 	SimpleFeaturedCategory               bool   `json:"simpleFeaturedCategory"`
-	SimpleFeaturedGuide                  bool   `json:"simpleFeaturedGuide"`
+	SimpleFeaturedGuidePicker            bool   `json:"simpleFeaturedGuidePicker"`
 	SimpleFeaturedViewToggle             bool   `json:"simpleFeaturedViewToggle"`
 	SimpleFeaturedSourcePage             bool   `json:"simpleFeaturedSourcePage"`
 	VirtualBreadcrumbRoot                bool   `json:"virtualBreadcrumbRoot"`
+	VirtualGuidePicker                   bool   `json:"virtualGuidePicker"`
 	VirtualGuideHeading                  bool   `json:"virtualGuideHeading"`
 	VirtualBackButton                    bool   `json:"virtualBackButton"`
 	ChannelCategoryName                  string `json:"channelCategoryName"`
@@ -1517,7 +1520,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     featuredRenamedSection: renamedGrid.indexOf(">Featured Things<") !== -1 && renamedGrid.indexOf(">Featured Groups<") === -1,
     listingRenamedSection: renamedGrid.indexOf(">Things<") !== -1 && renamedGrid.indexOf(">Channel Groups<") === -1,
     guideRenamedAllOption: renamedGuideView.indexOf('>All things</strong>') !== -1 && renamedGuideView.indexOf('>All channel groups</strong>') === -1,
-    virtualRenamedBreadcrumb: renamedVirtualView.indexOf(">Things</button>") !== -1 && renamedVirtualView.indexOf(">Channel Groups</button>") === -1,
+    virtualRenamedGuidePicker: renamedVirtualView.indexOf(">All things</strong>") !== -1 && renamedVirtualView.indexOf(">International / Argentina / Sports</strong>") !== -1,
     featuredCategory: grid.indexOf("International | Argentina | Sports") !== -1,
     featuredAlphabetical: grid.indexOf(">Admin Favorites</strong>") !== -1 && grid.indexOf(">World Cup</strong>") !== -1 && grid.indexOf(">Admin Favorites</strong>") < grid.indexOf(">World Cup</strong>"),
     featuredVirtualCategory: grid.indexOf('data-category="featured:International / Argentina / Sports"') !== -1,
@@ -1525,16 +1528,17 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     featuredMarkerVisible: grid.indexOf("* International") !== -1,
     featuredBreadcrumbRoot: featuredView.indexOf(">Featured Groups</button>") !== -1,
     featuredBreadcrumbPath: featuredView.indexOf(">International</button>") !== -1 && featuredView.indexOf(">Argentina</button>") !== -1 && featuredView.indexOf(">Sports</button>") !== -1,
-    featuredGuide: featuredView.indexOf('data-channel="channel:argentina-sports"') !== -1,
+    featuredGuidePicker: featuredView.indexOf(">International / Argentina / Sports</strong>") !== -1,
     featuredGuideHeading: featuredView.indexOf(">TV Guide<") !== -1,
     featuredViewToggle: featuredView.indexOf('data-virtual-category-view="guide"') !== -1 && featuredView.indexOf('data-virtual-category-view="list"') !== -1,
     featuredListView: featuredListView.indexOf(">Channels<") !== -1 && featuredListView.indexOf('class="virtual-channel-button" data-channel="channel:argentina-sports"') !== -1 && featuredListView.indexOf(">TV Guide<") === -1,
     featuredBackButton: featuredView.indexOf(">Back</button>") !== -1,
     simpleFeaturedCategory: grid.indexOf('data-category="featured:Admin Favorites"') !== -1,
-    simpleFeaturedGuide: simpleFeaturedView.indexOf(">Featured Groups</button>") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites</button>") !== -1 && simpleFeaturedView.indexOf('data-channel="channel:admin-favorites"') !== -1,
+    simpleFeaturedGuidePicker: simpleFeaturedView.indexOf(">Admin Favorites</strong>") !== -1 && simpleFeaturedView.indexOf(">TV Guide<") !== -1,
     simpleFeaturedViewToggle: simpleFeaturedView.indexOf('data-virtual-category-view="guide"') !== -1 && simpleFeaturedView.indexOf('data-virtual-category-view="list"') !== -1,
     simpleFeaturedSourcePage: simpleFeaturedView.indexOf(">Featured Groups<") !== -1 && simpleFeaturedView.indexOf(">Groups<") !== -1 && simpleFeaturedView.indexOf(">Admin Favorites<") !== -1,
     virtualBreadcrumbRoot: virtualView.indexOf(">Groups</button>") !== -1,
+    virtualGuidePicker: virtualView.indexOf(">International / Argentina / Sports</strong>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
     channelCategoryName: channel ? channel.categoryName : "",
