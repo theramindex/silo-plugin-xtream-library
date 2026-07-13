@@ -3314,7 +3314,12 @@ func TestHTTPRoutesServerPlayerAssetRoutes(t *testing.T) {
 	t.Parallel()
 
 	server := NewHTTPRoutesServer(cache.NewStore())
-	for _, path := range []string{"/dispatcharr/assets/hls.min.js", "/dispatcharr/assets/mpegts.min.js", "/assets/hls.min.js", "/assets/mpegts.min.js"} {
+	for _, path := range []string{
+		"/dispatcharr/assets/xc-runtime-a.js",
+		"/dispatcharr/assets/xc-runtime-b.js",
+		"/assets/xc-runtime-a.js",
+		"/assets/xc-runtime-b.js",
+	} {
 		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: path})
 		if err != nil {
 			t.Fatalf("asset route %s: %v", path, err)
@@ -3327,6 +3332,28 @@ func TestHTTPRoutesServerPlayerAssetRoutes(t *testing.T) {
 		}
 		if len(response.GetBody()) < 1024 {
 			t.Fatalf("expected embedded player asset body for %s", path)
+		}
+	}
+}
+
+func TestPlayerAppUsesContentBlockerSafeLibraryURLs(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{
+		`loadPlayerLibrary("xc-runtime-a.js", "Hls")`,
+		`loadPlayerLibrary("xc-runtime-b.js", "mpegts")`,
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("player app must load its bundled runtime through %q", expected)
+		}
+	}
+	for _, blocked := range []string{
+		`loadPlayerLibrary("hls.min.js"`,
+		`loadPlayerLibrary("mpegts.min.js"`,
+	} {
+		if strings.Contains(script, blocked) {
+			t.Fatalf("player app must not expose content-blocked library URL %q", blocked)
 		}
 	}
 }

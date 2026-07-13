@@ -235,9 +235,11 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	switch path {
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
-	case "/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
+	case "/dispatcharr/assets/xc-runtime-a.js", "/assets/xc-runtime-a.js",
+		"/dispatcharr/assets/hls.min.js", "/assets/hls.min.js":
 		return playerLibraryAssetResponse("assets/hls.min.js")
-	case "/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
+	case "/dispatcharr/assets/xc-runtime-b.js", "/assets/xc-runtime-b.js",
+		"/dispatcharr/assets/mpegts.min.js", "/assets/mpegts.min.js":
 		return playerLibraryAssetResponse("assets/mpegts.min.js")
 	case "/dispatcharr/assets/app.js", "/assets/app.js":
 		return playerUIAssetResponse("ui/app.js", "application/javascript; charset=utf-8")

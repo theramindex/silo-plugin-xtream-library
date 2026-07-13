@@ -59,11 +59,11 @@ function loadPlayerLibrary(filename, globalName) {
   return playerLibraryPromises[globalName];
 }
 function ensurePlayerLibraries(format) {
-  if (format === "hls") return loadPlayerLibrary("hls.min.js", "Hls");
-  if (format === "mpegts") return loadPlayerLibrary("mpegts.min.js", "mpegts");
+  if (format === "hls") return loadPlayerLibrary("xc-runtime-a.js", "Hls");
+  if (format === "mpegts") return loadPlayerLibrary("xc-runtime-b.js", "mpegts");
   return Promise.all([
-    loadPlayerLibrary("hls.min.js", "Hls"),
-    loadPlayerLibrary("mpegts.min.js", "mpegts")
+    loadPlayerLibrary("xc-runtime-a.js", "Hls"),
+    loadPlayerLibrary("xc-runtime-b.js", "mpegts")
   ]);
 }
 function byId(id) { return document.getElementById(id); }
