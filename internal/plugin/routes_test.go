@@ -542,7 +542,10 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`function setVirtualCategoryView(view)`,
 		`renderVirtualCategoryGuide(channels)`,
 		`function categoryTileHTML(category)`,
-		`.tile strong { display: -webkit-box;`,
+		`.tile .tile-copy strong { display: -webkit-box;`,
+		`class=\"home-page\"`,
+		`class=\"home-section `,
+		`class=\"tile-disclosure\"`,
 		`-webkit-line-clamp: 2`,
 		`data-virtual-category-view=\"guide\"`,
 		`data-virtual-category-view=\"list\"`,
@@ -629,11 +632,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home guide preview to be capped at 5 channels")
 	}
 	if !strings.Contains(body, `const watched = recent;`) ||
-		!strings.Contains(body, `root.innerHTML = (watched.length ? sectionHeader("Recently watched") + rowCards(watched) : "")`) ||
-		!strings.Contains(body, `+ (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")`) ||
-		!strings.Contains(body, `+ sectionHeaderWithActions("TV Guide", guideFreshnessHTML())`) ||
-		!strings.Contains(body, `+ renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })`) ||
-		!strings.Contains(body, `+ categoryGrid();`) {
+		!strings.Contains(body, `watched.length ? homeSection("Recently watched", rowCards(watched)`) ||
+		!strings.Contains(body, `favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites)`) ||
+		!strings.Contains(body, `homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched)`) ||
+		!strings.Contains(body, `guideFreshnessHTML(), "home-guide-section")`) ||
+		!strings.Contains(body, `+ categoryGrid("home")`) {
 		t.Fatalf("expected home page to use only saved recently watched channels before favorites, guide, and categories")
 	}
 	virtualHeaderIndex := strings.Index(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`)
