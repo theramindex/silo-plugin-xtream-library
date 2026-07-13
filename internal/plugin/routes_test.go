@@ -3205,6 +3205,7 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.player-sports-event.live`,
 		`.event-broadcast-windows`,
 		`.event-keyword-options`,
+		`.source-enabled input { appearance: none; position: relative; flex: 0 0 auto; width: 2.35rem; height: 1.35rem;`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		requireStyle(want)
