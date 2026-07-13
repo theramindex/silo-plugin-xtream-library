@@ -197,6 +197,49 @@ func TestSyncXtreamMergesEnabledSourcesWithScopedChannelIDs(t *testing.T) {
 	}
 }
 
+func TestRefreshGuideOnlyXtreamUsesAPIForEveryConfiguredSource(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+		{ID: "primary", Name: "Primary", BaseURL: "https://primary.example", Username: "one", Password: "secret", Enabled: true},
+		{ID: "backup", Name: "Backup", BaseURL: "https://backup.example", Username: "two", Password: "secret", Enabled: true},
+	}}
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source: model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{
+			{ID: "xtream:1001", SourceID: "xtream-source:primary", Name: "Primary News"},
+			{ID: "xtream:backup:2002", SourceID: "xtream-source:backup", Name: "Backup News"},
+		},
+	}, ConfigKey: config.CatalogCacheKey(settings)})
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(baseURL, _, _ string) XtreamClient {
+			title := "Primary Program"
+			if strings.Contains(baseURL, "backup") {
+				title = "Backup Program"
+			}
+			return &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: title, Title: title, StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}}}
+		},
+		FetchURL: func(context.Context, string) ([]byte, error) {
+			return nil, errors.New("XMLTV must not be fetched for an Xtreme guide refresh")
+		},
+	})
+	if err := service.RefreshGuideOnlyNow(context.Background(), settings, 1_700_000_001); err != nil {
+		t.Fatalf("refresh Xtreme API guide: %v", err)
+	}
+	programs := store.Current().Catalog.Programs
+	if len(programs) != 2 {
+		t.Fatalf("expected guide data from both Xtreme sources, got %+v", programs)
+	}
+	titles := map[string]bool{}
+	for _, program := range programs {
+		titles[program.Title] = true
+	}
+	if !titles["Primary Program"] || !titles["Backup Program"] {
+		t.Fatalf("expected programs from both Xtreme APIs, got %+v", programs)
+	}
+}
+
 func TestSyncXtreamKeepsFailedSourceStaleWhileRefreshingHealthySource(t *testing.T) {
 	t.Parallel()
 	store := cache.NewStore()
