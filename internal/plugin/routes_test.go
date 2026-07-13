@@ -2172,8 +2172,8 @@ func TestHTTPRoutesServerGuidePingCapsOversizedCategoryWarmup(t *testing.T) {
 	if response.GetStatusCode() != http.StatusOK {
 		t.Fatalf("expected capped guide warmup to succeed, got %d", response.GetStatusCode())
 	}
-	if got := syncer.guideChannelCallIDs(); len(got) != 24 {
-		t.Fatalf("expected guide warmup to cap at 24 channels, got %d", len(got))
+	if got := syncer.guideChannelCallIDs(); len(got) != 8 {
+		t.Fatalf("expected guide warmup to cap at 8 channels, got %d", len(got))
 	}
 }
 
