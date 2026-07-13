@@ -1059,13 +1059,38 @@ func (s *HTTPRoutesServer) adminSourceList() ([]adminSourcePayload, error) {
 	}
 	counts := map[string]int{}
 	for _, channel := range s.store.Current().Catalog.Channels {
-		counts[strings.TrimPrefix(channel.SourceID, "xtream-source:")]++
+		if sourceID := adminChannelSourceID(channel, sources); sourceID != "" {
+			counts[sourceID]++
+		}
 	}
 	result := make([]adminSourcePayload, 0, len(sources))
 	for _, source := range sources {
 		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID]})
 	}
 	return result, nil
+}
+
+func adminChannelSourceID(channel model.Channel, sources []config.XtreamSource) string {
+	if sourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:"); sourceID != "" {
+		return sourceID
+	}
+	channelID := strings.TrimSpace(channel.ID)
+	for _, source := range sources {
+		if source.ID != "primary" && strings.HasPrefix(channelID, "xtream:"+source.ID+":") {
+			return source.ID
+		}
+	}
+	if strings.HasPrefix(channelID, "xtream:") {
+		for _, source := range sources {
+			if source.ID == "primary" {
+				return source.ID
+			}
+		}
+	}
+	if len(sources) == 1 {
+		return sources[0].ID
+	}
+	return ""
 }
 
 func (s *HTTPRoutesServer) respondAdminSourceList() (*pluginv1.HandleHTTPResponse, error) {
