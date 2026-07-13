@@ -1757,6 +1757,20 @@ function programLooksEvent(program) {
   if (programIsGuidePlaceholder(program)) return false;
   return /\b(awards|parade|special|ceremony|debate|concert|festival|live)\b/i.test(programSearchText(program));
 }
+function programOnLaterType(program) {
+  if (programLooksSports(program)) return "sports";
+  if (programLooksMovie(program)) return "movies";
+  if (programLooksEvent(program)) return "events";
+  return "other";
+}
+function programMatchesOnLaterType(program, type) {
+  type = type || "all";
+  if (type === "all") return true;
+  if (type === "passes") {
+    return keywordPasses().some(function(pass) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; });
+  }
+  return programOnLaterType(program) === type;
+}
 function groupedUpcomingAirings(programs, query) {
   const groups = {};
   items(programs).filter(programIsUpcoming).forEach(function(program) {
@@ -2068,7 +2082,8 @@ function onLaterFilters() {
     { id: "passes", label: "Passes" }
   ];
 }
-function onLaterPrograms() {
+function onLaterPrograms(options) {
+  options = options || {};
   const now = Math.floor(Date.now() / 1000);
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
@@ -2080,10 +2095,7 @@ function onLaterPrograms() {
     if ((program.endUnix || 0) < now) return false;
     if (time === "live" && !programIsLive(program)) return false;
     if (time === "today" && ((program.startUnix || 0) < now - 3600 || (program.startUnix || 0) > todayEnd)) return false;
-    if (type === "sports" && !programLooksSports(program)) return false;
-    if (type === "events" && !programLooksEvent(program)) return false;
-    if (type === "movies" && !programLooksMovie(program)) return false;
-    if (type === "passes" && !keywordPasses().some(function(pass) { return lower(programSearchText(program)).indexOf(lower(pass.keyword)) !== -1; })) return false;
+    if (!options.ignoreType && !programMatchesOnLaterType(program, type)) return false;
     return true;
   }).sort(function(left, right) {
     return (left.startUnix || 0) - (right.startUnix || 0);
@@ -2119,9 +2131,17 @@ function renderOnLaterPage() {
   const root = byId("view");
   const time = state.onLaterTime || "all";
   const type = state.onLaterType || "all";
+  const timePrograms = onLaterPrograms({ ignoreType: true });
+  const typeCounts = { all: timePrograms.length, sports: 0, events: 0, movies: 0, passes: 0 };
+  timePrograms.forEach(function(program) {
+    const programType = programOnLaterType(program);
+    if (Object.prototype.hasOwnProperty.call(typeCounts, programType)) typeCounts[programType] += 1;
+    if (programMatchesOnLaterType(program, "passes")) typeCounts.passes += 1;
+  });
   const filterButton = function(item, group, label) {
     const active = (group === "time" ? time : type) === item.id;
-    return "<button class=\"search-chip" + (active ? " active" : "") + "\" type=\"button\" data-onlater-" + group + "=\"" + escapeHTML(item.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\">" + escapeHTML(label || item.label) + "</button>";
+    const count = group === "type" ? "<span class=\"search-chip-count\">" + escapeHTML(String(typeCounts[item.id] || 0)) + "</span>" : "";
+    return "<button class=\"search-chip" + (active ? " active" : "") + "\" type=\"button\" data-onlater-" + group + "=\"" + escapeHTML(item.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\"><span>" + escapeHTML(label || item.label) + "</span>" + count + "</button>";
   };
   const byID = function(id) { return onLaterFilters().find(function(item) { return item.id === id; }); };
   const filters = '<div class="filter-sections"><div class="on-later-filter-group filter-section" data-on-later-filter-group="time"><span class="filter-section-label">Time</span><div class="search-chip-row">' + ["all", "live", "today"].map(function(id) { return filterButton(byID(id), "time"); }).join("") + '</div></div><div class="on-later-filter-group filter-section" data-on-later-filter-group="type"><span class="filter-section-label">Type</span><div class="search-chip-row">' + ["all", "sports", "events", "movies", "passes"].map(function(id) { return filterButton(byID(id), "type", id === "all" ? "All Types" : ""); }).join("") + "</div></div></div>";
