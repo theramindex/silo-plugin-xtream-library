@@ -19,6 +19,7 @@ state.adminTab = "sources";
 state.adminSources = [];
 state.adminSourcesLoading = false;
 state.adminSourceEditor = null;
+state.adminSourceEditorStep = "general";
 state.adminSourceMessage = "";
 
 function applySiloTheme() {
@@ -117,7 +118,8 @@ function icon(name) {
     "copy": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8 8h9.25A1.75 1.75 0 0 1 19 9.75v9.5A1.75 1.75 0 0 1 17.25 21h-9.5A1.75 1.75 0 0 1 6 19.25V10'/><path stroke-linecap='round' stroke-linejoin='round' d='M5.75 16H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v.75'/></svg>",
     "external": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M13.5 4.5H19.5V10.5M19.25 4.75 11 13M10.5 6H6.75A2.25 2.25 0 0 0 4.5 8.25v9A2.25 2.25 0 0 0 6.75 19.5h9A2.25 2.25 0 0 0 18 17.25V13.5'/></svg>",
     "integrations": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M8.25 8.25h7.5v7.5h-7.5zM4.75 12h3.5M15.75 12h3.5M12 4.75v3.5M12 15.75v3.5'/><path stroke-linecap='round' stroke-linejoin='round' d='M6.25 6.25 8.5 8.5M17.75 6.25 15.5 8.5M6.25 17.75 8.5 15.5M17.75 17.75 15.5 15.5'/></svg>",
-    "x": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6 6l12 12M18 6 6 18'/></svg>"
+    "x": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6 6l12 12M18 6 6 18'/></svg>",
+    "plus": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' d='M12 5v14M5 12h14'/></svg>"
   };
   return icons[name] || "";
 }
@@ -4095,7 +4097,7 @@ function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
   if (state.adminTab === "sources") {
-    root.innerHTML = "";
+    root.innerHTML = "<button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add Source</span></button>";
     return;
   }
   const dirty = adminSettingsDirty();
@@ -4114,27 +4116,28 @@ function renderAdminSourcesTab() {
   }).join("");
   const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
   const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Account</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
-  return "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Sources</h2><p>Combine channels and guide data from multiple Xtreme Codes accounts.</p></div><button type=\"button\" class=\"source-add\" data-source-action=\"add\">Add source</button></div>" + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
+  return "<div class=\"settings-card source-manager-card\">" + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
 }
 function renderAdminSourceEditor() {
   const source = state.adminSourceEditor;
   if (!source) return "";
   const editing = !!source.id;
-  return "<div class=\"settings-card source-editor-card\"><div class=\"settings-card-head\"><div><h2>" + (editing ? "Edit source" : "Add source") + "</h2><p>Use the provider base URL, not the full player_api.php URL.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></div><div class=\"source-form\">"
-    + "<label><span>Display name</span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Primary IPTV\"></label>"
-    + "<label><span>Source ID</span><input id=\"source-id\" value=\"" + escapeHTML(source.id || "") + "\" placeholder=\"primary\"" + (editing ? " readonly" : "") + "></label>"
-    + "<label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"></label>"
-    + "<label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label>"
-    + "<label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"\" autocomplete=\"new-password\"></label>"
-    + "<label><span>Live stream format</span><select id=\"source-format\"><option value=\"m3u8\"" + (source.liveFormat !== "ts" ? " selected" : "") + ">HLS (.m3u8)</option><option value=\"ts\"" + (source.liveFormat === "ts" ? " selected" : "") + ">MPEG-TS (.ts)</option></select></label>"
-    + "<label class=\"source-enabled\"><span><strong>Enabled</strong><small>Include this source in catalog refreshes.</small></span><input id=\"source-enabled\" type=\"checkbox\"" + (source.enabled !== false ? " checked" : "") + "></label>"
-    + "</div><div class=\"source-editor-actions\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">Save source</button></div></div>";
+  const step = state.adminSourceEditorStep || "general";
+  const nav = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "playback", label: "Playback", icon: "play" }].map(function(item) {
+    return "<button type=\"button\" data-source-step=\"" + item.id + "\" class=\"" + (step === item.id ? "active" : "") + "\">" + icon(item.icon) + "<span>" + item.label + "</span></button>";
+  }).join("");
+  let content = "";
+  if (step === "general") content = "<div class=\"source-step-copy\"><h3>General</h3><p>Name this source and choose whether it participates in catalog refreshes.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Display name</span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Primary IPTV\"></label><label class=\"source-field-wide\"><span>Source ID</span><input id=\"source-id\" value=\"" + escapeHTML(source.id || "") + "\" placeholder=\"primary\"" + (editing ? " readonly" : "") + "><small>A stable identifier used to keep channels from different providers separate.</small></label><label class=\"source-enabled\"><span><strong>Enabled</strong><small>Include this source in channel, guide, and content refreshes.</small></span><input id=\"source-enabled\" type=\"checkbox\"" + (source.enabled !== false ? " checked" : "") + "></label></div>";
+  if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Enter the Xtreme Codes server and account credentials.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"><small>Use the provider base URL, not player_api.php.</small></label><label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label><label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"" + escapeHTML(source.password || "") + "\" autocomplete=\"new-password\"></label><div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button></div></div>";
+  if (step === "playback") content = "<div class=\"source-step-copy\"><h3>Playback</h3><p>Choose the live stream container requested from this provider.</p></div><div class=\"source-format-options\"><button type=\"button\" data-source-format=\"m3u8\" class=\"" + (source.liveFormat !== "ts" ? "active" : "") + "\"><strong>HLS</strong><span>.m3u8 · recommended for browsers</span></button><button type=\"button\" data-source-format=\"ts\" class=\"" + (source.liveFormat === "ts" ? "active" : "") + "\"><strong>MPEG-TS</strong><span>.ts · provider compatibility</span></button></div>";
+  return "<div class=\"source-dialog-backdrop\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\"><header><div class=\"source-dialog-icon\">" + icon("guide") + "</div><div><h2 id=\"source-dialog-title\">" + (editing ? "Edit Source" : "Add Source") + "</h2><p>Configure an Xtreme Codes provider account.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></header><div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Source setup steps\">" + nav + "</nav><div class=\"source-dialog-content\">" + content + "</div></div><footer><button type=\"button\" data-source-action=\"cancel\">Cancel</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">" + (editing ? "Save Changes" : "Add Source") + "</button></footer></section></div>";
 }
 function adminSourceByID(id) {
   return items(state.adminSources).find(function(source) { return source.id === id; }) || null;
 }
 function sourceEditorPayload(action) {
-  return { action: action || "save", id: (byId("source-id") || {}).value || "", name: (byId("source-name") || {}).value || "", baseUrl: (byId("source-url") || {}).value || "", username: (byId("source-username") || {}).value || "", password: (byId("source-password") || {}).value || "", liveFormat: (byId("source-format") || {}).value || "m3u8", enabled: !!((byId("source-enabled") || {}).checked) };
+  const source = state.adminSourceEditor || {};
+  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", enabled: source.enabled !== false };
 }
 async function refreshAdminSources() {
   const payload = await getJSON("/dispatcharr/api/admin-sources");
@@ -4155,8 +4158,8 @@ async function submitAdminSource(payload, successMessage) {
 }
 function handleAdminSourceAction(action, sourceID) {
   const source = adminSourceByID(sourceID);
-  if (action === "add") state.adminSourceEditor = { enabled: true, liveFormat: "m3u8" };
-  if (action === "edit" && source) state.adminSourceEditor = Object.assign({}, source);
+  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8" }; state.adminSourceEditorStep = "general"; }
+  if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "" }); state.adminSourceEditorStep = "general"; }
   if (action === "cancel") state.adminSourceEditor = null;
   if (action === "save") return submitAdminSource(sourceEditorPayload("save"), "Source saved. Catalog refresh queued.");
   if (action === "test-editor") return submitAdminSource(sourceEditorPayload("test"), "Connection successful.");
@@ -5491,6 +5494,20 @@ document.addEventListener("click", function(event) {
     handleAdminSourceAction(sourceAction.getAttribute("data-source-action"), sourceAction.getAttribute("data-source-id") || "");
     return;
   }
+  const sourceStep = event.target.closest("[data-source-step]");
+  if (sourceStep) {
+    event.preventDefault();
+    state.adminSourceEditorStep = sourceStep.getAttribute("data-source-step") || "general";
+    renderAdminPage();
+    return;
+  }
+  const sourceFormat = event.target.closest("[data-source-format]");
+  if (sourceFormat && state.adminSourceEditor) {
+    event.preventDefault();
+    state.adminSourceEditor.liveFormat = sourceFormat.getAttribute("data-source-format") === "ts" ? "ts" : "m3u8";
+    renderAdminPage();
+    return;
+  }
   const adminTab = event.target.closest("[data-admin-tab]");
   if (adminTab) {
     event.preventDefault();
@@ -5696,6 +5713,12 @@ document.addEventListener("change", function(event) {
   renderCategorySettings();
 });
 document.addEventListener("input", function(event) {
+  const sourceFieldMap = { "source-name": "name", "source-id": "id", "source-url": "baseUrl", "source-username": "username", "source-password": "password", "source-enabled": "enabled" };
+  if (event.target && sourceFieldMap[event.target.id] && state.adminSourceEditor) {
+    const field = sourceFieldMap[event.target.id];
+    state.adminSourceEditor[field] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
+    return;
+  }
   if (event.target && event.target.id === "guide-category-search") {
     state.guideCategoryQuery = event.target.value || "";
     const options = document.querySelector(".guide-category-options");
