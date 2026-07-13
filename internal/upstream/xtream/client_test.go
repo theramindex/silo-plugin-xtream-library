@@ -91,8 +91,8 @@ func TestDecodeEPGText(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			if got := decodeEPGText(test.input); got != test.want {
-				t.Fatalf("decodeEPGText(%q) = %q, want %q", test.input, got, test.want)
+			if got := DecodeEPGText(test.input); got != test.want {
+				t.Fatalf("DecodeEPGText(%q) = %q, want %q", test.input, got, test.want)
 			}
 		})
 	}

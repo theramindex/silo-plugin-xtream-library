@@ -119,13 +119,13 @@ func (c *Client) ShortEPG(ctx context.Context, streamID int64) (ShortEPGResponse
 		return ShortEPGResponse{}, err
 	}
 	for index := range response.EPGListings {
-		response.EPGListings[index].Title = decodeEPGText(response.EPGListings[index].Title)
-		response.EPGListings[index].Description = decodeEPGText(response.EPGListings[index].Description)
+		response.EPGListings[index].Title = DecodeEPGText(response.EPGListings[index].Title)
+		response.EPGListings[index].Description = DecodeEPGText(response.EPGListings[index].Description)
 	}
 	return response, nil
 }
 
-func decodeEPGText(value string) string {
+func DecodeEPGText(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) < 8 {
 		return value

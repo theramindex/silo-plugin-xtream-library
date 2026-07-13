@@ -1602,14 +1602,16 @@ func xtreamConnectionSettings(settings config.Settings) (string, string, string)
 }
 
 func programsForChannel(programs []model.Program, channelID string) []model.Program {
-	if strings.TrimSpace(channelID) == "" {
-		return append([]model.Program(nil), programs...)
-	}
 	filtered := make([]model.Program, 0, len(programs))
 	for _, program := range programs {
-		if program.ChannelID == channelID {
-			filtered = append(filtered, program)
+		if strings.TrimSpace(channelID) != "" && program.ChannelID != channelID {
+			continue
 		}
+		if strings.HasPrefix(program.ChannelID, "xtream:") {
+			program.Title = xtream.DecodeEPGText(program.Title)
+			program.Summary = xtream.DecodeEPGText(program.Summary)
+		}
+		filtered = append(filtered, program)
 	}
 	return filtered
 }
