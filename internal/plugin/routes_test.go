@@ -2838,6 +2838,8 @@ func TestHTTPRoutesServerRelaysXtreamHLSWithoutExposingUpstream(t *testing.T) {
 	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
 		return config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: upstream.URL, XtreamUsername: "demo", XtreamPassword: "secret", XtreamLiveFormat: "m3u8", ChannelRefreshH: 24, EPGRefreshH: 24}
 	})
+	relayKeyPath := filepath.Join(t.TempDir(), "relay.key")
+	server.relay.keyPath = relayKeyPath
 	query, _ := structpb.NewStruct(map[string]any{"channel_id": "xtream:1001"})
 	manifest, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/stream", Query: query})
 	if err != nil {
@@ -2861,6 +2863,10 @@ func TestHTTPRoutesServerRelaysXtreamHLSWithoutExposingUpstream(t *testing.T) {
 		t.Fatalf("parse relayed segment url %q: %v", segmentLine, err)
 	}
 	segmentQuery, _ := structpb.NewStruct(map[string]any{"relay_token": segmentURL.Query().Get("relay_token")})
+	// Silo serves plugin routes from short-lived processes. A fresh relay must be
+	// able to validate the manifest token using the shared signing key.
+	server.relay = newHLSRelay()
+	server.relay.keyPath = relayKeyPath
 	segment, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/stream", Query: segmentQuery})
 	if err != nil {
 		t.Fatalf("relay segment: %v", err)

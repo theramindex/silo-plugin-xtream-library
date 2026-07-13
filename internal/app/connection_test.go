@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
@@ -110,19 +111,24 @@ func TestServiceTestConnectionM3UXMLTVSuccess(t *testing.T) {
 }
 
 type stubXtreamClient struct {
+	mu            sync.Mutex
 	connectionErr error
 	streams       []xtream.LiveStream
 	streamsErr    error
 	epg           xtream.ShortEPGResponse
 	epgErr        error
 	resolved      string
+	epgCalls      []int64
 }
 
 func (s *stubXtreamClient) TestConnection(context.Context) error { return s.connectionErr }
 func (s *stubXtreamClient) LiveStreams(context.Context) ([]xtream.LiveStream, error) {
 	return s.streams, s.streamsErr
 }
-func (s *stubXtreamClient) ShortEPG(context.Context, int64) (xtream.ShortEPGResponse, error) {
+func (s *stubXtreamClient) ShortEPG(_ context.Context, streamID int64) (xtream.ShortEPGResponse, error) {
+	s.mu.Lock()
+	s.epgCalls = append(s.epgCalls, streamID)
+	s.mu.Unlock()
 	if s.epgErr != nil {
 		return xtream.ShortEPGResponse{}, s.epgErr
 	}

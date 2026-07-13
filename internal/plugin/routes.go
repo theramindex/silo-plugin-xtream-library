@@ -596,7 +596,7 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
 	s.store.MarkEPGLoading()
-	if err := s.coordinator.Run(ctx, RefreshGuide, settings, time.Now().Unix()); err != nil {
+	if err := s.coordinator.RunGuideChannels(ctx, settings, channelIDs, time.Now().Unix()); err != nil {
 		s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
 		return textResponse(http.StatusBadGateway, "guide refresh failed: "+err.Error()), nil
 	}
