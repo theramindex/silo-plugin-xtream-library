@@ -2393,6 +2393,7 @@ func TestHTTPRoutesServerAdminSourcesCountsLegacyAndScopedXtreamChannels(t *test
 		}}
 	})
 	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	server.sourceChannelCounter = func(context.Context, config.XtreamSource) (int, error) { return 0, errors.New("use cached count") }
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
 	if err != nil || response.GetStatusCode() != http.StatusOK {
 		t.Fatalf("load source counts: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
@@ -2405,6 +2406,33 @@ func TestHTTPRoutesServerAdminSourcesCountsLegacyAndScopedXtreamChannels(t *test
 	}
 	if len(payload.Sources) != 2 || payload.Sources[0].ChannelCount != 2 || payload.Sources[1].ChannelCount != 1 {
 		t.Fatalf("unexpected source counts: %+v", payload.Sources)
+	}
+}
+
+func TestHTTPRoutesServerAdminSourcesUsesProviderChannelCount(t *testing.T) {
+	t.Parallel()
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{XtreamSources: []config.XtreamSource{{ID: "primary", Name: "Primary", BaseURL: "https://provider.example", Username: "demo", Password: "secret", Enabled: true}}}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	server.sourceChannelCounter = func(_ context.Context, source config.XtreamSource) (int, error) {
+		if source.ID != "primary" {
+			t.Fatalf("unexpected source %q", source.ID)
+		}
+		return 4827, nil
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("load provider source count: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	var payload struct {
+		Sources []adminSourcePayload `json:"sources"`
+	}
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode provider source count: %v", err)
+	}
+	if len(payload.Sources) != 1 || payload.Sources[0].ChannelCount != 4827 {
+		t.Fatalf("expected provider count, got %+v", payload.Sources)
 	}
 }
 

@@ -742,7 +742,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .settings-card h2 { margin: 0; font-size: 1.05rem; line-height: 1.15; font-weight: 800; }
 .source-add { min-height: 2.35rem; border: 0; border-radius: 0.55rem; background: var(--text); color: var(--bg); padding: 0.45rem 0.85rem; font-weight: 800; }
 .source-table { overflow-x: auto; border-radius: 0.75rem; }
-.source-table-head, .source-table-row { min-width: 58rem; display: grid; grid-template-columns: minmax(12rem, 1.7fr) minmax(7rem, 0.8fr) 5.5rem 6rem 6.5rem auto; align-items: center; gap: 0.8rem; }
+.source-table-head, .source-table-row { min-width: 60rem; display: grid; grid-template-columns: minmax(12rem, 1fr) 8rem 5.5rem 6rem 6.5rem 18rem; align-items: center; gap: 0.8rem; }
 .source-table-head { min-height: 3.65rem; border-bottom: 1px solid var(--line); color: var(--text); padding: 0 1rem; font-size: 0.78rem; font-weight: 760; }
 .source-table-head span:last-child { text-align: right; }
 .source-table-row { min-height: 4.35rem; border-bottom: 1px solid var(--line); background: transparent; padding: 0.72rem 1rem; transition: background 140ms ease; }
@@ -815,7 +815,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-dialog > footer button { min-height: 2.65rem; border: 0; border-radius: 0.65rem; background: transparent; color: var(--text); padding: 0 1rem; font-weight: 820; }
 .source-dialog > footer .admin-save { background: var(--text); color: var(--bg); }
 @media (max-width: 960px) {
-  .source-table-head, .source-table-row { min-width: 64rem; }
+  .source-table-head, .source-table-row { min-width: 60rem; }
 }
 @media (max-width: 620px) {
   .source-table { overflow-x: visible; }
