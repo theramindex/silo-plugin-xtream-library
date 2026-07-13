@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -166,17 +165,14 @@ func TestScheduledTaskServerPersistsXtreamGuideForNextPluginProcess(t *testing.T
 	store := cache.NewStore()
 	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
 		Source:   model.LiveTVSource(model.SourceModeXtream),
-		Channels: []model.Channel{{ID: "xtream:1001", Name: "News HD", GuideID: "news.hd"}},
+		Channels: []model.Channel{{ID: "xtream:1001", SourceID: "xtream-source:primary", Name: "News HD", GuideID: "news.hd"}},
 	}, ConfigKey: config.CatalogCacheKey(settings)})
 	storage := cache.NewFileSnapshotStorage(filepath.Join(t.TempDir(), "catalog-snapshot.json"))
 	service := app.NewService(app.Dependencies{
 		Store:           store,
 		SnapshotStorage: storage,
-		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
-			if !strings.Contains(rawURL, "/xmltv.php?") {
-				t.Fatalf("unexpected Xtream EPG URL %q", rawURL)
-			}
-			return []byte("<?xml version=\"1.0\"?><tv><programme start=\"20260713070000 +0000\" stop=\"20260713080000 +0000\" channel=\"news.hd\"><title>Morning News</title></programme></tv>"), nil
+		XtreamFactory: func(string, string, string) app.XtreamClient {
+			return &scheduledStubClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1783926000", StopTimestamp: "1783929600"}}}}
 		},
 	})
 	server := NewScheduledTaskServer(service, settings)

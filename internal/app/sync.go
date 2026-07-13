@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
@@ -756,6 +757,9 @@ func (s *Service) RefreshEPGNow(ctx context.Context, settings config.Settings, n
 		}
 		return nil
 	}
+	if settings.EffectiveSourceMode() == config.SourceModeXtream {
+		return s.refreshXtreamEPG(ctx, settings, nowUnix)
+	}
 	if _, err := epgURL(settings); err != nil {
 		return s.syncNow(ctx, settings, nowUnix, syncOptions{exactGuide: true})
 	}
@@ -784,6 +788,9 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 		}
 		return s.replacePrograms(programs, nowUnix)
 	}
+	if settings.EffectiveSourceMode() == config.SourceModeXtream {
+		return s.refreshXtreamEPG(ctx, settings, nowUnix)
+	}
 	if _, err := epgURL(settings); err != nil {
 		return s.SyncNow(ctx, settings, nowUnix)
 	}
@@ -793,6 +800,101 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 		return err
 	}
 	return nil
+}
+
+func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	snapshot := s.store.Current()
+	if len(snapshot.Catalog.Channels) == 0 {
+		return s.SyncNow(ctx, settings, nowUnix)
+	}
+	type epgJob struct {
+		channel  model.Channel
+		streamID int64
+		client   XtreamClient
+	}
+	clients := make(map[string]XtreamClient)
+	for _, source := range settings.EffectiveXtreamSources() {
+		clients[source.ID] = s.xtreamFactory(source.BaseURL, source.Username, source.Password)
+	}
+	jobs := make([]epgJob, 0, len(snapshot.Catalog.Channels))
+	for _, channel := range snapshot.Catalog.Channels {
+		sourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:")
+		if sourceID == "" {
+			sourceID = "primary"
+		}
+		client := clients[sourceID]
+		streamID, ok := xtreamStreamID(channel.ID, sourceID)
+		if client == nil || !ok {
+			continue
+		}
+		jobs = append(jobs, epgJob{channel: channel, streamID: streamID, client: client})
+	}
+	if len(jobs) == 0 {
+		return fmt.Errorf("no Xtreme channels were available for guide refresh")
+	}
+	workerCount := 12
+	if len(jobs) < workerCount {
+		workerCount = len(jobs)
+	}
+	jobQueue := make(chan epgJob)
+	programs := make([]model.Program, 0)
+	var programsMu sync.Mutex
+	var failuresMu sync.Mutex
+	failures := 0
+	var firstErr error
+	var workers sync.WaitGroup
+	for worker := 0; worker < workerCount; worker++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			for job := range jobQueue {
+				epg, err := job.client.ShortEPG(ctx, job.streamID)
+				if err != nil {
+					failuresMu.Lock()
+					failures++
+					if firstErr == nil {
+						firstErr = err
+					}
+					failuresMu.Unlock()
+					continue
+				}
+				mapped := make([]model.Program, 0, len(epg.EPGListings))
+				for _, listing := range epg.EPGListings {
+					mapped = append(mapped, mapping.MapXtreamProgram(job.channel.ID, listing))
+				}
+				programsMu.Lock()
+				programs = append(programs, mapped...)
+				programsMu.Unlock()
+			}
+		}()
+	}
+	for _, job := range jobs {
+		select {
+		case jobQueue <- job:
+		case <-ctx.Done():
+			close(jobQueue)
+			workers.Wait()
+			return ctx.Err()
+		}
+	}
+	close(jobQueue)
+	workers.Wait()
+	if failures == len(jobs) && firstErr != nil {
+		return fmt.Errorf("all Xtreme guide requests failed: %w", firstErr)
+	}
+	return s.replacePrograms(programs, nowUnix)
+}
+
+func xtreamStreamID(channelID string, sourceID string) (int64, bool) {
+	prefix := "xtream:"
+	if sourceID != "" && sourceID != "primary" {
+		prefix += sourceID + ":"
+	}
+	if !strings.HasPrefix(channelID, prefix) {
+		return 0, false
+	}
+	streamID, err := strconv.ParseInt(strings.TrimPrefix(channelID, prefix), 10, 64)
+	return streamID, err == nil && streamID > 0
 }
 
 func (s *Service) ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {
