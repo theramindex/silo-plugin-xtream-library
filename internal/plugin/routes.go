@@ -1300,7 +1300,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	if request.GetPath() == "/dispatcharr/admin" || request.GetPath() == "/xtream/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
-		body = strings.Replace(body, "__APP_TITLE__", "Xtream Codes Admin", 2)
+		body = strings.Replace(body, "__APP_TITLE__", "XC Admin", 2)
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
 	body = strings.Replace(body, "__APP_TITLE__", "XC for Silo", 2)
@@ -1347,7 +1347,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<aside class="admin-sidebar"><a class="admin-brand" href="/admin"><span class="admin-brand-mark"><i></i><i></i><i></i></span><strong>Silo</strong></a><div class="admin-sidebar-label">Xtream Codes</div><nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Xtream Codes admin sections"></nav><div class="admin-sidebar-spacer"></div><a class="admin-sidebar-link" href="../xtream"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9.25v5.5l5-2.75-5-2.75Z"/></svg><span>Open Live TV</span></a><a class="admin-sidebar-link" href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg><span>Back to Admin</span></a></aside><header class="admin-topbar"><div class="admin-identity"><div><h1>Xtream Codes</h1><p>Manage IPTV sources and organize the Live TV catalog.</p></div></div><div id="admin-actions" class="admin-actions"></div></header>`
+	return `<aside class="admin-sidebar"><a class="admin-brand" href="/admin"><span class="admin-brand-mark"><i></i><i></i><i></i></span><strong>Silo</strong></a><div class="admin-sidebar-label">XC Admin</div><nav id="admin-tabs" class="admin-sidebar-nav" aria-label="XC Admin sections"></nav><div class="admin-sidebar-spacer"></div><a class="admin-sidebar-link" href="../xtream"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75A2.25 2.25 0 0 1 6.75 4.5h10.5A2.25 2.25 0 0 1 19.5 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25H6.75a2.25 2.25 0 0 1-2.25-2.25V6.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M9 9.25v5.5l5-2.75-5-2.75Z"/></svg><span>Open Live TV</span></a><a class="admin-sidebar-link" href="/admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg><span>Back to Admin</span></a></aside><header class="admin-topbar"><div class="admin-identity"><div><h1>XC Admin</h1><p>Manage IPTV sources and organize the Live TV catalog.</p></div></div><div id="admin-actions" class="admin-actions"></div></header>`
 }
 
 func sanitizeThemeSlug(value string) string {
