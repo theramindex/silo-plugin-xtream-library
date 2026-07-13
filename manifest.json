@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -59,7 +59,7 @@
       "path": "/dispatcharr/admin",
       "access": "admin",
       "navigable": true,
-      "navigation_label": "Live TV Admin",
+      "navigation_label": "Xtream Codes Admin",
       "navigation_kind": "admin"
     },
     {
