@@ -5,7 +5,16 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestNewAllowsSlowRemoteCatalogResponses(t *testing.T) {
+	t.Parallel()
+
+	if timeout := New().Timeout; timeout != 30*time.Second {
+		t.Fatalf("HTTP client timeout = %s, want 30s", timeout)
+	}
+}
 
 func TestRedactErrorURLPreservesCauseWithoutCredentials(t *testing.T) {
 	t.Parallel()
