@@ -8,7 +8,7 @@ const appCacheKey = "silo.ramindex.xtream.appSnapshot.v1." + localCacheSuffix;
 const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version"]');
 const assetVersion = assetVersionMeta ? String(assetVersionMeta.content || "") : "";
 const assetPrefix = path.endsWith("/xtream") ? "xtream/assets" : "assets";
-const guidePingChannelLimit = 24;
+const guidePingChannelLimit = 8;
 const state = { app: null, appLoadedFromCache: false, programsByChannel: {}, sortedPrograms: [], view: isAdminRoute ? "admin" : "home", category: "", categoryBrowseView: "grid", query: "", folderQuery: "", searchQuery: "", searchType: "all", searchReturnView: "home", recentSearches: [], onLaterTime: "all", onLaterType: "all", hls: null, tsPlayer: null, currentChannel: null, currentSession: null, heartbeat: null, muted: false, volume: 1, volumeMenuOpen: false, audioMenuOpen: false, moreMenuOpen: false, playerGuideOpen: false, playerGuideQuery: "", playerSportsOpen: false, playerSportsTimer: null, playerReturnContext: null, selectedAudioTrack: 0, selectedTextTrack: -1, aspectMode: "fill", playerChromeIdle: false, playerChromeTimer: null, playerWaiting: false, multiviewTiles: [], multiviewActiveTileID: "", multiviewQuery: "", multiviewHeartbeat: null, recordings: null, recordingsLoading: false, recordingCapability: null, sports: null, sportsLoading: false, sportsLeague: "", sportsExpandedEvents: {}, events: null, eventsLoading: false, eventsTab: "upcoming", eventCategory: "", expandedEvents: {}, guideChannels: [], guideRendered: 0, guideLoading: false, guideWindowStart: -1, guideWindowEnd: -1, guideRenderFrame: 0, guideWarmPings: {}, guideAutoTimer: null, guideLastSlotStart: 0, guideLastAutoFetchAt: 0, guideAutoFetching: false, programDetails: null, refreshing: false, virtualCategoryView: "guide", selectedCustomGroup: "", customGroupQuery: "", customGroupChannelID: "", profileSettingsQuery: "", categorySettingsQuery: "", categorySettingsOpen: { live: true, north_america: false, international: false }, profileSelectionIDMap: null, profileChannelFilterMap: null, adminTab: "settings", adminCategorySettings: null, savedAdminCategorySettings: null, profileSaveStatus: "idle", profileSaveMessage: "", adminSaveStatus: "idle", adminSaveMessage: "", adminStatusRefreshing: false, adminProfileRefreshing: false, timeShiftSession: null, timeShiftHeartbeat: null, timeShiftTimelineTimer: null, timeShiftAttempt: 0, timeShiftAdminStatus: null, timeShiftAdminLoading: false };
 state.guideCategoryPickerOpen = false;
 state.guideCategoryQuery = "";
@@ -2822,19 +2822,24 @@ function channelHasNearGuide(channel) {
 }
 function maybeWarmGuideForChannels(channels, key) {
   if (!state.app || state.appLoadedFromCache || !items(channels).length) return;
-  if (items(channels).every(channelHasNearGuide)) return;
-  const channelIds = items(channels).slice(0, guidePingChannelLimit).map(function(channel) { return channel && channel.id; }).filter(Boolean);
+  const missingChannels = items(channels).filter(function(channel) { return !channelHasNearGuide(channel); });
+  if (!missingChannels.length) return;
+  const channelIds = missingChannels.slice(0, guidePingChannelLimit).map(function(channel) { return channel && channel.id; }).filter(Boolean);
   if (!channelIds.length) return;
-  const warmKey = String(key || channelIds.slice(0, 20).join("|"));
+  const warmKey = String(key || "guide") + ":" + channelIds.join("|");
   const now = Date.now();
   if (state.guideWarmPings[warmKey] && now - state.guideWarmPings[warmKey] < 5 * 60 * 1000) return;
   state.guideWarmPings[warmKey] = now;
-  postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function(result) {
-    if (result && result.refreshing) {
-      setTimeout(function() {
-        refreshStatusData().then(function() { return refreshSupplementalData(false); }).then(render).catch(function() {});
-      }, 12000);
+  postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function() {
+    return refreshStatusData().then(function() { return refreshSupplementalData(false); });
+  }).then(function() {
+    if (state.view === "guide") {
+      resetGuideRows();
+      renderEPG();
+    } else {
+      render();
     }
+    setTimeout(function() { maybeWarmGuideForChannels(channels, key); }, 250);
   }).catch(function(error) {
     try { console.warn("Dispatcharr guide warm ping failed", error); } catch (_) {}
   });

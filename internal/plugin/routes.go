@@ -145,7 +145,10 @@ type GuidePingPayload struct {
 	Refreshing      bool   `json:"refreshing"`
 }
 
-const guidePingChannelLimit = 24
+// Keep visible-guide warmups comfortably inside Silo's 10-second plugin HTTP
+// deadline. Xtream providers often serialize or throttle short-EPG calls, so a
+// larger batch can time out even when the provider is healthy.
+const guidePingChannelLimit = 8
 
 type ContentPayload struct {
 	Available  bool             `json:"available"`
