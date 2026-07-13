@@ -628,13 +628,15 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `const recent = recentChannels(5);`) {
 		t.Fatalf("expected home guide to be based on up to 5 continue-watching channels")
 	}
-	if !strings.Contains(body, `return pool.filter(channelHasCurrentGuide).slice(0, 5);`) {
-		t.Fatalf("expected home guide preview to be capped at 5 channels")
+	if !strings.Contains(body, `items(watched).concat(items(favorites)).forEach(function(channel)`) ||
+		strings.Contains(body, `items(watched).concat(visibleChannels(false)`) ||
+		!strings.Contains(body, `return pool.filter(channelHasCurrentGuide).slice(0, 5);`) {
+		t.Fatalf("expected home guide preview to contain only recent and favorite channels, capped at 5")
 	}
 	if !strings.Contains(body, `const watched = recent;`) ||
 		!strings.Contains(body, `watched.length ? homeSection("Recently watched", rowCards(watched), "")`) ||
 		!strings.Contains(body, `favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites)`) ||
-		!strings.Contains(body, `homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched)`) ||
+		!strings.Contains(body, `homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched, favorites)`) ||
 		!strings.Contains(body, `guideFreshnessHTML(), "home-guide-section")`) ||
 		!strings.Contains(body, `+ categoryGrid("home")`) {
 		t.Fatalf("expected home page to use only saved recently watched channels before favorites, guide, and categories")
