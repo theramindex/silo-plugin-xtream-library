@@ -231,7 +231,7 @@ const categorySettingsJSONSchema = `{
 
 func GlobalConfigSchema() []*ConfigSchema {
 	return []*ConfigSchema{
-		objectSchema("connection", "Xtreme Codes for Silo", "Choose the upstream source. Xtream Codes is the full-featured primary source. M3U + XMLTV provides compatible live TV and guide behavior.", connectionJSONSchema, true, []*pluginv1.AdminFormField{
+		objectSchema("connection", "Xtreme Codes for Silo", "Legacy connection settings. New and multi-source installations are managed in Xtream Codes Admin.", connectionJSONSchema, false, []*pluginv1.AdminFormField{
 			{Key: "source_mode", Label: "Source Type", Description: "Xtream Codes is the primary source. M3U + XMLTV is a secondary live TV and guide source.", Control: pluginv1.AdminFormControl_ADMIN_FORM_CONTROL_SELECT, DefaultValue: structpb.NewStringValue(string(SourceModeXtream)), Options: []*pluginv1.AdminFormOption{
 				{Value: string(SourceModeXtream), Label: "Xtream Codes", Description: "Fill Server URL, Username, and Password with the provider credentials for the shared Xtream Account."},
 				{Value: string(SourceModeM3UXMLTV), Label: "M3U + XMLTV", Description: "Fill M3U Playlist URL and Custom XMLTV URL. Xtream-only VOD, series, and catch-up are unavailable."},
