@@ -2822,14 +2822,17 @@ function channelHasNearGuide(channel) {
 }
 function maybeWarmGuideForChannels(channels, key) {
   if (!state.app || state.appLoadedFromCache || !items(channels).length) return;
-  const missingChannels = items(channels).filter(function(channel) { return !channelHasNearGuide(channel); });
+  const now = Date.now();
+  const scopeKey = String(key || "guide");
+  const missingChannels = items(channels).filter(function(channel) {
+    if (channelHasNearGuide(channel)) return false;
+    const attemptKey = scopeKey + ":" + String(channel && channel.id || "");
+    return !state.guideWarmPings[attemptKey] || now - state.guideWarmPings[attemptKey] >= 5 * 60 * 1000;
+  });
   if (!missingChannels.length) return;
   const channelIds = missingChannels.slice(0, guidePingChannelLimit).map(function(channel) { return channel && channel.id; }).filter(Boolean);
   if (!channelIds.length) return;
-  const warmKey = String(key || "guide") + ":" + channelIds.join("|");
-  const now = Date.now();
-  if (state.guideWarmPings[warmKey] && now - state.guideWarmPings[warmKey] < 5 * 60 * 1000) return;
-  state.guideWarmPings[warmKey] = now;
+  channelIds.forEach(function(channelID) { state.guideWarmPings[scopeKey + ":" + channelID] = now; });
   postJSON("/dispatcharr/api/guide/ping", { channelIds: channelIds }).then(function() {
     return refreshStatusData().then(function() { return refreshSupplementalData(false); });
   }).then(function() {
