@@ -765,7 +765,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`<nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Xtream Codes admin sections"></nav>`,
 		`class="admin-sidebar-link" href="../xtream"`,
 		`class=\"source-table-head\"`,
-		`border-radius: 1.7rem`,
+		`border-radius: 1.15rem`,
 		`class=\"source-empty\"`,
 		`class=\"source-dialog-backdrop\"`,
 		`class=\"source-dialog-nav\"`,
