@@ -793,6 +793,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`class=\"source-empty\"`,
 		`class=\"source-dialog-backdrop\"`,
 		`class=\"source-dialog-nav\"`,
+		`class=\"source-switch-control\"`,
+		`class=\"source-switch\" aria-hidden=\"true\"`,
+		`.source-switch-control input:checked + .source-switch`,
 		`data-source-step=\"`,
 		`{ id: "connection", label: "Connection"`,
 		`data-source-format=\"m3u8\"`,
@@ -3244,7 +3247,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.player-sports-event.live`,
 		`.event-broadcast-windows`,
 		`.event-keyword-options`,
-		`.source-enabled input { appearance: none; position: relative; flex: 0 0 auto; width: 2.35rem; height: 1.35rem;`,
+		`.source-enabled .source-switch-control input { appearance: none; position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%;`,
+		`.source-switch-control input:checked + .source-switch::after { transform: translateX(1.05rem); }`,
 		`@media (prefers-reduced-motion: reduce)`,
 	} {
 		requireStyle(want)
