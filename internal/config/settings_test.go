@@ -276,7 +276,7 @@ func TestUserConfigSchema_DeclaresEventKeywordRuleOptions(t *testing.T) {
 	}
 }
 
-func TestGlobalConfigSchema_SecretsAndStatusFields(t *testing.T) {
+func TestGlobalConfigSchema_SecretsAndOptionalLegacyStatus(t *testing.T) {
 	t.Parallel()
 
 	schema := GlobalConfigSchema()
@@ -286,8 +286,8 @@ func TestGlobalConfigSchema_SecretsAndStatusFields(t *testing.T) {
 		t.Fatalf("expected connection schema to declare writeOnly secret fields, got %q", connection.GetJsonSchema())
 	}
 
-	if !connection.GetRequired() {
-		t.Fatal("expected connection schema to be required")
+	if connection.GetRequired() {
+		t.Fatal("expected legacy connection schema to remain optional now that Xtream Codes Admin owns sources")
 	}
 }
 
