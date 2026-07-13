@@ -40,10 +40,28 @@ func DeriveXtreamSourceID(baseURL, username string) string {
 		return ""
 	}
 	parsed, err := url.Parse(value)
+	if err == nil && parsed.Host == "" && !strings.Contains(value, "://") {
+		parsed, err = url.Parse("https://" + value)
+	}
 	if err != nil || parsed.Host == "" {
 		return ""
 	}
 	return NormalizeSourceID(parsed.Host + "-" + strings.TrimSpace(username))
+}
+
+func DefaultXtreamSourceName(baseURL, username string) string {
+	value := strings.TrimSpace(baseURL)
+	parsed, err := url.Parse(value)
+	if err == nil && parsed.Host == "" && !strings.Contains(value, "://") {
+		parsed, err = url.Parse("https://" + value)
+	}
+	if err == nil && parsed.Hostname() != "" {
+		return parsed.Hostname()
+	}
+	if strings.TrimSpace(username) != "" {
+		return strings.TrimSpace(username)
+	}
+	return "IPTV Source"
 }
 
 func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {
@@ -51,9 +69,25 @@ func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {
 	source.Name = strings.TrimSpace(source.Name)
 	source.BaseURL = strings.TrimRight(strings.TrimSpace(source.BaseURL), "/")
 	source.Username = strings.TrimSpace(source.Username)
+	if source.Name == "" {
+		source.Name = DefaultXtreamSourceName(source.BaseURL, source.Username)
+	}
 	source.LiveFormat = source.EffectiveLiveFormat()
-	if source.ID == "" || source.Name == "" || source.BaseURL == "" || source.Username == "" || source.Password == "" {
-		return XtreamSource{}, fmt.Errorf("source id, name, server, username, and password are required")
+	missing := make([]string, 0, 4)
+	if source.ID == "" {
+		missing = append(missing, "a valid server URL")
+	}
+	if source.BaseURL == "" {
+		missing = append(missing, "server")
+	}
+	if source.Username == "" {
+		missing = append(missing, "username")
+	}
+	if source.Password == "" {
+		missing = append(missing, "password")
+	}
+	if len(missing) > 0 {
+		return XtreamSource{}, fmt.Errorf("source requires %s", strings.Join(missing, ", "))
 	}
 	return source, nil
 }

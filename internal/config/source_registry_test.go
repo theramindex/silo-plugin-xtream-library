@@ -37,3 +37,28 @@ func TestDeriveXtreamSourceIDUsesDomainAndUsername(t *testing.T) {
 		t.Fatalf("unexpected derived source id %q", got)
 	}
 }
+
+func TestNormalizeXtreamSourceDefaultsDisplayNameAndAcceptsSchemeLessIdentity(t *testing.T) {
+	t.Parallel()
+	source, err := NormalizeXtreamSource(XtreamSource{
+		ID:       DeriveXtreamSourceID("provider.example:8080", "viewer"),
+		BaseURL:  "provider.example:8080",
+		Username: "viewer",
+		Password: "secret",
+		Enabled:  true,
+	})
+	if err != nil {
+		t.Fatalf("normalize source: %v", err)
+	}
+	if source.ID != "provider-example-8080-viewer" || source.Name != "provider.example" {
+		t.Fatalf("unexpected defaults: %+v", source)
+	}
+}
+
+func TestNormalizeXtreamSourceReportsSpecificMissingField(t *testing.T) {
+	t.Parallel()
+	_, err := NormalizeXtreamSource(XtreamSource{ID: "provider-user", BaseURL: "https://provider.example", Username: "user"})
+	if err == nil || err.Error() != "source requires password" {
+		t.Fatalf("expected password-specific validation, got %v", err)
+	}
+}
