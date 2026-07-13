@@ -1612,7 +1612,7 @@ function renderHome() {
   root.innerHTML = "<div class=\"home-page\">"
     + (watched.length ? homeSection("Recently watched", rowCards(watched), "") : "")
     + (favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites), "Your saved channels") : "")
-    + homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true }), "", guideFreshnessHTML(), "home-guide-section")
+    + homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched, favorites), "No current guide data for recently watched or favorite channels.", { hideFreshness: true }), "", guideFreshnessHTML(), "home-guide-section")
     + categoryGrid("home")
     + "</div>";
 }
@@ -2855,10 +2855,10 @@ function maybeWarmGuideForChannels(channels, key) {
     try { console.warn("Dispatcharr guide warm ping failed", error); } catch (_) {}
   });
 }
-function homeGuideChannels(watched) {
+function homeGuideChannels(watched, favorites) {
   const seen = {};
   const pool = [];
-  items(watched).concat(visibleChannels(false).slice(0, 120)).forEach(function(channel) {
+  items(watched).concat(items(favorites)).forEach(function(channel) {
     if (!channel || seen[channel.id]) return;
     seen[channel.id] = true;
     pool.push(channel);
