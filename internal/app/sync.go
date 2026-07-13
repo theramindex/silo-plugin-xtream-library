@@ -840,17 +840,10 @@ func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings
 }
 
 func xtreamChannelsForSource(channels []model.Channel, sourceID string) []model.Channel {
-	sourceID = strings.TrimSpace(sourceID)
-	if sourceID == "" {
-		sourceID = "primary"
-	}
+	sourceID = normalizedXtreamSourceID(sourceID)
 	result := make([]model.Channel, 0)
 	for _, channel := range channels {
-		channelSourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:")
-		if channelSourceID == "" {
-			channelSourceID = "primary"
-		}
-		if channelSourceID == sourceID {
+		if xtreamChannelSourceID(channel) == sourceID {
 			result = append(result, channel)
 		}
 	}
@@ -858,16 +851,23 @@ func xtreamChannelsForSource(channels []model.Channel, sourceID string) []model.
 }
 
 func xtreamXMLTVURL(source config.XtreamSource) (string, error) {
-	endpoint, err := url.Parse(strings.TrimSpace(source.BaseURL))
+	rawURL, err := providerXMLTVURL(source.BaseURL, source.Username, source.Password)
 	if err != nil {
 		return "", fmt.Errorf("parse Xtreme source %q base url: %w", source.ID, err)
 	}
-	endpoint.Path = "/xmltv.php"
-	query := endpoint.Query()
-	query.Set("username", source.Username)
-	query.Set("password", source.Password)
-	endpoint.RawQuery = query.Encode()
-	return endpoint.String(), nil
+	return rawURL, nil
+}
+
+func normalizedXtreamSourceID(sourceID string) string {
+	sourceID = strings.TrimPrefix(strings.TrimSpace(sourceID), "xtream-source:")
+	if sourceID == "" {
+		return "primary"
+	}
+	return sourceID
+}
+
+func xtreamChannelSourceID(channel model.Channel) string {
+	return normalizedXtreamSourceID(channel.SourceID)
 }
 
 func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.Settings, requested map[string]bool, nowUnix int64) error {
@@ -889,10 +889,7 @@ func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.
 		if requested != nil && !requested[channel.ID] {
 			continue
 		}
-		sourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:")
-		if sourceID == "" {
-			sourceID = "primary"
-		}
+		sourceID := xtreamChannelSourceID(channel)
 		client := clients[sourceID]
 		streamID, ok := xtreamStreamID(channel.ID, sourceID)
 		if client == nil || !ok {
@@ -1118,9 +1115,17 @@ func epgURL(settings config.Settings) (string, error) {
 	if baseURL == "" || username == "" || password == "" {
 		return "", fmt.Errorf("epg connection settings are required")
 	}
-	endpoint, err := url.Parse(baseURL)
+	rawURL, err := providerXMLTVURL(baseURL, username, password)
 	if err != nil {
 		return "", fmt.Errorf("parse epg base url: %w", err)
+	}
+	return rawURL, nil
+}
+
+func providerXMLTVURL(baseURL string, username string, password string) (string, error) {
+	endpoint, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return "", err
 	}
 	endpoint.Path = "/xmltv.php"
 	query := endpoint.Query()
