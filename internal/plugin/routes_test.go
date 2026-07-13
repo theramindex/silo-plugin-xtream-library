@@ -3290,3 +3290,18 @@ func TestPlayerAppUsesLightweightRefreshPolling(t *testing.T) {
 		}
 	}
 }
+
+func TestProgramsForChannelDecodesCachedXtreamGuideText(t *testing.T) {
+	t.Parallel()
+
+	programs := programsForChannel([]model.Program{
+		{ChannelID: "xtream:1001", Title: "Tm8gTWF0Y2ggVG9kYXk=", Summary: "VG9wIGhlYWRsaW5lcy4="},
+		{ChannelID: "xmltv:news", Title: "Tm8gTWF0Y2ggVG9kYXk="},
+	}, "")
+	if programs[0].Title != "No Match Today" || programs[0].Summary != "Top headlines." {
+		t.Fatalf("expected cached Xtream guide text to be decoded, got %+v", programs[0])
+	}
+	if programs[1].Title != "Tm8gTWF0Y2ggVG9kYXk=" {
+		t.Fatalf("expected non-Xtream guide text to remain untouched, got %+v", programs[1])
+	}
+}
