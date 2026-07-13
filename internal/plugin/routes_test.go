@@ -668,10 +668,13 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		strings.Contains(body, `+ renderVirtualCategoryContent(filteredChannels)`) {
 		t.Fatalf("expected intermediate category drilldown to omit the old guide/list card wall")
 	}
-	if !strings.Contains(body, `.guide-tools { position: relative; z-index: 12; display: flex;`) ||
-		!strings.Contains(body, `justify-content: flex-end;`) ||
-		!strings.Contains(body, `width: min(100%, 54rem);`) {
-		t.Fatalf("expected the shared guide category picker and search to form a compact right-aligned toolbar")
+	if !strings.Contains(body, `<div class="guide-commandbar">`) ||
+		!strings.Contains(body, `<div class="guide-commandbar-title"><strong>TV Guide</strong>`) ||
+		!strings.Contains(body, `.guide-commandbar { position: relative; z-index: 12; display: grid;`) ||
+		!strings.Contains(body, `grid-template-columns: minmax(10rem, 1fr) minmax(30rem, 54rem);`) ||
+		!strings.Contains(body, `.guide-tools { position: relative; z-index: 12; display: flex;`) ||
+		!strings.Contains(body, `justify-content: flex-end;`) {
+		t.Fatalf("expected the shared guide heading, category picker, and search to form one compact command bar")
 	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
@@ -3227,11 +3230,14 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`.guide-scroll {`,
+		`.guide-scroll { --epg-logo-col: 12rem;`,
 		`.shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }`,
 		`.shell.is-guide #view { min-height: 0; overflow: hidden; }`,
-		`.shell.is-guide .guide-page { min-height: 0; height: 100%; max-height: none; }`,
-		`.shell.is-guide .guide-scroll { min-height: 0; }`,
+		`.shell.is-guide .guide-page { min-height: 0; height: auto; max-height: none; }`,
+		`.shell.is-guide .guide-scroll { min-height: 0; max-height: calc(100dvh - 10.5rem); }`,
+		`.guide-commandbar {`,
+		`.epg-channel { position: sticky; left: 0; z-index: 2;`,
+		`grid-template-columns: 4.6rem minmax(0, 1fr);`,
 		`.guide-window-spacer`,
 		`.guide-window`,
 		`.recovery-panel`,
@@ -3262,8 +3268,9 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	if !strings.Contains(compactStyles, `.sports-card{`) || !strings.Contains(compactStyles, `.custom-group-browser,.custom-group-members{`) || !strings.Contains(compactStyles, `border-radius:0.5rem;`) {
 		t.Fatal("non-pill sports cards must keep an 8px-or-smaller radius")
 	}
-	if !strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky; left: var(--epg-logo-col);`) {
-		t.Fatal("guide time panes must remain frozen while scrolling horizontally")
+	if strings.Contains(styles, `.time-head span:not(:first-child) { position: sticky; left: var(--epg-logo-col);`) ||
+		!strings.Contains(styles, `.time-head span:not(:first-child) { background:`) {
+		t.Fatal("guide time labels must follow the horizontal timeline instead of stacking in one frozen column")
 	}
 	if strings.Contains(styles, `letter-spacing: 0.04em`) {
 		t.Fatal("interface labels must use neutral letter spacing")
