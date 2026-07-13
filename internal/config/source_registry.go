@@ -69,6 +69,8 @@ func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {
 	source.Name = strings.TrimSpace(source.Name)
 	source.BaseURL = strings.TrimRight(strings.TrimSpace(source.BaseURL), "/")
 	source.Username = strings.TrimSpace(source.Username)
+	source.AlternateEPGURL = strings.TrimSpace(source.AlternateEPGURL)
+	source.AlternateEPGPolicy = source.EffectiveAlternateEPGPolicy()
 	if source.Name == "" {
 		source.Name = DefaultXtreamSourceName(source.BaseURL, source.Username)
 	}
@@ -88,6 +90,9 @@ func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {
 	}
 	if len(missing) > 0 {
 		return XtreamSource{}, fmt.Errorf("source requires %s", strings.Join(missing, ", "))
+	}
+	if source.AlternateEPGEnabled && source.AlternateEPGURL == "" {
+		return XtreamSource{}, fmt.Errorf("enabled alternate EPG requires an XMLTV URL")
 	}
 	return source, nil
 }

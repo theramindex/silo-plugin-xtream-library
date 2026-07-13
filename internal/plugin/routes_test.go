@@ -801,6 +801,12 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`.source-switch-control input:checked + .source-switch`,
 		`data-source-step=\"`,
 		`{ id: "connection", label: "Connection"`,
+		`{ id: "guide", label: "Alternate EPG"`,
+		`data-source-action=\"test-epg\"`,
+		`source-alternate-epg-url`,
+		`Fill missing guide data`,
+		`Prefer alternate guide`,
+		`Coverage test failed`,
 		`data-source-format=\"m3u8\"`,
 		`<div id="admin-actions" class="admin-actions"></div>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
@@ -2460,7 +2466,7 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	})
 	server.sourceRegistry = config.NewSourceRegistry(path)
 	headers := map[string]string{"x-silo-user-role": "admin"}
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"id":"backup","name":"Backup","baseUrl":"https://backup.example","username":"backup","password":"second-secret","liveFormat":"m3u8","enabled":true}`)})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"id":"backup","name":"Backup","baseUrl":"https://backup.example","username":"backup","password":"second-secret","liveFormat":"m3u8","enabled":true,"alternateEpgEnabled":true,"alternateEpgUrl":"https://epg.example/guide.xml","alternateEpgPolicy":"prefer_alternate"}`)})
 	if err != nil {
 		t.Fatalf("save source: %v", err)
 	}
@@ -2473,6 +2479,33 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	sources, err := server.sourceRegistry.Load()
 	if err != nil || len(sources) != 2 || sources[0].ID != "primary" || sources[1].ID != "backup-example-backup" {
 		t.Fatalf("expected migrated primary and new source, got %+v, %v", sources, err)
+	}
+	if !sources[1].AlternateEPGEnabled || sources[1].AlternateEPGURL != "https://epg.example/guide.xml" || sources[1].AlternateEPGPolicy != config.AlternateEPGPolicyPreferAlternate {
+		t.Fatalf("expected alternate EPG settings to persist, got %+v", sources[1])
+	}
+}
+
+func TestHTTPRoutesServerAdminSourcesTestsAlternateEPGCoverage(t *testing.T) {
+	t.Parallel()
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{XtreamSources: []config.XtreamSource{{ID: "primary", Name: "Primary", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true}}}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	server.sourceEPGTester = func(_ context.Context, source config.XtreamSource, channels []model.Channel) (alternateEPGTestPayload, error) {
+		if source.AlternateEPGURL != "https://epg.example/guide.xml" {
+			t.Fatalf("unexpected alternate EPG URL %q", source.AlternateEPGURL)
+		}
+		return alternateEPGTestPayload{MatchedChannels: 41, UnmatchedChannels: 9, ProgramCount: 1200}, nil
+	}
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"},
+		Body: []byte(`{"action":"test_epg","id":"primary","name":"Primary","baseUrl":"https://provider.example","username":"user","password":"secret","enabled":true,"alternateEpgEnabled":true,"alternateEpgUrl":"https://epg.example/guide.xml","alternateEpgPolicy":"fill_missing"}`),
+	})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("test alternate EPG: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	if !strings.Contains(string(response.GetBody()), `"matchedChannels":41`) || !strings.Contains(string(response.GetBody()), `"unmatchedChannels":9`) {
+		t.Fatalf("expected coverage response, got %s", response.GetBody())
 	}
 }
 

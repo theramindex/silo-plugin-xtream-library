@@ -9,9 +9,11 @@ import (
 )
 
 const (
-	DefaultChannelRefreshHours = 24
-	DefaultEPGRefreshHours     = 24
-	MinimumDispatcharrVersion  = "0.27.1"
+	DefaultChannelRefreshHours        = 24
+	DefaultEPGRefreshHours            = 24
+	MinimumDispatcharrVersion         = "0.27.1"
+	AlternateEPGPolicyFillMissing     = "fill_missing"
+	AlternateEPGPolicyPreferAlternate = "prefer_alternate"
 )
 
 type SourceMode string
@@ -45,13 +47,16 @@ type Settings struct {
 }
 
 type XtreamSource struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	BaseURL    string `json:"baseUrl"`
-	Username   string `json:"username"`
-	Password   string `json:"password"`
-	LiveFormat string `json:"liveFormat"`
-	Enabled    bool   `json:"enabled"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	BaseURL             string `json:"baseUrl"`
+	Username            string `json:"username"`
+	Password            string `json:"password"`
+	LiveFormat          string `json:"liveFormat"`
+	Enabled             bool   `json:"enabled"`
+	AlternateEPGEnabled bool   `json:"alternateEpgEnabled,omitempty"`
+	AlternateEPGURL     string `json:"alternateEpgUrl,omitempty"`
+	AlternateEPGPolicy  string `json:"alternateEpgPolicy,omitempty"`
 }
 
 func (s XtreamSource) EffectiveLiveFormat() string {
@@ -59,6 +64,13 @@ func (s XtreamSource) EffectiveLiveFormat() string {
 		return "ts"
 	}
 	return "m3u8"
+}
+
+func (s XtreamSource) EffectiveAlternateEPGPolicy() string {
+	if strings.EqualFold(strings.TrimSpace(s.AlternateEPGPolicy), AlternateEPGPolicyPreferAlternate) {
+		return AlternateEPGPolicyPreferAlternate
+	}
+	return AlternateEPGPolicyFillMissing
 }
 
 func (s Settings) EffectiveXtreamSources() []XtreamSource {
@@ -183,7 +195,7 @@ func CatalogCacheKey(settings Settings) string {
 		strings.TrimSpace(settings.EPGXMLURL),
 	}
 	for _, source := range settings.EffectiveXtreamSources() {
-		parts = append(parts, source.ID, source.Name, source.BaseURL, source.Username, source.EffectiveLiveFormat())
+		parts = append(parts, source.ID, source.Name, source.BaseURL, source.Username, source.EffectiveLiveFormat(), source.AlternateEPGURL, source.EffectiveAlternateEPGPolicy(), fmt.Sprintf("%t", source.AlternateEPGEnabled))
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(sum[:])
