@@ -64,7 +64,7 @@ func TestManifestIdentifiesStandaloneXtremeCodesPlugin(t *testing.T) {
 	if manifest.GetPluginId() != "silo.ramindex.xtream" {
 		t.Fatalf("expected standalone plugin id, got %q", manifest.GetPluginId())
 	}
-	if displayName, _ := manifest.GetMetadata().AsMap()["display_name"].(string); displayName != "Xtreme Codes for Silo" {
+	if displayName, _ := manifest.GetMetadata().AsMap()["display_name"].(string); displayName != "XC for Silo" {
 		t.Fatalf("expected standalone display name, got %q", displayName)
 	}
 }

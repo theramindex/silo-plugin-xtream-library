@@ -1,4 +1,4 @@
-# Xtreme Codes for Silo
+# XC for Silo
 
 Standalone Silo IPTV plugin with Xtream Codes as the primary source and
 M3U/XMLTV as a reduced-feature secondary source.
