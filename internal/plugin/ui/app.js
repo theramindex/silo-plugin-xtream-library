@@ -4088,7 +4088,7 @@ function renderAdminPage() {
 function renderAdminTopbarTabs() {
   const root = byId("admin-tabs");
   if (!root) return;
-  root.innerHTML = "<button type=\"button\" data-admin-tab=\"sources\" class=\"" + (state.adminTab === "sources" ? "active" : "") + "\">" + icon("integrations") + "<span>Sources</span></button>"
+  root.innerHTML = "<button type=\"button\" data-admin-tab=\"sources\" class=\"" + (state.adminTab === "sources" ? "active" : "") + "\">" + icon("integrations") + "<span>Sources</span><small>" + items(state.adminSources).length + "</small></button>"
     + "<button type=\"button\" data-admin-tab=\"settings\" class=\"" + (state.adminTab === "settings" ? "active" : "") + "\">" + icon("settings") + "<span>Organization</span></button>";
 }
 function renderAdminTopbarActions() {
@@ -4113,7 +4113,8 @@ function renderAdminSourcesTab() {
     return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
   }).join("");
   const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
-  return "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Xtreme Codes sources</h2><p>Combine channels and guide data from multiple provider accounts. Credentials stay on the Silo server.</p></div><button type=\"button\" class=\"source-add\" data-source-action=\"add\">Add source</button></div>" + message + "<div class=\"source-table\">" + (rows || "<div class=\"empty\">No sources configured.</div>") + "</div></div>" + renderAdminSourceEditor();
+  const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Account</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
+  return "<div class=\"settings-card source-manager-card\"><div class=\"settings-card-head\"><div><h2>Sources</h2><p>Combine channels and guide data from multiple Xtreme Codes accounts.</p></div><button type=\"button\" class=\"source-add\" data-source-action=\"add\">Add source</button></div>" + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
 }
 function renderAdminSourceEditor() {
   const source = state.adminSourceEditor;
