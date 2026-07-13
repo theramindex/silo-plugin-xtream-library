@@ -163,8 +163,10 @@ button { cursor: pointer; }
 .topbar-icon { width: 2.45rem; height: 2.45rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); display: inline-grid; place-items: center; flex: 0 0 auto; }
 .topbar-icon:hover, .topbar-icon.active { background: var(--panel-2); }
 .topbar-icon svg { width: 1.08rem; height: 1.08rem; display: block; stroke-width: 1.9; }
-.settings-menu { position: relative; display: inline-grid; place-items: center; }
-.settings-dropdown { position: absolute; top: calc(100% + 0.45rem); right: 0; z-index: 20; display: none; min-width: 11.5rem; padding: 0.35rem; border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--panel) 94%, black 6%); box-shadow: 0 1rem 2.6rem rgba(0,0,0,0.34); }
+.topbar:has(.settings-menu.open), .admin-topbar:has(.settings-menu.open) { z-index: 60; }
+.settings-menu { position: relative; z-index: 1; display: inline-grid; place-items: center; }
+.settings-menu.open { z-index: 61; }
+.settings-dropdown { position: absolute; top: calc(100% + 0.45rem); right: 0; z-index: 62; display: none; min-width: 11.5rem; padding: 0.35rem; border: 1px solid var(--line); border-radius: 0.5rem; background: color-mix(in srgb, var(--panel) 94%, black 6%); box-shadow: 0 1rem 2.6rem rgba(0,0,0,0.34); }
 .settings-menu.open .settings-dropdown { display: grid; gap: 0.18rem; }
 .settings-dropdown button { width: 100%; min-height: 2.25rem; border: 0; border-radius: 0.48rem; background: transparent; color: var(--text); padding: 0 0.7rem; text-align: left; font-weight: 820; display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; }
 .settings-dropdown button:hover, .settings-dropdown button.active { background: var(--panel-2); }
