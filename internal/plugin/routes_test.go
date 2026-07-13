@@ -450,7 +450,12 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`featuredCategoriesFromPaths("", includeChannel, true)`,
 		`virtualCategoriesFromPaths("", includeChannel, true)`,
 		`const categories = guideFilterCategories();`,
-		`state.view = id ? "guide" : "home";`,
+		`state.view = id ? (nestedFolderChildren(id).length ? "live" : "guide") : "home";`,
+		`function selectedNestedFolder(id)`,
+		`function nestedFolderChildren(id)`,
+		`function navigateGuideCategory(id)`,
+		`if (folder && children.length)`,
+		`folderFilterHTML("Filter this folder")`,
 		`virtualFolderBreadcrumbs(path, featured)`,
 		`const rootLabel = featured ? featuredGroupLabel() : virtualGroupLabel()`,
 		`function featuredGroupLabel()`,
@@ -650,16 +655,15 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if !strings.Contains(body, `.topbar-primary .nav { width: max-content; flex: 0 1 auto; }`) {
 		t.Fatalf("expected desktop Live TV navigation to stay compact instead of stretching across the header")
 	}
-	if !strings.Contains(body, `state.view = id ? "guide" : "home";`) {
-		t.Fatalf("expected category drilldown to open the shared guide already scoped to the selected folder")
+	if !strings.Contains(body, `state.view = id ? (nestedFolderChildren(id).length ? "live" : "guide") : "home";`) {
+		t.Fatalf("expected intermediate folders to stay in browse mode and leaf categories to open the scoped guide")
 	}
-	if !strings.Contains(body, `if (state.category) {`) || !strings.Contains(body, `renderGuidePage();`) {
+	if !strings.Contains(body, `if (folder && children.length) {`) || !strings.Contains(body, `folderFilterHTML("Filter this folder")`) || !strings.Contains(body, `renderGuidePage();`) {
 		t.Fatalf("expected legacy live-category routes to fall back to the shared guide instead of channel cards")
 	}
 	if strings.Contains(body, `byId("view").innerHTML = virtualFolderHeader(path, featured)`) ||
-		strings.Contains(body, `+ folderFilterHTML("Filter this folder", "")`) ||
 		strings.Contains(body, `+ renderVirtualCategoryContent(filteredChannels)`) {
-		t.Fatalf("expected category drilldown not to render an intermediate folder/card wall")
+		t.Fatalf("expected intermediate category drilldown to omit the old guide/list card wall")
 	}
 	if !strings.Contains(body, `.guide-tools { position: relative; z-index: 12; display: flex;`) ||
 		!strings.Contains(body, `justify-content: flex-end;`) ||
@@ -1048,6 +1052,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.FeaturedGuidePicker || !result.FeaturedGuideHeading {
 		t.Fatalf("expected starred delimiter category to open the shared guide with the folder selected: %+v", result)
 	}
+	if !result.FeaturedParentFoldersOnly || !result.VirtualParentFoldersOnly {
+		t.Fatalf("expected intermediate delimiter folders to show child folders without a guide: %+v", result)
+	}
 	if result.FeaturedBreadcrumbRoot || result.FeaturedBreadcrumbPath || result.VirtualBreadcrumbRoot {
 		t.Fatalf("expected guide-first category drilldown to replace virtual breadcrumb/card pages: %+v", result)
 	}
@@ -1206,6 +1213,8 @@ type virtualAliasResult struct {
 	VirtualGuidePicker                   bool   `json:"virtualGuidePicker"`
 	VirtualGuideHeading                  bool   `json:"virtualGuideHeading"`
 	VirtualBackButton                    bool   `json:"virtualBackButton"`
+	FeaturedParentFoldersOnly            bool   `json:"featuredParentFoldersOnly"`
+	VirtualParentFoldersOnly             bool   `json:"virtualParentFoldersOnly"`
 	ChannelCategoryName                  string `json:"channelCategoryName"`
 	ReplayRewindable                     bool   `json:"replayRewindable"`
 	NormalRewindable                     bool   `json:"normalRewindable"`
@@ -1376,6 +1385,9 @@ JSON.stringify((function() {
   state.category = "featured:International / Argentina / Sports";
   renderLivePage();
   const featuredView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "featured:International";
+  renderLivePage();
+  const featuredParentView = document.elements.view ? document.elements.view.innerHTML : "";
   state.category = "featured:Admin Favorites";
   renderLivePage();
   const simpleFeaturedView = document.elements.view ? document.elements.view.innerHTML : "";
@@ -1387,6 +1399,9 @@ JSON.stringify((function() {
   state.category = "virtual:International / Argentina / Sports";
   renderLivePage();
   const virtualView = document.elements.view ? document.elements.view.innerHTML : "";
+  state.category = "virtual:International";
+  renderLivePage();
+  const virtualParentView = document.elements.view ? document.elements.view.innerHTML : "";
   const replayChannel = channelByID("channel:world-cup-replay");
   state.currentChannel = replayChannel;
   renderPlayerPage();
@@ -1541,6 +1556,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     virtualGuidePicker: virtualView.indexOf(">International / Argentina / Sports</strong>") !== -1,
     virtualGuideHeading: virtualView.indexOf(">TV Guide<") !== -1,
     virtualBackButton: virtualView.indexOf(">Back</button>") !== -1,
+    featuredParentFoldersOnly: featuredParentView.indexOf('data-category="featured:International / Argentina"') !== -1 && featuredParentView.indexOf('placeholder="Filter this folder"') !== -1 && featuredParentView.indexOf(">TV Guide<") === -1,
+    virtualParentFoldersOnly: virtualParentView.indexOf('data-category="virtual:International / Argentina"') !== -1 && virtualParentView.indexOf('placeholder="Filter this folder"') !== -1 && virtualParentView.indexOf(">TV Guide<") === -1,
     channelCategoryName: channel ? channel.categoryName : "",
     replayRewindable: isRewindableChannel(replayChannel),
     normalRewindable: isRewindableChannel(channel),

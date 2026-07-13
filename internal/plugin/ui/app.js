@@ -1308,7 +1308,27 @@ function setView(view, options) {
 function setCategory(id) {
   if ((id || "") !== state.category) state.folderQuery = "";
   state.category = id || "";
-  state.view = id ? "guide" : "home";
+  state.view = id ? (nestedFolderChildren(id).length ? "live" : "guide") : "home";
+  render();
+}
+function selectedNestedFolder(id) {
+  id = String(id || "");
+  if (id.indexOf("featured:") === 0) return { featured: true, path: featuredCategoryPath(id) };
+  if (id.indexOf("virtual:") === 0) return { featured: false, path: virtualCategoryPath(id) };
+  return null;
+}
+function nestedFolderChildren(id) {
+  const folder = selectedNestedFolder(id);
+  if (!folder) return [];
+  const hidden = hiddenMap();
+  const includeChannel = function(channel) { return !(channel.categoryId && hidden[channel.categoryId]); };
+  return folder.featured ? featuredChildCategories(folder.path, includeChannel) : virtualChildCategories(folder.path, includeChannel);
+}
+function navigateGuideCategory(id) {
+  id = id || "";
+  if (id !== state.category) state.folderQuery = "";
+  state.category = id;
+  state.view = id && nestedFolderChildren(id).length ? "live" : "guide";
   render();
 }
 async function hydrateApp(payload, options) {
@@ -2938,6 +2958,15 @@ function renderLivePage() {
   }
   const filteredChannels = channels.filter(channelMatchesFolderQuery);
   if (state.category) {
+    const folder = selectedNestedFolder(state.category);
+    const children = nestedFolderChildren(state.category);
+    if (folder && children.length) {
+      const filteredChildren = children.filter(categoryMatchesFolderQuery);
+      byId("view").innerHTML = "<div class=\"section-title virtual-folder-title\">" + virtualFolderBreadcrumbs(folder.path, folder.featured) + "</div>"
+        + folderFilterHTML("Filter this folder")
+        + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : emptyStateHTML("No matching folders.", "Try a different filter."));
+      return;
+    }
     renderGuidePage();
     return;
   } else {
@@ -3781,8 +3810,7 @@ function updateGuideCategoryFilter(value, categories, forceReset) {
     return;
   }
   if (state.category === next) return;
-  state.category = next;
-  renderGuidePage();
+  navigateGuideCategory(next);
 }
 function guideWindowOverscan() { return 8; }
 function guideRowHeight() {
@@ -5090,10 +5118,10 @@ document.addEventListener("click", function(event) {
   const guideCategory = event.target.closest("[data-guide-category]");
   if (guideCategory) {
     event.preventDefault();
-    state.category = guideCategory.getAttribute("data-guide-category") || "";
+    const categoryID = guideCategory.getAttribute("data-guide-category") || "";
     state.guideCategoryPickerOpen = false;
     state.guideCategoryQuery = "";
-    renderGuidePage();
+    navigateGuideCategory(categoryID);
     return;
   }
   const guideCategoryToggle = event.target.closest("[data-guide-category-toggle]");
