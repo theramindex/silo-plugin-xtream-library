@@ -1308,7 +1308,7 @@ function setView(view, options) {
 function setCategory(id) {
   if ((id || "") !== state.category) state.folderQuery = "";
   state.category = id || "";
-  state.view = id ? "live" : "home";
+  state.view = id ? "guide" : "home";
   render();
 }
 async function hydrateApp(payload, options) {
@@ -2936,29 +2936,13 @@ function renderLivePage() {
     byId("view").innerHTML = sectionHeader("Favorite channels") + folderFilterHTML("Filter favorites") + favoriteCards(filtered.slice(0, 60));
     return;
   }
-  if (state.category.indexOf("virtual:") === 0 || state.category.indexOf("featured:") === 0) {
-    const featured = state.category.indexOf("featured:") === 0;
-    const path = featured ? featuredCategoryPath(state.category) : virtualCategoryPath(state.category);
-    const hidden = hiddenMap();
-    const children = (featured ? featuredChildCategories : virtualChildCategories)(path, function(channel) {
-      return !(channel.categoryId && hidden[channel.categoryId]);
-    });
-    const filteredChildren = children.filter(categoryMatchesFolderQuery);
-    const filteredChannels = channels.filter(channelMatchesFolderQuery);
-    byId("view").innerHTML = virtualFolderHeader(path, featured)
-      + folderFilterHTML("Filter this folder", "")
-      + (filteredChildren.length ? "<div class=\"category-grid\">" + filteredChildren.map(categoryTileHTML).join("") + "</div>" : "")
-      + renderVirtualCategoryContent(filteredChannels);
-    maybeWarmGuideForChannels(filteredChannels, state.category);
-    return;
-  }
   const filteredChannels = channels.filter(channelMatchesFolderQuery);
   if (state.category) {
-    byId("view").innerHTML = categoryBrowserHeader(categoryName(state.category) || "Categories") + folderFilterHTML("Filter this category") + renderCategoryBrowserChannels(filteredChannels);
+    renderGuidePage();
+    return;
   } else {
     byId("view").innerHTML = categoryGrid() + sectionHeader("Channels") + folderFilterHTML("Filter visible channels") + rowCards(filteredChannels.slice(0, 24));
   }
-  if (state.category) maybeWarmGuideForChannels(filteredChannels, state.category);
 }
 
 function categoryBrowserHeader(title) {
