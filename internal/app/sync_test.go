@@ -66,8 +66,11 @@ func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 		XtreamFactory: func(string, string, string) XtreamClient {
 			return &stubXtreamClient{
 				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+				epgErr:  errors.New("catalog sync should use the provider XMLTV feed"),
 			}
+		},
+		FetchURL: func(context.Context, string) ([]byte, error) {
+			return []byte(`<?xml version="1.0"?><tv><programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
 		},
 	})
 
@@ -106,8 +109,11 @@ func TestSyncPersistsCatalogSnapshot(t *testing.T) {
 		XtreamFactory: func(string, string, string) XtreamClient {
 			return &stubXtreamClient{
 				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+				epgErr:  errors.New("catalog sync should use the provider XMLTV feed"),
 			}
+		},
+		FetchURL: func(context.Context, string) ([]byte, error) {
+			return []byte(`<?xml version="1.0"?><tv><programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
 		},
 	})
 	settings := config.Settings{
@@ -144,8 +150,11 @@ func TestSyncReportsCatalogSnapshotPersistenceFailure(t *testing.T) {
 		XtreamFactory: func(string, string, string) XtreamClient {
 			return &stubXtreamClient{
 				streams: []xtream.LiveStream{{Num: 1, Name: "News HD", StreamID: 1001, EPGChannelID: "news.hd"}},
-				epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
+				epgErr:  errors.New("catalog sync should use the provider XMLTV feed"),
 			}
+		},
+		FetchURL: func(context.Context, string) ([]byte, error) {
+			return []byte(`<?xml version="1.0"?><tv><programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
 		},
 	})
 	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
@@ -224,7 +233,7 @@ func TestSyncXtreamMergesEnabledSourcesWithScopedChannelIDs(t *testing.T) {
 	}
 }
 
-func TestRefreshGuideOnlyXtreamUsesAPIForEveryConfiguredSource(t *testing.T) {
+func TestRefreshGuideOnlyXtreamUsesProviderXMLTVForEveryConfiguredSource(t *testing.T) {
 	t.Parallel()
 	store := cache.NewStore()
 	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
@@ -234,25 +243,29 @@ func TestRefreshGuideOnlyXtreamUsesAPIForEveryConfiguredSource(t *testing.T) {
 	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
 		Source: model.LiveTVSource(model.SourceModeXtream),
 		Channels: []model.Channel{
-			{ID: "xtream:1001", SourceID: "xtream-source:primary", Name: "Primary News"},
-			{ID: "xtream:backup:2002", SourceID: "xtream-source:backup", Name: "Backup News"},
+			{ID: "xtream:1001", SourceID: "xtream-source:primary", GuideID: "primary.news", Name: "Primary News"},
+			{ID: "xtream:backup:2002", SourceID: "xtream-source:backup", GuideID: "backup.news", Name: "Backup News"},
 		},
 	}, ConfigKey: config.CatalogCacheKey(settings)})
+	var fetched []string
 	service := NewService(Dependencies{
 		Store: store,
-		XtreamFactory: func(baseURL, _, _ string) XtreamClient {
-			title := "Primary Program"
-			if strings.Contains(baseURL, "backup") {
-				title = "Backup Program"
-			}
-			return &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: title, Title: title, StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}}}
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{epgErr: errors.New("short EPG should only be an on-demand fallback")}
 		},
-		FetchURL: func(context.Context, string) ([]byte, error) {
-			return nil, errors.New("XMLTV must not be fetched for an Xtreme guide refresh")
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			fetched = append(fetched, rawURL)
+			if strings.Contains(rawURL, "backup.example") {
+				return []byte(`<?xml version="1.0"?><tv><programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="backup.news"><title>Backup Program</title></programme></tv>`), nil
+			}
+			return []byte(`<?xml version="1.0"?><tv><programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="primary.news"><title>Primary Program</title></programme></tv>`), nil
 		},
 	})
 	if err := service.RefreshGuideOnlyNow(context.Background(), settings, 1_700_000_001); err != nil {
-		t.Fatalf("refresh Xtreme API guide: %v", err)
+		t.Fatalf("refresh Xtreme provider guide: %v", err)
+	}
+	if len(fetched) != 2 || !strings.Contains(fetched[0], "/xmltv.php?") || !strings.Contains(fetched[1], "/xmltv.php?") {
+		t.Fatalf("expected one provider XMLTV request per source, got %v", fetched)
 	}
 	programs := store.Current().Catalog.Programs
 	if len(programs) != 2 {
@@ -263,7 +276,7 @@ func TestRefreshGuideOnlyXtreamUsesAPIForEveryConfiguredSource(t *testing.T) {
 		titles[program.Title] = true
 	}
 	if !titles["Primary Program"] || !titles["Backup Program"] {
-		t.Fatalf("expected programs from both Xtreme APIs, got %+v", programs)
+		t.Fatalf("expected programs from both Xtreme provider guides, got %+v", programs)
 	}
 }
 

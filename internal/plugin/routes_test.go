@@ -2132,6 +2132,43 @@ func TestHTTPRoutesServerGuidePingRefreshesWhenAnyCheckedChannelIsMissingGuide(t
 	}
 }
 
+func TestHTTPRoutesServerGuidePingCapsOversizedCategoryWarmup(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	settings := config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeDirectLogin)}, ConfigKey: config.CatalogCacheKey(settings)})
+	channelIDs := make([]string, 40)
+	for index := range channelIDs {
+		channelIDs[index] = fmt.Sprintf("dispatcharr:channel-%d", index+1)
+	}
+	body, _ := json.Marshal(guidePingRequest{ChannelIDs: channelIDs})
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/dispatcharr/api/guide/ping",
+		Body:   body,
+	})
+	if err != nil {
+		t.Fatalf("guide ping: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("expected capped guide warmup to succeed, got %d", response.GetStatusCode())
+	}
+	if got := syncer.guideChannelCallIDs(); len(got) != 24 {
+		t.Fatalf("expected guide warmup to cap at 24 channels, got %d", len(got))
+	}
+}
+
 func TestHTTPRoutesServerLegacyFavoriteRouteRejectsProcessGlobalState(t *testing.T) {
 	t.Parallel()
 
@@ -2154,9 +2191,23 @@ type stubCatalogSyncer struct {
 	calls        int
 	forceCalls   int
 	channelCalls int
+	guideIDs     []string
 	mu           sync.Mutex
 	block        <-chan struct{}
 	done         chan<- struct{}
+}
+
+func (s *stubCatalogSyncer) RefreshGuideChannelsNow(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) error {
+	s.mu.Lock()
+	s.guideIDs = append([]string(nil), channelIDs...)
+	s.mu.Unlock()
+	return s.SyncNow(ctx, settings, nowUnix)
+}
+
+func (s *stubCatalogSyncer) guideChannelCallIDs() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.guideIDs...)
 }
 
 func (s *stubCatalogSyncer) ForceSyncNow(ctx context.Context, settings config.Settings, nowUnix int64) error {

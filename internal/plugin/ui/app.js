@@ -2822,7 +2822,7 @@ function channelHasNearGuide(channel) {
 function maybeWarmGuideForChannels(channels, key) {
   if (!state.app || state.appLoadedFromCache || !items(channels).length) return;
   if (items(channels).every(channelHasNearGuide)) return;
-  const channelIds = items(channels).map(function(channel) { return channel && channel.id; }).filter(Boolean);
+  const channelIds = items(channels).slice(0, 24).map(function(channel) { return channel && channel.id; }).filter(Boolean);
   if (!channelIds.length) return;
   const warmKey = String(key || channelIds.slice(0, 20).join("|"));
   const now = Date.now();

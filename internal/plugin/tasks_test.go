@@ -25,7 +25,8 @@ func TestScheduledTaskServerRunsSyncTask(t *testing.T) {
 		epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
 	}
 	service := app.NewService(app.Dependencies{
-		Store: store,
+		Store:    store,
+		FetchURL: scheduledXtreamXMLTV,
 		XtreamFactory: func(string, string, string) app.XtreamClient {
 			return client
 		},
@@ -58,7 +59,8 @@ func TestScheduledTaskServerRunsSiloNamespacedSyncTask(t *testing.T) {
 		epg:     xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1700000000", StopTimestamp: "1700003600"}}},
 	}
 	service := app.NewService(app.Dependencies{
-		Store: store,
+		Store:    store,
+		FetchURL: scheduledXtreamXMLTV,
 		XtreamFactory: func(string, string, string) app.XtreamClient {
 			return client
 		},
@@ -171,6 +173,7 @@ func TestScheduledTaskServerPersistsXtreamGuideForNextPluginProcess(t *testing.T
 	service := app.NewService(app.Dependencies{
 		Store:           store,
 		SnapshotStorage: storage,
+		FetchURL:        scheduledXtreamXMLTV,
 		XtreamFactory: func(string, string, string) app.XtreamClient {
 			return &scheduledStubClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "epg-1", Title: "Morning News", StartTimestamp: "1783926000", StopTimestamp: "1783929600"}}}}
 		},
@@ -186,6 +189,10 @@ func TestScheduledTaskServerPersistsXtreamGuideForNextPluginProcess(t *testing.T
 	if len(persisted.Catalog.Programs) != 1 || persisted.Catalog.Programs[0].Title != "Morning News" {
 		t.Fatalf("expected next plugin process to load guide, got %+v", persisted.Catalog.Programs)
 	}
+}
+
+func scheduledXtreamXMLTV(context.Context, string) ([]byte, error) {
+	return []byte(`<?xml version="1.0"?><tv><programme start="20260713010000 +0000" stop="20260713020000 +0000" channel="news.hd"><title>Morning News</title></programme></tv>`), nil
 }
 
 func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
