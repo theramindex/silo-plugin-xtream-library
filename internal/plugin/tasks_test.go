@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,13 +37,12 @@ func TestScheduledTaskServerRunsSyncTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run task: %v", err)
 	}
-	if response.GetOutput().AsMap()["status"] != "queued" {
+	if response.GetOutput().AsMap()["status"] != "completed" {
 		t.Fatalf("unexpected task output: %+v", response.GetOutput().AsMap())
 	}
 	if response.GetOutput().AsMap()["task"] != "catalog" {
 		t.Fatalf("expected catalog task output, got %+v", response.GetOutput().AsMap())
 	}
-	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
@@ -68,7 +69,6 @@ func TestScheduledTaskServerRunsSiloNamespacedSyncTask(t *testing.T) {
 	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: "plugin:14:xtream-sync"}); err != nil {
 		t.Fatalf("run namespaced task: %v", err)
 	}
-	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 || len(snapshot.Catalog.Programs) != 1 {
@@ -110,7 +110,6 @@ func TestScheduledTaskServerRunsChannelRefreshTask(t *testing.T) {
 	if response.GetOutput().AsMap()["task"] != "channels" {
 		t.Fatalf("expected channels task output, got %+v", response.GetOutput().AsMap())
 	}
-	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Channels) != 1 {
@@ -151,7 +150,6 @@ func TestScheduledTaskServerRunsEPGRefreshTask(t *testing.T) {
 	if response.GetOutput().AsMap()["task"] != "epg" {
 		t.Fatalf("expected epg task output, got %+v", response.GetOutput().AsMap())
 	}
-	waitForScheduledTask(t, server)
 
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Morning News" {
@@ -159,6 +157,38 @@ func TestScheduledTaskServerRunsEPGRefreshTask(t *testing.T) {
 	}
 	if snapshot.Health.EPGStatus != "ok" {
 		t.Fatalf("expected epg health to be ok, got %+v", snapshot.Health)
+	}
+}
+
+func TestScheduledTaskServerPersistsXtreamGuideForNextPluginProcess(t *testing.T) {
+	t.Parallel()
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{{ID: "xtream:1001", Name: "News HD", GuideID: "news.hd"}},
+	}, ConfigKey: config.CatalogCacheKey(settings)})
+	storage := cache.NewFileSnapshotStorage(filepath.Join(t.TempDir(), "catalog-snapshot.json"))
+	service := app.NewService(app.Dependencies{
+		Store:           store,
+		SnapshotStorage: storage,
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if !strings.Contains(rawURL, "/xmltv.php?") {
+				t.Fatalf("unexpected Xtream EPG URL %q", rawURL)
+			}
+			return []byte("<?xml version=\"1.0\"?><tv><programme start=\"20260713070000 +0000\" stop=\"20260713080000 +0000\" channel=\"news.hd\"><title>Morning News</title></programme></tv>"), nil
+		},
+	})
+	server := NewScheduledTaskServer(service, settings)
+	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: EPGRefreshTaskKey}); err != nil {
+		t.Fatalf("run persisted Xtream EPG refresh: %v", err)
+	}
+	persisted, ok, err := storage.Load()
+	if err != nil || !ok {
+		t.Fatalf("load persisted guide: ok=%v err=%v", ok, err)
+	}
+	if len(persisted.Catalog.Programs) != 1 || persisted.Catalog.Programs[0].Title != "Morning News" {
+		t.Fatalf("expected next plugin process to load guide, got %+v", persisted.Catalog.Programs)
 	}
 }
 
@@ -187,11 +217,8 @@ func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
 		EPGRefreshH:     6,
 	})
 
-	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: EPGRefreshTaskKey}); err != nil {
-		t.Fatalf("queue direct EPG refresh: %v", err)
-	}
-	if err := waitForScheduledTaskResult(t, server); err == nil {
-		t.Fatal("expected background direct EPG refresh failure")
+	if _, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: EPGRefreshTaskKey}); err == nil {
+		t.Fatal("expected direct EPG refresh failure")
 	}
 
 	snapshot := store.Current()
@@ -203,7 +230,7 @@ func TestScheduledTaskServerEPGRefreshKeepsGuideOnDirectFailure(t *testing.T) {
 	}
 }
 
-func TestScheduledTaskServerReturnsBeforeSlowRefreshCompletes(t *testing.T) {
+func TestScheduledTaskServerWaitsForSlowRefreshToComplete(t *testing.T) {
 	t.Parallel()
 
 	target := &controlledRefreshTarget{started: make(chan RefreshOperation, 1), release: make(chan struct{})}
@@ -211,22 +238,37 @@ func TestScheduledTaskServerReturnsBeforeSlowRefreshCompletes(t *testing.T) {
 	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://dispatcharr.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 6}
 	server := NewScheduledTaskServerWithCoordinator(coordinator, func() config.Settings { return settings })
 
-	startedAt := time.Now()
-	response, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: ChannelRefreshTaskKey})
-	if err != nil {
-		t.Fatalf("queue slow channel refresh: %v", err)
-	}
-	if elapsed := time.Since(startedAt); elapsed > 250*time.Millisecond {
-		t.Fatalf("scheduled task waited for background refresh: %s", elapsed)
-	}
-	if response.GetOutput().AsMap()["status"] != "queued" || response.GetOutput().AsMap()["jobId"] == "" {
-		t.Fatalf("unexpected queued task output: %+v", response.GetOutput().AsMap())
-	}
+	done := make(chan *pluginv1.RunScheduledTaskResponse, 1)
+	errors := make(chan error, 1)
+	go func() {
+		response, err := server.Run(context.Background(), &pluginv1.RunScheduledTaskRequest{TaskKey: ChannelRefreshTaskKey})
+		if err != nil {
+			errors <- err
+			return
+		}
+		done <- response
+	}()
 	if operation := waitForRefreshOperation(t, target.started); operation != RefreshChannels {
 		t.Fatalf("expected channel refresh, got %q", operation)
 	}
+	select {
+	case <-done:
+		t.Fatal("scheduled task returned before refresh completed")
+	case err := <-errors:
+		t.Fatalf("slow channel refresh failed early: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
 	close(target.release)
-	waitForScheduledTask(t, server)
+	select {
+	case response := <-done:
+		if response.GetOutput().AsMap()["status"] != "completed" || response.GetOutput().AsMap()["jobId"] == "" {
+			t.Fatalf("unexpected completed task output: %+v", response.GetOutput().AsMap())
+		}
+	case err := <-errors:
+		t.Fatalf("slow channel refresh failed: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("scheduled task did not return after refresh completed")
+	}
 }
 
 func waitForScheduledTask(t *testing.T, server *ScheduledTaskServer) {
