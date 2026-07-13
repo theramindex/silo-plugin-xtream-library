@@ -2589,7 +2589,7 @@ function categoryGrid(context) {
   return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
 }
 function categoryGridSection(title, categories, context) {
-  if (context === "home") return homeSection(title, "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>", "Browse by category", "", "home-category-section");
+  if (context === "home") return homeSection(title, "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>", "", "", "home-category-section");
   return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>";
 }
 function categoryTileHTML(category) {
