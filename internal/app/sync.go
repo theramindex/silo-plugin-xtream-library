@@ -368,13 +368,9 @@ func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings
 	if options.channelsOnly {
 		programs = preservedProgramsForChannels(s.store.Current(), config.CatalogCacheKey(settings), channels)
 	} else if !tightDeadline && channelsHaveGuideIDs(channels) {
-		rawURL := strings.TrimSpace(settings.EPGXMLURL)
-		if rawURL == "" {
-			var err error
-			rawURL, err = xtreamXMLTVURL(source)
-			if err != nil {
-				return model.CatalogState{}, err
-			}
+		rawURL, err := xtreamXMLTVURL(source)
+		if err != nil {
+			return model.CatalogState{}, err
 		}
 		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, rawURL, channels)
 		if err != nil {
@@ -821,6 +817,8 @@ func (s *Service) RefreshGuideChannelsNow(ctx context.Context, settings config.S
 func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings, nowUnix int64) error {
 	snapshot := s.store.Current()
 	programs := make([]model.Program, 0)
+	freshSources := 0
+	var firstErr error
 	for _, source := range settings.EffectiveXtreamSources() {
 		channels := xtreamChannelsForSource(snapshot.Catalog.Channels, source.ID)
 		if len(channels) == 0 {
@@ -828,13 +826,32 @@ func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings
 		}
 		rawURL, err := xtreamXMLTVURL(source)
 		if err != nil {
-			return err
+			if firstErr == nil {
+				firstErr = err
+			}
+			programs = append(programs, preservedProgramsForChannels(snapshot, config.CatalogCacheKey(settings), channels)...)
+			continue
 		}
 		sourcePrograms, err := s.xmltvProgramsForChannels(ctx, rawURL, channels)
 		if err != nil {
-			return fmt.Errorf("refresh Xtreme source %q guide: %w", source.ID, err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("refresh Xtreme source %q guide: %w", source.ID, err)
+			}
+			programs = append(programs, preservedProgramsForChannels(snapshot, config.CatalogCacheKey(settings), channels)...)
+			continue
 		}
+		if len(sourcePrograms) == 0 {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("Xtreme source %q returned no guide programs", source.ID)
+			}
+			programs = append(programs, preservedProgramsForChannels(snapshot, config.CatalogCacheKey(settings), channels)...)
+			continue
+		}
+		freshSources++
 		programs = append(programs, sourcePrograms...)
+	}
+	if freshSources == 0 && firstErr != nil {
+		return firstErr
 	}
 	return s.replacePrograms(programs, nowUnix)
 }

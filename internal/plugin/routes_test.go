@@ -1070,6 +1070,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.GuideWindowBounded {
 		t.Fatalf("expected guide windowing to stay within the 60-row DOM bound: %+v", result)
 	}
+	if !result.GuideScrolledWindowWarm {
+		t.Fatalf("expected the scrolled guide window to warm its visible channels: %+v", result)
+	}
 	if !result.DetailsFirstProgramClick {
 		t.Fatalf("expected Search and On Later program clicks to open explicit Watch Now details: %+v", result)
 	}
@@ -1196,6 +1199,7 @@ type virtualAliasResult struct {
 	GuideStartsAtCurrentSlot             bool   `json:"guideStartsAtCurrentSlot"`
 	ProgramSearchMatchesEPG              bool   `json:"programSearchMatchesEpg"`
 	GuideWindowBounded                   bool   `json:"guideWindowBounded"`
+	GuideScrolledWindowWarm              bool   `json:"guideScrolledWindowWarm"`
 	DetailsFirstProgramClick             bool   `json:"detailsFirstProgramClick"`
 	DetailsLiveTag                       bool   `json:"detailsLiveTag"`
 	RecordingDeniedHidden                bool   `json:"recordingDeniedHidden"`
@@ -1420,6 +1424,8 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 
 	state.guideChannels = Array.from({ length: 2521 }, function(_, index) { return { id: "window-channel-" + index, name: "Channel " + index, categoryId: "" }; });
 	state.view = "guide";
+	state.category = "";
+	state.appLoadedFromCache = false;
 	state.guideLoading = false;
 	state.guideWindowStart = -1;
 	state.guideWindowEnd = -1;
@@ -1429,6 +1435,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	renderGuideWindow(true);
 	const renderedGuideRows = (document.getElementById("epg").innerHTML.match(/class="epg-row"/g) || []).length;
 	const guideWindowBounded = state.guideWindowStart > 0 && renderedGuideRows > 0 && renderedGuideRows <= 60 && renderedGuideRows === state.guideWindowEnd - state.guideWindowStart;
+	const guideScrolledWindowWarm = Object.keys(state.guideWarmPings).some(function(key) { return key.indexOf("guide:all:" + state.guideWindowStart + ":" + state.guideWindowEnd) === 0; });
 	const originalPreferences = state.app.preferences;
 	const originalPrograms = state.app.programs;
 	state.app.preferences = defaultPrefs();
@@ -1526,6 +1533,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 		guideStartsAtCurrentSlot: guideStartsAtCurrentSlot,
 		programSearchMatchesEpg: programSearchMatchesEPG,
 		guideWindowBounded: guideWindowBounded,
+		guideScrolledWindowWarm: guideScrolledWindowWarm,
 		detailsFirstProgramClick: detailsFirstProgramClick,
 		detailsLiveTag: detailsLiveTag,
 		recordingDeniedHidden: recordingDeniedControlsHidden,
