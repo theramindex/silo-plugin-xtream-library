@@ -4097,7 +4097,7 @@ function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
   if (state.adminTab === "sources") {
-    root.innerHTML = "<button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add Source</span></button>";
+    root.innerHTML = "<button class=\"admin-outline-action\" type=\"button\" data-source-action=\"refresh\">" + icon("loader") + "<span>Refresh Catalog</span></button><button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add Source</span></button>";
     return;
   }
   const dirty = adminSettingsDirty();
@@ -4158,6 +4158,15 @@ async function submitAdminSource(payload, successMessage) {
 }
 function handleAdminSourceAction(action, sourceID) {
   const source = adminSourceByID(sourceID);
+  if (action === "refresh") {
+    state.adminSourceMessage = "Catalog refresh queued.";
+    postJSON("/dispatcharr/api/refresh-channels", {}).then(function() { refreshAdminSources(); }).catch(function(error) {
+      state.adminSourceMessage = "Could not refresh catalog: " + readableError(error);
+      renderAdminPage();
+    });
+    renderAdminPage();
+    return;
+  }
   if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8" }; state.adminSourceEditorStep = "general"; }
   if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "" }); state.adminSourceEditorStep = "general"; }
   if (action === "cancel") state.adminSourceEditor = null;
