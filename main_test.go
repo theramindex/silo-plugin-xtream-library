@@ -100,7 +100,13 @@ func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
 			}
 		}
 	}
-	for _, expected := range []string{"/xtream", "/xtream/api/app", "/xtream/assets/app.js"} {
+	for _, expected := range []string{
+		"/xtream",
+		"/xtream/api/app",
+		"/xtream/assets/app.js",
+		"/xtream/assets/xc-runtime-a.js",
+		"/xtream/assets/xc-runtime-b.js",
+	} {
 		found := false
 		for _, route := range manifest.GetHttpRoutes() {
 			found = found || route.GetPath() == expected

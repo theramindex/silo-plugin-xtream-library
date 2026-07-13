@@ -743,6 +743,8 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 		"GET /dispatcharr/api/sports",
 		"GET /dispatcharr/api/events",
 		"GET /dispatcharr/api/recordings/capability",
+		"GET /dispatcharr/assets/xc-runtime-a.js",
+		"GET /dispatcharr/assets/xc-runtime-b.js",
 		"GET /dispatcharr/assets/app.js",
 		"GET /dispatcharr/assets/lineup.js",
 		"GET /dispatcharr/assets/app.css",

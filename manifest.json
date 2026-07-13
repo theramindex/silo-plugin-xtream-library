@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.44",
+  "version": "0.2.45",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -87,6 +87,20 @@
       "id": "dispatcharr-asset-mpegts",
       "method": "GET",
       "path": "/dispatcharr/assets/mpegts.min.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-runtime-a",
+      "method": "GET",
+      "path": "/dispatcharr/assets/xc-runtime-a.js",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-asset-runtime-b",
+      "method": "GET",
+      "path": "/dispatcharr/assets/xc-runtime-b.js",
       "access": "authenticated",
       "navigable": false
     },
