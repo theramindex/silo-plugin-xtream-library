@@ -3294,6 +3294,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.player-sports-event.live`,
 		`.event-broadcast-windows`,
 		`.event-keyword-options`,
+		`.recent-channel-row { gap: 0.62rem; padding-top: 0.35rem; margin-top: -0.35rem; }`,
+		`.recent-channel-card:hover, .recent-channel-card:focus-visible { z-index: 2; }`,
 		`.source-enabled .source-switch-control input { appearance: none; position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%;`,
 		`.source-switch-control input:checked + .source-switch::after { transform: translateX(1.05rem); }`,
 		`@media (prefers-reduced-motion: reduce)`,
