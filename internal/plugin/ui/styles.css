@@ -115,7 +115,7 @@ button { cursor: pointer; }
 .shell.is-admin .rail { display: none; }
 .shell.is-admin .main { display: grid; grid-template-columns: 17rem minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sidebar header" "sidebar content"; min-height: 0; padding: 0; }
 .shell.is-admin.is-admin-manager .main { overflow: hidden; }
-.shell.is-admin #view { grid-area: content; min-height: 0; padding: 0.75rem 2.25rem max(4.5rem, calc(env(safe-area-inset-bottom) + 3rem)); }
+.shell.is-admin #view { grid-area: content; min-height: 0; padding: 0.75rem 2.5rem max(4.5rem, calc(env(safe-area-inset-bottom) + 3rem)); }
 .shell.is-admin.is-admin-manager #view { height: 100%; padding: 0; }
 .admin-sidebar { grid-area: sidebar; position: sticky; top: 0; height: 100dvh; min-height: 0; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 97%, var(--panel)); display: flex; flex-direction: column; padding: 1.35rem 1rem 1rem; }
 .admin-brand { color: var(--text); display: inline-flex; align-items: center; gap: 0.62rem; padding: 0.25rem 0.55rem 1.6rem; text-decoration: none; }
@@ -132,12 +132,12 @@ button { cursor: pointer; }
 .admin-sidebar-nav svg, .admin-sidebar-link svg { width: 1.05rem; height: 1.05rem; }
 .admin-sidebar-nav small { min-width: 1.25rem; border-radius: 999px; background: var(--panel); padding: 0.12rem 0.35rem; font-size: 0.64rem; text-align: center; }
 .admin-sidebar-spacer { flex: 1 1 auto; }
-.admin-topbar { grid-area: header; position: relative; z-index: 7; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1rem; padding: 2.4rem 2.25rem 1.25rem; background: var(--bg); }
+.admin-topbar { grid-area: header; position: relative; z-index: 7; display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 1.55rem; padding: 3rem 2.5rem 1.8rem; background: var(--bg); }
 .admin-identity { min-width: 0; }
 .admin-identity > div { min-width: 0; display: grid; gap: 0.35rem; }
 .admin-identity h1 { margin: 0; overflow: hidden; font-size: clamp(2.8rem, 5vw, 4.5rem); font-weight: 900; line-height: 0.92; letter-spacing: -0.045em; text-overflow: ellipsis; white-space: nowrap; }
 .admin-identity p { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.4; }
-.admin-actions { margin-left: auto; display: inline-flex; align-items: center; justify-content: flex-end; gap: 0.5rem; min-width: max-content; }
+.admin-actions { margin-left: 0; display: inline-flex; align-items: center; justify-content: flex-start; gap: 0.65rem; min-width: max-content; }
 .admin-actions:empty { display: none; }
 .admin-actions button { border: 1px solid var(--line); border-radius: 0.58rem; min-height: 2.55rem; padding: 0 0.9rem; font-weight: 800; }
 .admin-actions .admin-save { border-color: color-mix(in srgb, var(--accent) 72%, white 12%); background: var(--accent); color: white; }
@@ -147,6 +147,9 @@ button { cursor: pointer; }
 .admin-actions button:disabled { cursor: default; opacity: 0.48; }
 .admin-primary-action { border-color: var(--text) !important; background: var(--text); color: var(--bg); display: inline-flex; align-items: center; gap: 0.45rem; }
 .admin-primary-action svg { width: 1rem; height: 1rem; }
+.admin-outline-action { background: transparent; color: var(--text); display: inline-flex; align-items: center; gap: 0.45rem; }
+.admin-outline-action:hover { background: var(--panel); }
+.admin-outline-action svg { width: 1rem; height: 1rem; }
 .title { display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
 .title h2 { margin: 0; font-size: 1.35rem; }
 .status { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
@@ -740,9 +743,9 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-add { min-height: 2.35rem; border: 0; border-radius: 0.55rem; background: var(--text); color: var(--bg); padding: 0.45rem 0.85rem; font-weight: 800; }
 .source-table { overflow-x: auto; border-radius: 0.75rem; }
 .source-table-head, .source-table-row { min-width: 58rem; display: grid; grid-template-columns: minmax(12rem, 1.7fr) minmax(7rem, 0.8fr) 5.5rem 6rem 6.5rem auto; align-items: center; gap: 0.8rem; }
-.source-table-head { min-height: 2.5rem; border-bottom: 1px solid var(--line); color: var(--text); padding: 0 0.78rem; font-size: 0.72rem; font-weight: 720; }
+.source-table-head { min-height: 3.65rem; border-bottom: 1px solid var(--line); color: var(--text); padding: 0 1rem; font-size: 0.78rem; font-weight: 760; }
 .source-table-head span:last-child { text-align: right; }
-.source-table-row { border-bottom: 1px solid var(--line); background: transparent; padding: 0.72rem 0.78rem; transition: background 140ms ease; }
+.source-table-row { min-height: 4.35rem; border-bottom: 1px solid var(--line); background: transparent; padding: 0.72rem 1rem; transition: background 140ms ease; }
 .source-table-row:last-child { border-bottom: 0; }
 .source-table-row:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
 .source-primary, .source-user, .source-count, .source-format { min-width: 0; display: grid; gap: 0.16rem; }
@@ -1036,7 +1039,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .admin-sidebar-nav { display: flex; justify-content: flex-end; overflow-x: auto; }
   .admin-sidebar-nav button { flex: 0 0 auto; min-height: 2.45rem; }
   .admin-sidebar-nav button.active::before { display: none; }
-  .admin-topbar { padding: 1.35rem 1rem 0.75rem; }
+  .admin-topbar { gap: 1rem; padding: 1.6rem 1rem 1rem; }
   .admin-identity h1 { font-size: clamp(2.4rem, 10vw, 3.6rem); }
   .admin-actions { margin-left: 0; }
   .admin-status-grid { grid-template-columns: 1fr; }

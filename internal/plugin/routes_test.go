@@ -779,6 +779,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminPage()`,
 		`function renderAdminTopbarTabs()`,
 		`function renderAdminTopbarActions()`,
+		`Refresh Catalog`,
+		`/dispatcharr/api/refresh-channels`,
 		`function renderAdminSettingsTab()`,
 		`function renderAdminSourcesTab()`,
 		`Connection Status`,
