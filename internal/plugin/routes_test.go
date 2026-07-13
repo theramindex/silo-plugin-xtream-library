@@ -3184,6 +3184,16 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	} {
 		requireScript(want)
 	}
+	onLaterPrograms := functionBody("onLaterPrograms")
+	if !strings.Contains(onLaterPrograms, `programMatchesOnLaterType`) || !strings.Contains(onLaterPrograms, `options.ignoreType`) {
+		t.Fatal("On Later must apply the selected type while supporting time-scoped filter counts")
+	}
+	programOnLaterType := functionBody("programOnLaterType")
+	for _, want := range []string{`programLooksSports`, `programLooksMovie`, `programLooksEvent`} {
+		if !strings.Contains(programOnLaterType, want) {
+			t.Fatalf("On Later type classification must include %q", want)
+		}
+	}
 
 	sportsCard := functionBody("renderSportsEventCard")
 	if strings.Count(sportsCard, "event.leagueName") > 1 {
@@ -3227,6 +3237,8 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 		`.recovery-panel`,
 		`.filter-sections`,
 		`.filter-section`,
+		`.on-later-page { width: 100%; max-width: none; }`,
+		`.search-chip-count`,
 		`.organization-preview`,
 		`.event-card-body.no-art`,
 		`.recent-channel-card`,
