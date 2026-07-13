@@ -2374,6 +2374,36 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	}
 }
 
+func TestHTTPRoutesServerAdminSourcesCountsLegacyAndScopedXtreamChannels(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Channels: []model.Channel{
+		{ID: "xtream:1001"},
+		{ID: "xtream:1002", SourceID: "xtream-source:primary"},
+		{ID: "xtream:backup:2001"},
+	}}})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{XtreamSources: []config.XtreamSource{
+			{ID: "primary", Name: "Primary", Enabled: true},
+			{ID: "backup", Name: "Backup", Enabled: true},
+		}}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("load source counts: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	var payload struct {
+		Sources []adminSourcePayload `json:"sources"`
+	}
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode source counts: %v", err)
+	}
+	if len(payload.Sources) != 2 || payload.Sources[0].ChannelCount != 2 || payload.Sources[1].ChannelCount != 1 {
+		t.Fatalf("unexpected source counts: %+v", payload.Sources)
+	}
+}
+
 func TestHTTPRoutesServerAdminSourcesRequiresAdmin(t *testing.T) {
 	t.Parallel()
 	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings { return config.Settings{} })

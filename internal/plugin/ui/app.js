@@ -4112,7 +4112,7 @@ function renderAdminSourcesTab() {
   const sources = items(state.adminSources);
   const rows = sources.map(function(source) {
     const status = source.enabled ? "Enabled" : "Disabled";
-    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
+    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
   }).join("");
   const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
   const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Account</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
@@ -4162,6 +4162,18 @@ function handleAdminSourceAction(action, sourceID) {
     state.adminSourceMessage = "Catalog refresh queued.";
     postJSON("/dispatcharr/api/refresh-channels", {}).then(function() { refreshAdminSources(); }).catch(function(error) {
       state.adminSourceMessage = "Could not refresh catalog: " + readableError(error);
+      renderAdminPage();
+    });
+    renderAdminPage();
+    return;
+  }
+  if (action === "refresh-source" && source) {
+    state.adminSourceMessage = "Refreshing " + (source.name || source.id) + "…";
+    postJSON("/dispatcharr/api/refresh-channels", {}).then(function() {
+      state.adminSourceMessage = (source.name || source.id) + " catalog refreshed.";
+      return refreshAdminSources();
+    }).catch(function(error) {
+      state.adminSourceMessage = "Could not refresh " + (source.name || source.id) + ": " + readableError(error);
       renderAdminPage();
     });
     renderAdminPage();

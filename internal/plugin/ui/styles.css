@@ -758,6 +758,8 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-status.enabled { background: color-mix(in srgb, var(--green) 24%, transparent); color: color-mix(in srgb, var(--green) 55%, white); }
 .source-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
 .source-actions button, .source-editor-actions button { min-height: 2rem; border: 1px solid var(--line); border-radius: 0.5rem; background: transparent; color: var(--text); padding: 0.35rem 0.58rem; font-size: 0.74rem; font-weight: 760; }
+.source-actions button { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+.source-actions button svg { width: 0.82rem; height: 0.82rem; }
 .source-actions button:hover, .source-editor-actions button:hover { background: var(--panel-2); }
 .source-actions button.danger { color: #ffb6b6; }
 .source-editor-card { margin-top: 0; }
@@ -813,13 +815,16 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-dialog > footer button { min-height: 2.65rem; border: 0; border-radius: 0.65rem; background: transparent; color: var(--text); padding: 0 1rem; font-weight: 820; }
 .source-dialog > footer .admin-save { background: var(--text); color: var(--bg); }
 @media (max-width: 960px) {
-  .source-table-row { grid-template-columns: minmax(0, 1fr) auto auto; }
-  .source-user, .source-format { display: none; }
-  .source-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .source-table-head, .source-table-row { min-width: 64rem; }
 }
 @media (max-width: 620px) {
+  .source-table { overflow-x: visible; }
+  .source-table-head { display: none; }
   .source-table-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .source-table-row { min-width: 0; }
+  .source-user, .source-format { display: none; }
   .source-state { display: none; }
+  .source-actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
   .source-form { grid-template-columns: 1fr; }
   .source-field-wide { grid-column: auto; }
   .source-dialog-backdrop { padding: 0; }
