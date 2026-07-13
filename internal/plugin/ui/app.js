@@ -1610,14 +1610,15 @@ function renderHome() {
   const watched = recent;
   const favorites = homeFavoriteChannels();
   root.innerHTML = "<div class=\"home-page\">"
-    + (watched.length ? homeSection("Recently watched", rowCards(watched), "Pick up where you left off") : "")
+    + (watched.length ? homeSection("Recently watched", rowCards(watched), "") : "")
     + (favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites), "Your saved channels") : "")
-    + homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true }), "Live now", guideFreshnessHTML(), "home-guide-section")
+    + homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true }), "", guideFreshnessHTML(), "home-guide-section")
     + categoryGrid("home")
     + "</div>";
 }
 function homeSection(title, content, eyebrow, actions, className) {
-  return "<section class=\"home-section " + escapeHTML(className || "") + "\"><header class=\"home-section-header\"><div><span>" + escapeHTML(eyebrow || "Live TV") + "</span><h2>" + escapeHTML(title) + "</h2></div>" + (actions || "") + "</header>" + content + "</section>";
+  const eyebrowHTML = eyebrow ? "<span>" + escapeHTML(eyebrow) + "</span>" : "";
+  return "<section class=\"home-section " + escapeHTML(className || "") + "\"><header class=\"home-section-header\"><div>" + eyebrowHTML + "<h2>" + escapeHTML(title) + "</h2></div>" + (actions || "") + "</header>" + content + "</section>";
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();

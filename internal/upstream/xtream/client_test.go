@@ -56,6 +56,9 @@ func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
 	if len(epg.EPGListings) != 1 {
 		t.Fatalf("expected 1 epg listing, got %d", len(epg.EPGListings))
 	}
+	if epg.EPGListings[0].Title != "Morning News" || epg.EPGListings[0].Description != "Top headlines and weather." {
+		t.Fatalf("unexpected plain-text epg listing: %+v", epg.EPGListings[0])
+	}
 
 	resolved := client.ResolveLiveStreamURL(1001)
 	if resolved == "" {
@@ -69,6 +72,29 @@ func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
 	}
 	if resolved := client.ResolveLiveStreamURLWithExtension(1001, "unsupported"); resolved != server.URL+"/live/demo/secret/1001.ts" {
 		t.Fatalf("expected unsupported format to fall back to MPEG-TS, got %q", resolved)
+	}
+}
+
+func TestDecodeEPGText(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		input string
+		want  string
+	}{
+		"padded title":       {input: "Tm8gTWF0Y2ggVG9kYXk=", want: "No Match Today"},
+		"padded description": {input: "VG9wIGhlYWRsaW5lcy4=", want: "Top headlines."},
+		"plain text":         {input: "Morning News", want: "Morning News"},
+		"short plain text":   {input: "Live", want: "Live"},
+		"malformed":          {input: "not-base64!", want: "not-base64!"},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := decodeEPGText(test.input); got != test.want {
+				t.Fatalf("decodeEPGText(%q) = %q, want %q", test.input, got, test.want)
+			}
+		})
 	}
 }
 

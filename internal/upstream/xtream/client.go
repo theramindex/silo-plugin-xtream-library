@@ -2,6 +2,7 @@ package xtream
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
 )
@@ -115,7 +118,39 @@ func (c *Client) ShortEPG(ctx context.Context, streamID int64) (ShortEPGResponse
 	if err := c.getJSON(ctx, "get_short_epg", params, &response); err != nil {
 		return ShortEPGResponse{}, err
 	}
+	for index := range response.EPGListings {
+		response.EPGListings[index].Title = decodeEPGText(response.EPGListings[index].Title)
+		response.EPGListings[index].Description = decodeEPGText(response.EPGListings[index].Description)
+	}
 	return response, nil
+}
+
+func decodeEPGText(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < 8 {
+		return value
+	}
+	for _, encoding := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding} {
+		decoded, err := encoding.DecodeString(trimmed)
+		if err != nil || len(decoded) == 0 || !utf8.Valid(decoded) {
+			continue
+		}
+		text := strings.TrimSpace(string(decoded))
+		if text == "" {
+			continue
+		}
+		printable := true
+		for _, character := range text {
+			if !unicode.IsPrint(character) && !unicode.IsSpace(character) {
+				printable = false
+				break
+			}
+		}
+		if printable {
+			return text
+		}
+	}
+	return value
 }
 
 func (c *Client) ResolveLiveStreamURL(streamID int64) string {
