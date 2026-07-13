@@ -810,7 +810,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`/dispatcharr/api/refresh-channels`,
 		`function renderAdminSettingsTab()`,
 		`function renderAdminSourcesTab()`,
-		`Presentation Overrides`,
+		`Category organization`,
+		`Alternate paths`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
 		`root.innerHTML = adminSaveStatusHTML() + "<div class=\"settings-row ecm-url-row compact-row\"`,
@@ -825,21 +826,19 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function virtualGroupSourceMode()`,
 		`function inferredChannelNameGroupPaths(channel)`,
 		`data-admin-category-field=\"virtualGroupSource\"`,
-		`Group pipe + channel pipe`,
-		`Profile pipe + group pipe`,
-		`Channel pipe`,
-		`Collapse duplicate virtual groups`,
+		`Provider categories and channel names`,
+		`Channel names only`,
+		`Collapse repeated folders`,
 		`return !!adminECMURL();`,
-		`Group method`,
+		`Folder structure`,
 		`virtual-label-control`,
-		`placeholder=\"Groups\"`,
-		`Alternative group name`,
-		`Also show as`,
+		`placeholder=\"Categories\"`,
+		`Alternate path`,
 		`alias-builder`,
 		`alias-table`,
 		`alias-table-row`,
-		`Normal`,
-		`By delimiter`,
+		`Keep provider categories`,
+		`Split by separator`,
 		`ECM URL`,
 		`ecm-url-row`,
 		`.settings-row.ecm-url-row input`,
@@ -881,6 +880,9 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	if strings.Contains(body, `Connection Status`) || strings.Contains(body, `admin-status-strip`) || strings.Contains(body, `data-admin-status-refresh`) {
 		t.Fatal("expected the Organization page to omit the redundant connection status panel")
+	}
+	if strings.Contains(body, `Profile pipe + group pipe`) {
+		t.Fatal("expected XC organization choices to omit unsupported profile-based grouping")
 	}
 	if strings.Contains(body, `class="nav admin-nav"`) || strings.Contains(body, `function renderAdminSidebarTabs()`) {
 		t.Fatal("expected admin tabs to render in the topbar, not the sidebar")
