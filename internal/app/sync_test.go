@@ -30,6 +30,33 @@ func TestDispatcharrGuideSearchWindowLooksAheadSevenDays(t *testing.T) {
 	}
 }
 
+func TestRefreshGuideChannelsNowOnlyFetchesRequestedXtreamChannels(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{{ID: "xtream:1001"}, {ID: "xtream:1002"}, {ID: "xtream:1003"}},
+		Programs: []model.Program{{ID: "existing", ChannelID: "xtream:1003", Title: "Keep me", StartUnix: 1, EndUnix: 2}},
+	}})
+	client := &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "fresh", Title: "Live", StartTimestamp: "1783926000", StopTimestamp: "1783929600"}}}}
+	service := NewService(Dependencies{Store: store, XtreamFactory: func(string, string, string) XtreamClient { return client }})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example", XtreamUsername: "user", XtreamPassword: "pass", ChannelRefreshH: 24, EPGRefreshH: 6}
+
+	if err := service.RefreshGuideChannelsNow(context.Background(), settings, []string{"xtream:1002"}, 1783926000); err != nil {
+		t.Fatalf("refresh requested guide: %v", err)
+	}
+	client.mu.Lock()
+	calls := append([]int64(nil), client.epgCalls...)
+	client.mu.Unlock()
+	if len(calls) != 1 || calls[0] != 1002 {
+		t.Fatalf("expected only stream 1002 to be fetched, got %v", calls)
+	}
+	programs := store.Current().Catalog.Programs
+	if len(programs) != 2 {
+		t.Fatalf("expected requested guide merged with preserved guide, got %#v", programs)
+	}
+}
+
 func TestSyncStoresChannelsAndPrograms(t *testing.T) {
 	t.Parallel()
 

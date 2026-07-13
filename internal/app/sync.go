@@ -802,7 +802,28 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 	return nil
 }
 
+// RefreshGuideChannelsNow refreshes only the channels currently visible to the
+// client. Xtream catalogs can contain tens of thousands of streams, while a
+// Silo HTTP route has a short request deadline.
+func (s *Service) RefreshGuideChannelsNow(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) error {
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+	if settings.EffectiveSourceMode() != config.SourceModeXtream || len(channelIDs) == 0 {
+		return s.RefreshGuideOnlyNow(ctx, settings, nowUnix)
+	}
+	requested := make(map[string]bool, len(channelIDs))
+	for _, channelID := range channelIDs {
+		requested[strings.TrimSpace(channelID)] = true
+	}
+	return s.refreshXtreamEPGChannels(ctx, settings, requested, nowUnix)
+}
+
 func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	return s.refreshXtreamEPGChannels(ctx, settings, nil, nowUnix)
+}
+
+func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.Settings, requested map[string]bool, nowUnix int64) error {
 	snapshot := s.store.Current()
 	if len(snapshot.Catalog.Channels) == 0 {
 		return s.SyncNow(ctx, settings, nowUnix)
@@ -818,6 +839,9 @@ func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings
 	}
 	jobs := make([]epgJob, 0, len(snapshot.Catalog.Channels))
 	for _, channel := range snapshot.Catalog.Channels {
+		if requested != nil && !requested[channel.ID] {
+			continue
+		}
 		sourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:")
 		if sourceID == "" {
 			sourceID = "primary"
@@ -881,6 +905,15 @@ func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings
 	workers.Wait()
 	if failures == len(jobs) && firstErr != nil {
 		return fmt.Errorf("all Xtreme guide requests failed: %w", firstErr)
+	}
+	if requested != nil {
+		merged := make([]model.Program, 0, len(snapshot.Catalog.Programs)+len(programs))
+		for _, program := range snapshot.Catalog.Programs {
+			if !requested[program.ChannelID] {
+				merged = append(merged, program)
+			}
+		}
+		programs = append(merged, programs...)
 	}
 	return s.replacePrograms(programs, nowUnix)
 }

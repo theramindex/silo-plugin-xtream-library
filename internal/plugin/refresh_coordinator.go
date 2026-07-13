@@ -45,6 +45,10 @@ type channelOnlySyncer interface {
 	RefreshChannelsNow(ctx context.Context, settings config.Settings, nowUnix int64) error
 }
 
+type guideChannelSyncer interface {
+	RefreshGuideChannelsNow(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) error
+}
+
 type RefreshCoordinator struct {
 	target catalogSyncer
 
@@ -166,6 +170,19 @@ func (c *RefreshCoordinator) Run(ctx context.Context, operation RefreshOperation
 
 	c.execute(runCtx, cancel, job, run, settings, nowUnix)
 	return run.result()
+}
+
+func (c *RefreshCoordinator) RunGuideChannels(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) error {
+	if c == nil || c.target == nil {
+		return fmt.Errorf("catalog sync is not available")
+	}
+	target, ok := c.target.(guideChannelSyncer)
+	if !ok {
+		return c.Run(ctx, RefreshGuide, settings, nowUnix)
+	}
+	c.runMu.Lock()
+	defer c.runMu.Unlock()
+	return target.RefreshGuideChannelsNow(ctx, settings, channelIDs, nowUnix)
 }
 
 func (c *RefreshCoordinator) Status() RefreshJob {

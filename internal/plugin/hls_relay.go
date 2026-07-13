@@ -2,14 +2,17 @@ package plugin
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
@@ -19,60 +22,111 @@ import (
 const (
 	relayTokenTTL        = 15 * time.Minute
 	maxRelayResponseSize = int64(32 << 20)
+	defaultRelayKeyFile  = "/var/lib/continuum/plugins/silo.ramindex.xtream/relay.key"
 )
 
 var hlsURIAttribute = regexp.MustCompile(`URI="([^"]+)"`)
 
-type relayTarget struct {
-	url       string
-	expiresAt time.Time
-}
-
 type hlsRelay struct {
-	mu      sync.Mutex
-	targets map[string]relayTarget
+	keyPath string
 	client  *http.Client
 }
 
 func newHLSRelay() *hlsRelay {
 	client := upstreamhttp.New()
 	client.Timeout = 30 * time.Second
-	return &hlsRelay{targets: map[string]relayTarget{}, client: client}
+	return &hlsRelay{keyPath: defaultRelayKeyFile, client: client}
 }
 
 func (r *hlsRelay) register(rawURL string) (string, error) {
 	if _, err := url.ParseRequestURI(rawURL); err != nil {
 		return "", fmt.Errorf("invalid relay target")
 	}
-	bytes := make([]byte, 18)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("create relay token: %w", err)
+	key, err := r.signingKey()
+	if err != nil {
+		return "", err
 	}
-	token := base64.RawURLEncoding.EncodeToString(bytes)
-	now := time.Now()
-	r.mu.Lock()
-	for existing, target := range r.targets {
-		if now.After(target.expiresAt) {
-			delete(r.targets, existing)
-		}
+	payload := fmt.Sprintf("%d\n%s", time.Now().Add(relayTokenTTL).Unix(), rawURL)
+	block, err := aes.NewCipher(key[:32])
+	if err != nil {
+		return "", fmt.Errorf("create relay cipher: %w", err)
 	}
-	r.targets[token] = relayTarget{url: rawURL, expiresAt: now.Add(relayTokenTTL)}
-	r.mu.Unlock()
-	return token, nil
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", fmt.Errorf("create relay token cipher: %w", err)
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", fmt.Errorf("create relay nonce: %w", err)
+	}
+	sealed := gcm.Seal(nonce, nonce, []byte(payload), nil)
+	return base64.RawURLEncoding.EncodeToString(sealed), nil
 }
 
 func (r *hlsRelay) target(token string) (string, bool) {
-	now := time.Now()
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	target, ok := r.targets[token]
-	if !ok || now.After(target.expiresAt) {
-		delete(r.targets, token)
+	key, err := r.signingKey()
+	if err != nil {
 		return "", false
 	}
-	target.expiresAt = now.Add(relayTokenTTL)
-	r.targets[token] = target
-	return target.url, true
+	sealed, err := base64.RawURLEncoding.DecodeString(token)
+	if err != nil {
+		return "", false
+	}
+	block, err := aes.NewCipher(key[:32])
+	if err != nil {
+		return "", false
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil || len(sealed) < gcm.NonceSize() {
+		return "", false
+	}
+	nonce, ciphertext := sealed[:gcm.NonceSize()], sealed[gcm.NonceSize():]
+	payload, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", false
+	}
+	values := strings.SplitN(string(payload), "\n", 2)
+	if len(values) != 2 {
+		return "", false
+	}
+	expiresAt, err := time.Parse(time.RFC3339, values[0])
+	if err != nil {
+		var expiresUnix int64
+		if _, scanErr := fmt.Sscan(values[0], &expiresUnix); scanErr != nil {
+			return "", false
+		}
+		expiresAt = time.Unix(expiresUnix, 0)
+	}
+	return values[1], time.Now().Before(expiresAt)
+}
+
+func (r *hlsRelay) signingKey() ([]byte, error) {
+	if data, err := os.ReadFile(r.keyPath); err == nil && len(data) >= 32 {
+		return data, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(r.keyPath), 0o700); err != nil {
+		return nil, fmt.Errorf("prepare relay key: %w", err)
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, fmt.Errorf("create relay key: %w", err)
+	}
+	file, err := os.OpenFile(r.keyPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		if _, writeErr := file.Write(key); writeErr != nil {
+			_ = file.Close()
+			return nil, fmt.Errorf("write relay key: %w", writeErr)
+		}
+		if closeErr := file.Close(); closeErr != nil {
+			return nil, fmt.Errorf("close relay key: %w", closeErr)
+		}
+		return key, nil
+	}
+	data, readErr := os.ReadFile(r.keyPath)
+	if readErr != nil || len(data) < 32 {
+		return nil, fmt.Errorf("load relay key: %w", err)
+	}
+	return data, nil
 }
 
 func (r *hlsRelay) start(ctx context.Context, rawURL string, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
