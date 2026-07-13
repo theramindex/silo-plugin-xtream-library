@@ -12,10 +12,11 @@ import (
 const (
 	MaxJSONResponseBytes    int64 = 64 << 20
 	MaxCatalogResponseBytes int64 = 256 << 20
+	DefaultTimeout                = 30 * time.Second
 )
 
 func New() *http.Client {
-	return &http.Client{Timeout: 10 * time.Second}
+	return &http.Client{Timeout: DefaultTimeout}
 }
 
 func RedactErrorURL(err error) error {
