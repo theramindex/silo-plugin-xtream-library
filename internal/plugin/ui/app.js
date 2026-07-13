@@ -90,6 +90,7 @@ function cssEscape(value) {
 function icon(name) {
   const icons = {
     "arrow-left": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M15.75 19.5 8.25 12l7.5-7.5'/></svg>",
+    "chevron-right": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m9 6 6 6-6 6'/></svg>",
     "chevron-down": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/></svg>",
     "ellipsis": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm6 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z'/></svg>",
     "check": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' aria-hidden='true'><path stroke-linecap='round' stroke-linejoin='round' d='m5 12.5 4.25 4.25L19 7'/></svg>",
@@ -1541,6 +1542,7 @@ function render() {
   if (state.view === "recordings" && !dvrEnabled()) state.view = "home";
   if (state.view === "admin" && !isAdminRoute) state.view = "home";
   document.querySelector(".shell").classList.toggle("is-player", state.view === "player");
+  document.querySelector(".shell").classList.toggle("is-home", state.view === "home");
   document.querySelector(".shell").classList.toggle("is-guide", state.view === "guide");
   document.querySelector(".shell").classList.toggle("is-sports", state.view === "sports");
   document.querySelector(".shell").classList.toggle("is-events", state.view === "events");
@@ -1607,11 +1609,15 @@ function renderHome() {
   const recent = recentChannels(5);
   const watched = recent;
   const favorites = homeFavoriteChannels();
-  root.innerHTML = (watched.length ? sectionHeader("Recently watched") + rowCards(watched) : "")
-    + (favorites.length ? sectionHeader("Favorites") + favoriteHomeCards(favorites) : "")
-    + sectionHeaderWithActions("TV Guide", guideFreshnessHTML())
-    + renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true })
-    + categoryGrid();
+  root.innerHTML = "<div class=\"home-page\">"
+    + (watched.length ? homeSection("Recently watched", rowCards(watched), "Pick up where you left off") : "")
+    + (favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites), "Your saved channels") : "")
+    + homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched), "No current guide data for recently watched channels.", { hideFreshness: true }), "Live now", guideFreshnessHTML(), "home-guide-section")
+    + categoryGrid("home")
+    + "</div>";
+}
+function homeSection(title, content, eyebrow, actions, className) {
+  return "<section class=\"home-section " + escapeHTML(className || "") + "\"><header class=\"home-section-header\"><div><span>" + escapeHTML(eyebrow || "Live TV") + "</span><h2>" + escapeHTML(title) + "</h2></div>" + (actions || "") + "</header>" + content + "</section>";
 }
 function emptyStateHTML(title, detail) {
   detail = String(detail || "").trim();
@@ -2561,7 +2567,7 @@ function compareCategoryDisplayName(left, right) {
   const rightName = String((right && (right.name || right.id)) || "");
   return leftName.localeCompare(rightName, undefined, { numeric: true, sensitivity: "base" }) || leftName.localeCompare(rightName) || String((left && left.id) || "").localeCompare(String((right && right.id) || ""));
 }
-function categoryGrid() {
+function categoryGrid(context) {
   const hidden = hiddenMap();
   const sourceCategories = sourceCategoriesWithChannels(function(channel) {
     return !(channel.categoryId && hidden[channel.categoryId]);
@@ -2575,19 +2581,20 @@ function categoryGrid() {
     return !(category.kind === "source" && featuredSourceIDs[category.sourceID]);
   });
   const sections = [];
-  if (featured.length) sections.push(categoryGridSection(featuredGroupLabel(), featured));
-  if (custom.length) sections.push(categoryGridSection("My Groups", custom));
-  if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing));
-  if (!listing.length && sourceCategories.length) sections.push(categoryGridSection(adminListingTitle(), sourceCategories));
+  if (featured.length) sections.push(categoryGridSection(featuredGroupLabel(), featured, context));
+  if (custom.length) sections.push(categoryGridSection("My Groups", custom, context));
+  if (regularListing.length) sections.push(categoryGridSection(adminListingTitle(), regularListing, context));
+  if (!listing.length && sourceCategories.length) sections.push(categoryGridSection(adminListingTitle(), sourceCategories, context));
   return sections.length ? sections.join("") : "<div class=\"empty\">No groups yet.</div>";
 }
-function categoryGridSection(title, categories) {
+function categoryGridSection(title, categories, context) {
+  if (context === "home") return homeSection(title, "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>", "Browse by category", "", "home-category-section");
   return sectionHeader(title) + "<div class=\"category-grid\">" + categories.map(categoryTileHTML).join("") + "</div>";
 }
 function categoryTileHTML(category) {
   const name = String((category && (category.name || category.id)) || "");
   const meta = String((category && category.count ? category.count + " channels" : (category && category.kind) || "") || "");
-  return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span>" + escapeHTML(meta) + "</span></button>";
+  return "<button class=\"tile" + (state.category === category.id ? " active" : "") + "\" data-category=\"" + escapeHTML(category.id) + "\" aria-label=\"" + escapeHTML(meta ? name + ", " + meta : name) + "\"><span class=\"tile-copy\"><strong data-overflow-tooltip=\"" + escapeHTML(name) + "\">" + escapeHTML(name) + "</strong><span>" + escapeHTML(meta) + "</span></span><span class=\"tile-disclosure\" aria-hidden=\"true\">" + icon("chevron-right") + "</span></button>";
 }
 function activeVirtualCategoryID(path, featured) {
   return featured ? featuredCategoryID(path) : virtualCategoryID(path);
