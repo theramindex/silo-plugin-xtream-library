@@ -737,6 +737,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .recording-badge.interrupted, .recording-badge.failed { background: rgba(99,40,35,0.5); color: #ffe0dc; }
 .settings-stack { width: min(100%, 76rem); margin: 0; display: grid; gap: 1rem; }
 .shell.is-admin .settings-card { border: 0; border-radius: 1.7rem; background: var(--rail-2); box-shadow: none; padding: 1.25rem 1.5rem; }
+.source-manager-card { container-type: inline-size; overflow: hidden; }
 .settings-card { padding: 1rem; }
 .settings-card-compact { padding: 0.92rem 1rem; }
 .settings-card h2 { margin: 0; font-size: 1.05rem; line-height: 1.15; font-weight: 800; }
@@ -814,8 +815,13 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-dialog > footer { min-height: 5rem; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; align-items: center; gap: 0.7rem; padding: 0.85rem 1.45rem; }
 .source-dialog > footer button { min-height: 2.65rem; border: 0; border-radius: 0.65rem; background: transparent; color: var(--text); padding: 0 1rem; font-weight: 820; }
 .source-dialog > footer .admin-save { background: var(--text); color: var(--bg); }
+@container (max-width: 65rem) {
+  .source-table-head, .source-table-row { min-width: 0; grid-template-columns: minmax(12rem, 1.4fr) minmax(7rem, 0.8fr) 5.5rem 6rem 6.5rem; }
+  .source-table-head span:last-child { display: none; }
+  .source-actions { grid-column: 1 / -1; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 0.72rem; }
+}
 @media (max-width: 960px) {
-  .source-table-head, .source-table-row { min-width: 60rem; }
+  .source-table { overflow-x: visible; }
 }
 @media (max-width: 620px) {
   .source-table { overflow-x: visible; }
