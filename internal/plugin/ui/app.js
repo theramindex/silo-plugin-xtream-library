@@ -22,6 +22,8 @@ state.adminSourcesLoading = false;
 state.adminSourceEditor = null;
 state.adminSourceEditorStep = "general";
 state.adminSourceMessage = "";
+state.adminSourceEPGResult = null;
+state.adminSourceEPGError = "";
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -4161,7 +4163,8 @@ function renderAdminSourcesTab() {
   const sources = items(state.adminSources);
   const rows = sources.map(function(source) {
     const status = source.enabled ? "Enabled" : "Disabled";
-    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
+    const epg = source.alternateEpgEnabled ? "Alternate EPG · " + (source.alternateEpgPolicy === "prefer_alternate" ? "Preferred" : "Fill missing") : "Provider EPG";
+    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small><small class=\"source-epg-summary\">" + escapeHTML(epg) + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
   }).join("");
   const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
   const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Account</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
@@ -4172,12 +4175,15 @@ function renderAdminSourceEditor() {
   if (!source) return "";
   const editing = !!source.id;
   const step = state.adminSourceEditorStep || "general";
-  const nav = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "playback", label: "Playback", icon: "play" }].map(function(item) {
+  const epgResult = state.adminSourceEPGResult;
+  const epgError = state.adminSourceEPGError;
+  const nav = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "guide", label: "Alternate EPG", icon: "guide" }, { id: "playback", label: "Playback", icon: "play" }].map(function(item) {
     return "<button type=\"button\" data-source-step=\"" + item.id + "\" class=\"" + (step === item.id ? "active" : "") + "\">" + icon(item.icon) + "<span>" + item.label + "</span></button>";
   }).join("");
   let content = "";
   if (step === "general") content = "<div class=\"source-step-copy\"><h3>General</h3><p>Name this source and choose whether it participates in catalog refreshes.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Display name <small>· optional</small></span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Defaults to provider domain\"></label><label class=\"source-field-wide\"><span>Source ID</span><input value=\"" + escapeHTML(derivedSourceID(source.baseUrl, source.username) || source.id || "") + "\" placeholder=\"Generated after entering server and username\" readonly><small>Generated from the provider domain and username. Saving migrates legacy IDs such as primary.</small></label><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Enabled</strong><small>Include this source in channel, guide, and content refreshes.</small></span><span class=\"source-switch-control\"><input id=\"source-enabled\" type=\"checkbox\" aria-label=\"Enabled\"" + (source.enabled !== false ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label></div>";
   if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Enter the Xtreme Codes server and account credentials.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"><small>Use the provider base URL, not player_api.php.</small></label><label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label><label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"" + escapeHTML(source.password || "") + "\" autocomplete=\"new-password\"></label><div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button></div></div>";
+  if (step === "guide") content = "<div class=\"source-step-copy\"><h3>Alternate EPG</h3><p>Overlay an optional XMLTV feed onto this source. Channel and playback IDs are never changed.</p></div><div class=\"source-form\"><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Use alternate EPG</strong><small>Provider guide remains available if this feed fails.</small></span><span class=\"source-switch-control\"><input id=\"source-alternate-epg-enabled\" type=\"checkbox\" aria-label=\"Use alternate EPG\"" + (source.alternateEpgEnabled ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label><label class=\"source-field-wide\"><span>XMLTV URL</span><input id=\"source-alternate-epg-url\" type=\"url\" value=\"" + escapeHTML(source.alternateEpgUrl || "") + "\" placeholder=\"https://epg.example/guide.xml\"><small>Use a feed you are authorized to access. XC for Silo does not bundle a third-party guide.</small></label><label class=\"source-field-wide\"><span>Merge policy</span><select id=\"source-alternate-epg-policy\"><option value=\"fill_missing\"" + (source.alternateEpgPolicy !== "prefer_alternate" ? " selected" : "") + ">Fill missing guide data</option><option value=\"prefer_alternate\"" + (source.alternateEpgPolicy === "prefer_alternate" ? " selected" : "") + ">Prefer alternate guide</option></select><small>Fill missing preserves overlapping Xtream programs and fills actual schedule gaps. Prefer alternate replaces programs only on matched channels.</small></label>" + (epgResult ? "<div class=\"source-epg-result\"><strong>Coverage test passed</strong><span>" + escapeHTML(String(epgResult.matchedChannels)) + " matched · " + escapeHTML(String(epgResult.unmatchedChannels)) + " unmatched · " + escapeHTML(String(epgResult.programCount)) + " programs</span></div>" : "") + (epgError ? "<div class=\"source-epg-result error\"><strong>Coverage test failed</strong><span>" + escapeHTML(epgError) + "</span></div>" : "") + "<div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-epg\">Test EPG and coverage</button></div></div>";
   if (step === "playback") content = "<div class=\"source-step-copy\"><h3>Playback</h3><p>Choose the live stream container requested from this provider.</p></div><div class=\"source-format-options\"><button type=\"button\" data-source-format=\"m3u8\" class=\"" + (source.liveFormat !== "ts" ? "active" : "") + "\"><strong>HLS</strong><span>.m3u8 · recommended for browsers</span></button><button type=\"button\" data-source-format=\"ts\" class=\"" + (source.liveFormat === "ts" ? "active" : "") + "\"><strong>MPEG-TS</strong><span>.ts · provider compatibility</span></button></div>";
   return "<div class=\"source-dialog-backdrop\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\"><header><div class=\"source-dialog-icon\">" + icon("guide") + "</div><div><h2 id=\"source-dialog-title\">" + (editing ? "Edit Source" : "Add Source") + "</h2><p>Configure an Xtreme Codes provider account.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></header><div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Source setup steps\">" + nav + "</nav><div class=\"source-dialog-content\">" + content + "</div></div><footer><button type=\"button\" data-source-action=\"cancel\">Cancel</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">" + (editing ? "Save Changes" : "Add Source") + "</button></footer></section></div>";
 }
@@ -4191,7 +4197,7 @@ function adminSourceByID(id) {
 }
 function sourceEditorPayload(action) {
   const source = state.adminSourceEditor || {};
-  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", enabled: source.enabled !== false };
+  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", enabled: source.enabled !== false, alternateEpgEnabled: !!source.alternateEpgEnabled, alternateEpgUrl: source.alternateEpgUrl || "", alternateEpgPolicy: source.alternateEpgPolicy || "fill_missing" };
 }
 async function refreshAdminSources() {
   const payload = await getJSON("/dispatcharr/api/admin-sources");
@@ -4200,13 +4206,26 @@ async function refreshAdminSources() {
 }
 async function submitAdminSource(payload, successMessage) {
   state.adminSourceMessage = "";
+  if (payload.action === "test_epg") {
+    state.adminSourceEPGResult = null;
+    state.adminSourceEPGError = "";
+    renderAdminPage();
+  }
   try {
     const result = await postJSON("/dispatcharr/api/admin-sources", payload);
     if (result && result.sources) state.adminSources = items(result.sources);
-    state.adminSourceMessage = successMessage;
-    if (payload.action !== "test") state.adminSourceEditor = null;
+    if (payload.action === "test_epg" && result && result.coverage) {
+      state.adminSourceEPGResult = result.coverage;
+      state.adminSourceEPGError = "";
+      state.adminSourceMessage = "Alternate EPG matched " + result.coverage.matchedChannels + " channels, left " + result.coverage.unmatchedChannels + " unmatched, and supplied " + result.coverage.programCount + " programs.";
+    } else state.adminSourceMessage = successMessage;
+    if (payload.action !== "test" && payload.action !== "test_epg") state.adminSourceEditor = null;
   } catch (error) {
     state.adminSourceMessage = "Could not update source: " + readableError(error);
+    if (payload.action === "test_epg") {
+      state.adminSourceEPGResult = null;
+      state.adminSourceEPGError = readableError(error);
+    }
   }
   renderAdminPage();
 }
@@ -4233,11 +4252,12 @@ function handleAdminSourceAction(action, sourceID) {
     renderAdminPage();
     return;
   }
-  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8" }; state.adminSourceEditorStep = "general"; }
-  if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "" }); state.adminSourceEditorStep = "general"; }
+  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing" }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
+  if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "" }); state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
   if (action === "cancel") state.adminSourceEditor = null;
   if (action === "save") return submitAdminSource(sourceEditorPayload("save"), "Source saved. Catalog refresh queued.");
   if (action === "test-editor") return submitAdminSource(sourceEditorPayload("test"), "Connection successful.");
+  if (action === "test-epg") return submitAdminSource(sourceEditorPayload("test_epg"), "Alternate EPG is available.");
   if (action === "test" && source) return submitAdminSource(Object.assign({}, source, { action: "test", password: "" }), "Connection successful.");
   if (action === "toggle" && source) return submitAdminSource(Object.assign({}, source, { action: "save", enabled: !source.enabled, password: "" }), source.enabled ? "Source disabled." : "Source enabled. Catalog refresh queued.");
   if (action === "delete" && source) return submitAdminSource({ action: "delete", id: source.id }, "Source deleted. Catalog refresh queued.");
@@ -5701,10 +5721,16 @@ document.addEventListener("change", function(event) {
   renderCategorySettings();
 });
 document.addEventListener("input", function(event) {
-  const sourceFieldMap = { "source-name": "name", "source-url": "baseUrl", "source-username": "username", "source-password": "password", "source-enabled": "enabled" };
+  const sourceFieldMap = { "source-name": "name", "source-url": "baseUrl", "source-username": "username", "source-password": "password", "source-enabled": "enabled", "source-alternate-epg-enabled": "alternateEpgEnabled", "source-alternate-epg-url": "alternateEpgUrl", "source-alternate-epg-policy": "alternateEpgPolicy" };
   if (event.target && sourceFieldMap[event.target.id] && state.adminSourceEditor) {
     const field = sourceFieldMap[event.target.id];
     state.adminSourceEditor[field] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
+    if (field.indexOf("alternateEpg") === 0) {
+      state.adminSourceEPGResult = null;
+      state.adminSourceEPGError = "";
+      const result = document.querySelector(".source-epg-result");
+      if (result) result.remove();
+    }
     return;
   }
   if (event.target && event.target.id === "guide-category-search") {

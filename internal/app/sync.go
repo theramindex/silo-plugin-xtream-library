@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
 	"sort"
 	"strconv"
@@ -367,12 +368,8 @@ func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings
 
 	if options.channelsOnly {
 		programs = preservedProgramsForChannels(s.store.Current(), config.CatalogCacheKey(settings), channels)
-	} else if !tightDeadline && channelsHaveGuideIDs(channels) {
-		rawURL, err := xtreamXMLTVURL(source)
-		if err != nil {
-			return model.CatalogState{}, err
-		}
-		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, rawURL, channels)
+	} else if !tightDeadline && (channelsHaveGuideIDs(channels) || source.AlternateEPGEnabled) {
+		xmltvPrograms, err := s.xtreamProgramsForSource(ctx, source, channels)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
 			return model.CatalogState{}, err
@@ -555,15 +552,23 @@ func directSourceWithProfiles(profiles []dispatcharr.ChannelProfile, selected *d
 }
 
 func (s *Service) xmltvProgramsForChannels(ctx context.Context, rawURL string, channels []model.Channel) ([]model.Program, error) {
+	doc, err := s.xmltvDocument(ctx, rawURL)
+	if err != nil {
+		return nil, err
+	}
+	return programsFromXMLTVDocument(channels, doc), nil
+}
+
+func (s *Service) xmltvDocument(ctx context.Context, rawURL string) (xmltv.Document, error) {
 	data, err := s.fetchURL(ctx, rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetch custom xmltv: %w", err)
+		return xmltv.Document{}, fmt.Errorf("fetch custom xmltv: %w", err)
 	}
 	doc, err := xmltv.Parse(data)
 	if err != nil {
-		return nil, fmt.Errorf("parse custom xmltv: %w", err)
+		return xmltv.Document{}, fmt.Errorf("parse custom xmltv: %w", err)
 	}
-	return programsFromXMLTVDocument(channels, doc), nil
+	return doc, nil
 }
 
 func programsFromXMLTVDocument(channels []model.Channel, doc xmltv.Document) []model.Program {
@@ -582,6 +587,78 @@ func programsFromXMLTVDocument(channels []model.Channel, doc xmltv.Document) []m
 		programs = append(programs, mapping.MapXMLTVProgramme(channelID, programme))
 	}
 	return programs
+}
+
+func mergeAlternateEPGPrograms(channels []model.Channel, provider []model.Program, doc xmltv.Document, policy string) ([]model.Program, matching.AlternateEPGCoverage) {
+	matched := matching.MatchAlternateEPGChannels(channels, doc)
+	alternate := make([]model.Program, 0, len(doc.Programmes))
+	for _, programme := range doc.Programmes {
+		for _, channelID := range matched.ChannelIDsByXMLTVID[strings.ToLower(strings.TrimSpace(programme.Channel))] {
+			alternate = append(alternate, mapping.MapXMLTVProgramme(channelID, programme))
+		}
+	}
+	coverage := matched.Coverage(doc)
+	if len(alternate) == 0 {
+		return provider, coverage
+	}
+	alternateChannels := map[string]bool{}
+	for _, program := range alternate {
+		alternateChannels[program.ChannelID] = true
+	}
+	result := make([]model.Program, 0, len(provider)+len(alternate))
+	providerByChannel := map[string][]model.Program{}
+	for _, program := range provider {
+		providerByChannel[program.ChannelID] = append(providerByChannel[program.ChannelID], program)
+		if policy == config.AlternateEPGPolicyPreferAlternate && alternateChannels[program.ChannelID] {
+			continue
+		}
+		result = append(result, program)
+	}
+	for _, program := range alternate {
+		if policy == config.AlternateEPGPolicyFillMissing && overlapsAnyProgram(program, providerByChannel[program.ChannelID]) {
+			continue
+		}
+		result = append(result, program)
+	}
+	return result, coverage
+}
+
+func overlapsAnyProgram(candidate model.Program, existing []model.Program) bool {
+	if candidate.StartUnix <= 0 || candidate.EndUnix <= candidate.StartUnix {
+		return false
+	}
+	for _, program := range existing {
+		if program.StartUnix < candidate.EndUnix && program.EndUnix > candidate.StartUnix {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Service) xtreamProgramsForSource(ctx context.Context, source config.XtreamSource, channels []model.Channel) ([]model.Program, error) {
+	providerURL, err := xtreamXMLTVURL(source)
+	if err != nil {
+		return nil, err
+	}
+	providerPrograms, providerErr := s.xmltvProgramsForChannels(ctx, providerURL, channels)
+	if !source.AlternateEPGEnabled || strings.TrimSpace(source.AlternateEPGURL) == "" {
+		return providerPrograms, providerErr
+	}
+
+	doc, alternateErr := s.xmltvDocument(ctx, source.AlternateEPGURL)
+	if alternateErr != nil {
+		if providerErr != nil {
+			return nil, fmt.Errorf("provider guide failed: %v; alternate EPG failed: %w", providerErr, alternateErr)
+		}
+		log.Printf("xtream: alternate EPG source %q unavailable; keeping provider guide: %v", source.ID, alternateErr)
+		return providerPrograms, nil
+	}
+	merged, coverage := mergeAlternateEPGPrograms(channels, providerPrograms, doc, source.EffectiveAlternateEPGPolicy())
+	log.Printf("xtream: alternate EPG source %q matched %d/%d channels and supplied %d programs", source.ID, coverage.MatchedChannels, coverage.MatchedChannels+coverage.UnmatchedChannels, coverage.ProgramCount)
+	if providerErr != nil && coverage.ProgramCount == 0 {
+		return nil, providerErr
+	}
+	return merged, nil
 }
 
 func programsForM3UEntries(entries []m3u.Entry, channels []model.Channel, doc xmltv.Document) []model.Program {
@@ -811,28 +888,60 @@ func (s *Service) RefreshGuideChannelsNow(ctx context.Context, settings config.S
 	for _, channelID := range channelIDs {
 		requested[strings.TrimSpace(channelID)] = true
 	}
-	return s.refreshXtreamEPGChannels(ctx, settings, requested, nowUnix)
+	alternateSourceIDs := map[string]bool{}
+	providerRequested := make(map[string]bool, len(requested))
+	for channelID := range requested {
+		providerRequested[channelID] = true
+	}
+	for _, channel := range s.store.Current().Catalog.Channels {
+		if !requested[channel.ID] {
+			continue
+		}
+		if source, ok := settings.XtreamSourceByID(xtreamChannelSourceID(channel)); ok && source.AlternateEPGEnabled {
+			alternateSourceIDs[source.ID] = true
+			delete(providerRequested, channel.ID)
+		}
+	}
+	if len(alternateSourceIDs) > 0 {
+		if err := s.refreshXtreamEPGSources(ctx, settings, alternateSourceIDs, nowUnix); err != nil {
+			return err
+		}
+		if len(providerRequested) == 0 {
+			return nil
+		}
+	}
+	return s.refreshXtreamEPGChannels(ctx, settings, providerRequested, nowUnix)
 }
 
 func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings, nowUnix int64) error {
+	return s.refreshXtreamEPGSources(ctx, settings, nil, nowUnix)
+}
+
+func (s *Service) refreshXtreamEPGSources(ctx context.Context, settings config.Settings, sourceIDs map[string]bool, nowUnix int64) error {
 	snapshot := s.store.Current()
 	programs := make([]model.Program, 0)
+	if len(sourceIDs) > 0 {
+		channelSources := make(map[string]string, len(snapshot.Catalog.Channels))
+		for _, channel := range snapshot.Catalog.Channels {
+			channelSources[channel.ID] = xtreamChannelSourceID(channel)
+		}
+		for _, program := range snapshot.Catalog.Programs {
+			if !sourceIDs[channelSources[program.ChannelID]] {
+				programs = append(programs, program)
+			}
+		}
+	}
 	freshSources := 0
 	var firstErr error
 	for _, source := range settings.EffectiveXtreamSources() {
+		if len(sourceIDs) > 0 && !sourceIDs[source.ID] {
+			continue
+		}
 		channels := xtreamChannelsForSource(snapshot.Catalog.Channels, source.ID)
 		if len(channels) == 0 {
 			continue
 		}
-		rawURL, err := xtreamXMLTVURL(source)
-		if err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-			programs = append(programs, preservedProgramsForChannels(snapshot, config.CatalogCacheKey(settings), channels)...)
-			continue
-		}
-		sourcePrograms, err := s.xmltvProgramsForChannels(ctx, rawURL, channels)
+		sourcePrograms, err := s.xtreamProgramsForSource(ctx, source, channels)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = fmt.Errorf("refresh Xtreme source %q guide: %w", source.ID, err)

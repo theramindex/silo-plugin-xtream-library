@@ -1,6 +1,14 @@
 package xmltv
 
-import "encoding/xml"
+import (
+	"bytes"
+	"compress/gzip"
+	"encoding/xml"
+	"fmt"
+	"io"
+)
+
+const maxDecodedXMLTVBytes = 256 << 20
 
 type Document struct {
 	XMLName    xml.Name    `xml:"tv"`
@@ -22,6 +30,24 @@ type Programme struct {
 }
 
 func Parse(data []byte) (Document, error) {
+	if len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b {
+		reader, err := gzip.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return Document{}, fmt.Errorf("open gzip XMLTV: %w", err)
+		}
+		decompressed, err := io.ReadAll(io.LimitReader(reader, maxDecodedXMLTVBytes+1))
+		closeErr := reader.Close()
+		if err != nil {
+			return Document{}, fmt.Errorf("decompress XMLTV: %w", err)
+		}
+		if closeErr != nil {
+			return Document{}, fmt.Errorf("close gzip XMLTV: %w", closeErr)
+		}
+		if len(decompressed) > maxDecodedXMLTVBytes {
+			return Document{}, fmt.Errorf("decompressed XMLTV exceeds %d bytes", maxDecodedXMLTVBytes)
+		}
+		data = decompressed
+	}
 	var doc Document
 	err := xml.Unmarshal(data, &doc)
 	return doc, err

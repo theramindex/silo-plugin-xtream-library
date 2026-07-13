@@ -13,8 +13,107 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
+
+func TestAlternateEPGMergePolicies(t *testing.T) {
+	t.Parallel()
+	channels := []model.Channel{
+		{ID: "xtream:1", Name: "News", GuideID: "news.provider"},
+		{ID: "xtream:2", Name: "Movies HD"},
+	}
+	provider := []model.Program{{ID: "provider-news", ChannelID: "xtream:1", Title: "Provider News", StartUnix: 1783944000, EndUnix: 1783947600}}
+	doc := xmltv.Document{
+		Channels: []xmltv.Channel{{ID: "news.alt", DisplayNames: []string{"News"}}, {ID: "movies.alt", DisplayNames: []string{"Movies"}}},
+		Programmes: []xmltv.Programme{
+			{Channel: "news.alt", Start: "20260713120000 +0000", Stop: "20260713130000 +0000", Title: "Alternate News"},
+			{Channel: "movies.alt", Start: "20260713120000 +0000", Stop: "20260713130000 +0000", Title: "Alternate Movie"},
+		},
+	}
+
+	filled, coverage := mergeAlternateEPGPrograms(channels, provider, doc, config.AlternateEPGPolicyFillMissing)
+	if coverage.MatchedChannels != 2 || coverage.ProgramCount != 2 {
+		t.Fatalf("unexpected coverage: %+v", coverage)
+	}
+	if len(filled) != 2 || filled[0].Title != "Provider News" || filled[1].Title != "Alternate Movie" {
+		t.Fatalf("fill-missing must preserve provider guide and fill empty channels: %+v", filled)
+	}
+	stale := []model.Program{{ID: "stale-news", ChannelID: "xtream:1", Title: "Yesterday", StartUnix: 1783857600, EndUnix: 1783861200}}
+	filledWindow, _ := mergeAlternateEPGPrograms(channels, stale, doc, config.AlternateEPGPolicyFillMissing)
+	if len(filledWindow) != 3 || filledWindow[1].Title != "Alternate News" {
+		t.Fatalf("fill-missing must fill a current window when provider data is stale: %+v", filledWindow)
+	}
+
+	preferred, _ := mergeAlternateEPGPrograms(channels, provider, doc, config.AlternateEPGPolicyPreferAlternate)
+	if len(preferred) != 2 || preferred[0].Title != "Alternate News" || preferred[1].Title != "Alternate Movie" {
+		t.Fatalf("prefer-alternate must replace provider guide on matched channels: %+v", preferred)
+	}
+}
+
+func TestSyncXtreamAppliesAlternateEPGWithoutChangingChannels(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{streams: []xtream.LiveStream{
+				{Name: "News", StreamID: 1, EPGChannelID: "news.provider"},
+				{Name: "Movies HD", StreamID: 2},
+			}}
+		},
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if rawURL == "https://epg.example/guide.xml" {
+				return []byte(`<tv><channel id="movies.alt"><display-name>Movies</display-name></channel><programme channel="movies.alt" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Alternate Movie</title></programme></tv>`), nil
+			}
+			return []byte(`<tv><programme channel="news.provider" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Provider News</title></programme></tv>`), nil
+		},
+	})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{
+		ID: "primary", Name: "Primary", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true,
+		AlternateEPGEnabled: true, AlternateEPGURL: "https://epg.example/guide.xml", AlternateEPGPolicy: config.AlternateEPGPolicyFillMissing,
+	}}, ChannelRefreshH: 24, EPGRefreshH: 6}
+
+	if err := service.SyncNow(context.Background(), settings, 1783944000); err != nil {
+		t.Fatalf("sync with alternate EPG: %v", err)
+	}
+	snapshot := store.Current()
+	if len(snapshot.Catalog.Channels) != 2 || snapshot.Catalog.Channels[0].ID != "xtream:1" || snapshot.Catalog.Channels[1].ID != "xtream:2" {
+		t.Fatalf("alternate EPG must not change channel identity: %+v", snapshot.Catalog.Channels)
+	}
+	if len(snapshot.Catalog.Programs) != 2 || snapshot.Catalog.Programs[0].Title != "Provider News" || snapshot.Catalog.Programs[1].Title != "Alternate Movie" {
+		t.Fatalf("expected provider plus alternate guide programs, got %+v", snapshot.Catalog.Programs)
+	}
+}
+
+func TestSyncXtreamUsesAlternateEPGWhenProviderGuideFails(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	service := NewService(Dependencies{
+		Store: store,
+		XtreamFactory: func(string, string, string) XtreamClient {
+			return &stubXtreamClient{streams: []xtream.LiveStream{{Name: "News HD", StreamID: 1, EPGChannelID: "news.provider"}}}
+		},
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if rawURL != "https://epg.example/guide.xml" {
+				return nil, errors.New("provider guide unavailable")
+			}
+			return []byte(`<tv><channel id="news.alt"><display-name>News</display-name></channel><programme channel="news.alt" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Alternate News</title></programme></tv>`), nil
+		},
+	})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{
+		ID: "primary", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true,
+		AlternateEPGEnabled: true, AlternateEPGURL: "https://epg.example/guide.xml",
+	}}, ChannelRefreshH: 24, EPGRefreshH: 6}
+
+	if err := service.SyncNow(context.Background(), settings, 1783944000); err != nil {
+		t.Fatalf("alternate EPG should recover provider guide failure: %v", err)
+	}
+	programs := store.Current().Catalog.Programs
+	if len(programs) != 1 || programs[0].Title != "Alternate News" {
+		t.Fatalf("expected alternate guide fallback, got %+v", programs)
+	}
+}
 
 func TestDispatcharrGuideSearchWindowLooksAheadSevenDays(t *testing.T) {
 	t.Parallel()
@@ -54,6 +153,84 @@ func TestRefreshGuideChannelsNowOnlyFetchesRequestedXtreamChannels(t *testing.T)
 	programs := store.Current().Catalog.Programs
 	if len(programs) != 2 {
 		t.Fatalf("expected requested guide merged with preserved guide, got %#v", programs)
+	}
+}
+
+func TestRefreshGuideChannelsNowDoesNotOverwriteAlternateEPGWithShortEPG(t *testing.T) {
+	t.Parallel()
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{
+		ID: "primary", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true,
+		AlternateEPGEnabled: true, AlternateEPGURL: "https://epg.example/guide.xml",
+	}}, ChannelRefreshH: 24, EPGRefreshH: 6}
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{ConfigKey: config.CatalogCacheKey(settings), Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{{ID: "xtream:1001", SourceID: "xtream-source:primary", Name: "Channel 1001"}},
+		Programs: []model.Program{{ID: "alternate", ChannelID: "xtream:1001", Title: "Alternate Guide", StartUnix: 1, EndUnix: 2}},
+	}})
+	client := &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "provider", Title: "Provider Short EPG"}}}}
+	service := NewService(Dependencies{
+		Store:         store,
+		XtreamFactory: func(string, string, string) XtreamClient { return client },
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if rawURL == "https://epg.example/guide.xml" {
+				return []byte(`<tv><channel id="alternate"><display-name>Channel 1001</display-name></channel><programme channel="alternate" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Alternate Updated</title></programme></tv>`), nil
+			}
+			return []byte(`<tv></tv>`), nil
+		},
+	})
+
+	if err := service.RefreshGuideChannelsNow(context.Background(), settings, []string{"xtream:1001"}, 1783926000); err != nil {
+		t.Fatalf("preserve alternate guide: %v", err)
+	}
+	if len(client.epgCalls) != 0 {
+		t.Fatalf("short EPG must not overwrite alternate EPG, got calls %v", client.epgCalls)
+	}
+	programs := store.Current().Catalog.Programs
+	if len(programs) != 1 || programs[0].Title != "Alternate Updated" {
+		t.Fatalf("expected alternate guide to refresh through XMLTV, got %+v", programs)
+	}
+}
+
+func TestRefreshGuideChannelsNowPartitionsMixedAlternateAndProviderSources(t *testing.T) {
+	t.Parallel()
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+		{ID: "primary", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true, AlternateEPGEnabled: true, AlternateEPGURL: "https://epg.example/guide.xml"},
+		{ID: "backup", BaseURL: "https://backup.example", Username: "user", Password: "secret", Enabled: true},
+	}, ChannelRefreshH: 24, EPGRefreshH: 6}
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{ConfigKey: config.CatalogCacheKey(settings), Catalog: model.CatalogState{
+		Source: model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{
+			{ID: "xtream:1001", SourceID: "xtream-source:primary", Name: "News"},
+			{ID: "xtream:backup:2001", SourceID: "xtream-source:backup", Name: "Movies"},
+		},
+		Programs: []model.Program{{ID: "backup-program", ChannelID: "xtream:backup:2001", Title: "Keep Backup"}},
+	}})
+	client := &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "backup-short", Title: "Backup Short", StartTimestamp: "1783926000", StopTimestamp: "1783929600"}}}}
+	service := NewService(Dependencies{
+		Store:         store,
+		XtreamFactory: func(string, string, string) XtreamClient { return client },
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if strings.Contains(rawURL, "backup.example") {
+				t.Fatalf("requested primary refresh must not fetch backup source: %s", rawURL)
+			}
+			if rawURL == "https://epg.example/guide.xml" {
+				return []byte(`<tv><channel id="news"><display-name>News</display-name></channel><programme channel="news" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Alternate News</title></programme></tv>`), nil
+			}
+			return []byte(`<tv></tv>`), nil
+		},
+	})
+
+	if err := service.RefreshGuideChannelsNow(context.Background(), settings, []string{"xtream:1001", "xtream:backup:2001"}, 1783926000); err != nil {
+		t.Fatalf("refresh requested alternate source: %v", err)
+	}
+	programs := store.Current().Catalog.Programs
+	if len(programs) != 2 || programs[0].Title != "Alternate News" || programs[1].Title != "Backup Short" {
+		t.Fatalf("expected refreshed alternate and provider guide paths, got %+v", programs)
+	}
+	if len(client.epgCalls) != 1 || client.epgCalls[0] != 2001 {
+		t.Fatalf("expected only backup source to use short EPG, got %v", client.epgCalls)
 	}
 }
 

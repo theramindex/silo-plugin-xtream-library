@@ -62,3 +62,37 @@ func TestNormalizeXtreamSourceReportsSpecificMissingField(t *testing.T) {
 		t.Fatalf("expected password-specific validation, got %v", err)
 	}
 }
+
+func TestNormalizeXtreamSourceDefaultsAlternateEPGPolicy(t *testing.T) {
+	t.Parallel()
+	source, err := NormalizeXtreamSource(XtreamSource{
+		ID:                  "provider-user",
+		BaseURL:             "https://provider.example",
+		Username:            "user",
+		Password:            "secret",
+		Enabled:             true,
+		AlternateEPGEnabled: true,
+		AlternateEPGURL:     " https://epg.example/guide.xml ",
+	})
+	if err != nil {
+		t.Fatalf("normalize source: %v", err)
+	}
+	if source.AlternateEPGURL != "https://epg.example/guide.xml" || source.AlternateEPGPolicy != "fill_missing" {
+		t.Fatalf("unexpected alternate EPG defaults: %+v", source)
+	}
+}
+
+func TestNormalizeXtreamSourceRejectsEnabledAlternateEPGWithoutURL(t *testing.T) {
+	t.Parallel()
+	_, err := NormalizeXtreamSource(XtreamSource{
+		ID:                  "provider-user",
+		BaseURL:             "https://provider.example",
+		Username:            "user",
+		Password:            "secret",
+		Enabled:             true,
+		AlternateEPGEnabled: true,
+	})
+	if err == nil || err.Error() != "enabled alternate EPG requires an XMLTV URL" {
+		t.Fatalf("expected alternate EPG URL validation, got %v", err)
+	}
+}

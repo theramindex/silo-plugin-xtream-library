@@ -780,6 +780,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-primary strong, .source-primary small, .source-user span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .source-primary strong { color: var(--text); font-size: 0.94rem; }
 .source-primary small, .source-user small, .source-count small, .source-format small { color: var(--muted); font-size: 0.68rem; font-weight: 720; }
+.source-primary .source-epg-summary { color: color-mix(in srgb, var(--text) 72%, var(--muted)); }
 .source-user span, .source-format span { color: var(--text); font-size: 0.8rem; font-weight: 780; }
 .source-count strong { color: var(--text); font-size: 1rem; }
 .source-status { display: inline-flex; width: max-content; border-radius: 999px; background: color-mix(in srgb, var(--muted) 16%, transparent); color: var(--muted); padding: 0.28rem 0.52rem; font-size: 0.72rem; font-weight: 850; }
@@ -824,7 +825,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-step-copy h3 { font-size: 1.12rem; font-weight: 900; }
 .source-form { gap: 1rem; }
 .source-form label > small { color: var(--muted); font-size: 0.7rem; font-weight: 650; line-height: 1.35; }
-.source-form input { min-height: 2.9rem; border-radius: 0.72rem; background: transparent; padding: 0 0.85rem; }
+.source-form input, .source-form select { min-height: 2.9rem; border-radius: 0.72rem; background: transparent; padding: 0 0.85rem; }
 .source-enabled { grid-column: 1 / -1; min-height: 5.4rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--panel); padding: 0.85rem 1rem; }
 .source-switch-control { position: relative; display: block; flex: 0 0 auto; width: 2.5rem; height: 1.45rem; }
 .source-enabled .source-switch-control input { appearance: none; position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; min-height: 0; margin: 0; border: 0; opacity: 0; padding: 0; cursor: pointer; }
@@ -835,6 +836,10 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-switch-control input:focus-visible + .source-switch { outline: 2px solid var(--accent); outline-offset: 3px; }
 .source-step-action { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
 .source-step-action button { min-height: 2.4rem; border: 1px solid var(--line); border-radius: 0.58rem; background: transparent; color: var(--text); padding: 0 0.8rem; font-weight: 780; }
+.source-epg-result { grid-column: 1 / -1; border: 1px solid color-mix(in srgb, var(--green) 38%, var(--line)); border-radius: 0.8rem; background: color-mix(in srgb, var(--green) 10%, transparent); display: grid; gap: 0.22rem; padding: 0.8rem 0.9rem; }
+.source-epg-result strong { color: var(--text); font-size: 0.82rem; }
+.source-epg-result span { color: var(--muted); font-size: 0.74rem; }
+.source-epg-result.error { border-color: color-mix(in srgb, #ff7676 45%, var(--line)); background: color-mix(in srgb, #ff7676 10%, transparent); }
 .source-format-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
 .source-format-options button { min-height: 8.5rem; border: 1px solid var(--line); border-radius: 1rem; background: transparent; color: var(--muted); display: grid; place-items: center; align-content: center; gap: 0.35rem; padding: 1rem; }
 .source-format-options button:hover, .source-format-options button.active { background: var(--panel-2); color: var(--text); }

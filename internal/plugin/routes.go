@@ -20,8 +20,11 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/matching"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
 
@@ -41,6 +44,7 @@ type HTTPRoutesServer struct {
 	adminStorage         adminSettingsStorage
 	sourceRegistry       *config.SourceRegistry
 	sourceChannelCounter func(context.Context, config.XtreamSource) (int, error)
+	sourceEPGTester      func(context.Context, config.XtreamSource, []model.Channel) (alternateEPGTestPayload, error)
 	coordinator          *RefreshCoordinator
 	hydrateMu            sync.Mutex
 	refreshMu            sync.Mutex
@@ -92,6 +96,7 @@ func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Sett
 		streams, err := xtream.NewClient(source.BaseURL, source.Username, source.Password).LiveStreams(ctx)
 		return len(streams), err
 	}
+	server.sourceEPGTester = testAlternateEPGSource
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -956,17 +961,22 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 }
 
 type adminSourcePayload struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	BaseURL            string `json:"baseUrl"`
-	Username           string `json:"username"`
-	Password           string `json:"password,omitempty"`
-	LiveFormat         string `json:"liveFormat"`
-	Enabled            bool   `json:"enabled"`
-	PasswordConfigured bool   `json:"passwordConfigured"`
-	ChannelCount       int    `json:"channelCount"`
-	Action             string `json:"action,omitempty"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	BaseURL             string `json:"baseUrl"`
+	Username            string `json:"username"`
+	Password            string `json:"password,omitempty"`
+	LiveFormat          string `json:"liveFormat"`
+	Enabled             bool   `json:"enabled"`
+	PasswordConfigured  bool   `json:"passwordConfigured"`
+	ChannelCount        int    `json:"channelCount"`
+	AlternateEPGEnabled bool   `json:"alternateEpgEnabled"`
+	AlternateEPGURL     string `json:"alternateEpgUrl,omitempty"`
+	AlternateEPGPolicy  string `json:"alternateEpgPolicy"`
+	Action              string `json:"action,omitempty"`
 }
+
+type alternateEPGTestPayload = matching.AlternateEPGCoverage
 
 func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
 	if !s.adminSettingsAuthorized(request) {
@@ -1019,7 +1029,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 		password = sources[index].Password
 	}
 	sourceID := config.DeriveXtreamSourceID(payload.BaseURL, payload.Username)
-	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled})
+	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled, AlternateEPGEnabled: payload.AlternateEPGEnabled, AlternateEPGURL: payload.AlternateEPGURL, AlternateEPGPolicy: payload.AlternateEPGPolicy})
 	if err != nil {
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
@@ -1030,6 +1040,24 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 			return textResponse(http.StatusBadGateway, "connection test failed: "+err.Error()), nil
 		}
 		return s.respondJSON(http.StatusOK, map[string]any{"connected": true})
+	}
+	if payload.Action == "test_epg" {
+		if !candidate.AlternateEPGEnabled {
+			return textResponse(http.StatusBadRequest, "enable alternate EPG before testing"), nil
+		}
+		channels := make([]model.Channel, 0)
+		for _, channel := range s.store.Current().Catalog.Channels {
+			if adminChannelSourceID(channel, []config.XtreamSource{candidate}) == candidate.ID {
+				channels = append(channels, channel)
+			}
+		}
+		testCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		coverage, err := s.sourceEPGTester(testCtx, candidate, channels)
+		if err != nil {
+			return textResponse(http.StatusBadGateway, "alternate EPG test failed: "+err.Error()), nil
+		}
+		return s.respondJSON(http.StatusOK, map[string]any{"connected": true, "coverage": coverage})
 	}
 	if index >= 0 {
 		sources[index] = candidate
@@ -1104,9 +1132,34 @@ func (s *HTTPRoutesServer) adminSourceList(ctx context.Context, refreshCounts bo
 	}
 	result := make([]adminSourcePayload, 0, len(sources))
 	for _, source := range sources {
-		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID]})
+		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID], AlternateEPGEnabled: source.AlternateEPGEnabled, AlternateEPGURL: source.AlternateEPGURL, AlternateEPGPolicy: source.EffectiveAlternateEPGPolicy()})
 	}
 	return result, nil
+}
+
+func testAlternateEPGSource(ctx context.Context, source config.XtreamSource, channels []model.Channel) (alternateEPGTestPayload, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, source.AlternateEPGURL, nil)
+	if err != nil {
+		return alternateEPGTestPayload{}, err
+	}
+	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
+	if err != nil {
+		return alternateEPGTestPayload{}, sharedhttp.RedactErrorURL(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return alternateEPGTestPayload{}, fmt.Errorf("unexpected status %d", response.StatusCode)
+	}
+	data, err := sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxCatalogResponseBytes)
+	if err != nil {
+		return alternateEPGTestPayload{}, err
+	}
+	doc, err := xmltv.Parse(data)
+	if err != nil {
+		return alternateEPGTestPayload{}, fmt.Errorf("parse XMLTV: %w", err)
+	}
+	matched := matching.MatchAlternateEPGChannels(channels, doc)
+	return matched.Coverage(doc), nil
 }
 
 func adminChannelSourceID(channel model.Channel, sources []config.XtreamSource) string {
