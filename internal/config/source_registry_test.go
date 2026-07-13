@@ -29,3 +29,11 @@ func TestSourceRegistryRoundTripsCredentialsPrivately(t *testing.T) {
 		t.Fatalf("expected private registry permissions, got %o", info.Mode().Perm())
 	}
 }
+
+func TestDeriveXtreamSourceIDUsesDomainAndUsername(t *testing.T) {
+	t.Parallel()
+	got := DeriveXtreamSourceID("https://IPTV.Example:8443/player_api.php", " Viewer+One ")
+	if got != "iptv-example-8443-viewer-one" {
+		t.Fatalf("unexpected derived source id %q", got)
+	}
+}

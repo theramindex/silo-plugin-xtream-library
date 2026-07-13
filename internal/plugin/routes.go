@@ -1010,7 +1010,8 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 	if password == "" && index >= 0 {
 		password = sources[index].Password
 	}
-	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: payload.ID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled})
+	sourceID := config.DeriveXtreamSourceID(payload.BaseURL, payload.Username)
+	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled})
 	if err != nil {
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
