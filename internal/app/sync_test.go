@@ -165,7 +165,7 @@ func TestSyncReportsCatalogSnapshotPersistenceFailure(t *testing.T) {
 	}
 }
 
-func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
+func TestSyncXtreamIgnoresLegacyCustomXMLTVGuide(t *testing.T) {
 	t.Parallel()
 
 	store := cache.NewStore()
@@ -178,7 +178,7 @@ func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
 			}
 		},
 		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
-			if rawURL != "https://dispatcharr.example.com/xmltv.xml" {
+			if !strings.HasPrefix(rawURL, "https://dispatcharr.example.com/xmltv.php?") {
 				return nil, errors.New("unexpected xmltv url")
 			}
 			return []byte(`<?xml version="1.0"?><tv><programme start="20260619070000 +0000" stop="20260619080000 +0000" channel="news.hd"><title>Morning News</title><desc>Top headlines.</desc></programme></tv>`), nil
@@ -201,6 +201,42 @@ func TestSyncXtreamUsesCustomXMLTVGuide(t *testing.T) {
 	snapshot := store.Current()
 	if len(snapshot.Catalog.Programs) != 1 || snapshot.Catalog.Programs[0].Title != "Morning News" {
 		t.Fatalf("expected custom xmltv program, got %+v", snapshot.Catalog.Programs)
+	}
+}
+
+func TestRefreshGuideOnlyXtreamPreservesSourceWhenProviderGuideIsEmpty(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+		{ID: "primary", Name: "Primary", BaseURL: "https://primary.example", Username: "one", Password: "secret", Enabled: true},
+		{ID: "backup", Name: "Backup", BaseURL: "https://backup.example", Username: "two", Password: "secret", Enabled: true},
+	}}
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source: model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{
+			{ID: "xtream:1001", SourceID: "xtream-source:primary", GuideID: "primary.news", Name: "Primary News"},
+			{ID: "xtream:backup:2002", SourceID: "xtream-source:backup", GuideID: "backup.news", Name: "Backup News"},
+		},
+		Programs: []model.Program{
+			{ID: "old-primary", ChannelID: "xtream:1001", Title: "Old Primary"},
+			{ID: "old-backup", ChannelID: "xtream:backup:2002", Title: "Old Backup"},
+		},
+	}, ConfigKey: config.CatalogCacheKey(settings)})
+	service := NewService(Dependencies{
+		Store: store,
+		FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+			if strings.Contains(rawURL, "backup.example") {
+				return []byte(`<?xml version="1.0"?><tv></tv>`), nil
+			}
+			return []byte(`<?xml version="1.0"?><tv><programme start="20231114221320 +0000" stop="20231114231320 +0000" channel="primary.news"><title>Fresh Primary</title></programme></tv>`), nil
+		},
+	})
+	if err := service.RefreshGuideOnlyNow(context.Background(), settings, 1_700_000_001); err != nil {
+		t.Fatalf("refresh partial provider guide: %v", err)
+	}
+	programs := store.Current().Catalog.Programs
+	if len(programs) != 2 || programs[0].Title != "Fresh Primary" || programs[1].Title != "Old Backup" {
+		t.Fatalf("expected fresh primary and preserved backup guide, got %+v", programs)
 	}
 }
 

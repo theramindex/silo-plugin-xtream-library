@@ -3740,7 +3740,6 @@ function renderGuidePage() {
   const guideScroll = byId("guide-scroll");
   if (guideScroll) guideScroll.onscroll = scheduleGuideWindowRender;
   resetGuideRows();
-  maybeWarmGuideForChannels(state.guideChannels.slice(0, guideWindowOverscan() * 2), "guide:" + (state.category || "all"));
   renderEPG();
 }
 function guideCategoryOptionHTML(category) {
@@ -3910,6 +3909,7 @@ function renderGuideWindow(force) {
   root.style.height = (state.guideChannels.length * rowHeight) + "px";
   root.innerHTML = "<div class=\"guide-window\" style=\"transform:translateY(" + (start * rowHeight) + "px)\">" + rows + "</div>";
   state.guideLoading = false;
+  maybeWarmGuideForChannels(state.guideChannels.slice(start, end), "guide:" + (state.category || "all") + ":" + start + ":" + end);
 }
 function categorySettingsBuckets(categories) {
   const buckets = [
