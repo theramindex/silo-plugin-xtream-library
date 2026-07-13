@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -29,6 +30,20 @@ func NewSourceRegistry(path string) *SourceRegistry {
 func NormalizeSourceID(value string) string {
 	value = sourceIDPattern.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "-")
 	return strings.Trim(value, "-")
+}
+
+// DeriveXtreamSourceID produces the stable account key used when a source is
+// first created. The password and display name are deliberately excluded.
+func DeriveXtreamSourceID(baseURL, username string) string {
+	value := strings.TrimSpace(baseURL)
+	if value == "" || strings.TrimSpace(username) == "" {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+	return NormalizeSourceID(parsed.Host + "-" + strings.TrimSpace(username))
 }
 
 func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {

@@ -2373,7 +2373,7 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 		t.Fatalf("source response must redact credentials: %s", response.GetBody())
 	}
 	sources, err := server.sourceRegistry.Load()
-	if err != nil || len(sources) != 2 || sources[0].ID != "primary" || sources[1].ID != "backup" {
+	if err != nil || len(sources) != 2 || sources[0].ID != "primary" || sources[1].ID != "backup-example-backup" {
 		t.Fatalf("expected migrated primary and new source, got %+v, %v", sources, err)
 	}
 }
