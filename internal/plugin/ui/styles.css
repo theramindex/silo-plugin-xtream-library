@@ -113,7 +113,7 @@ button { cursor: pointer; }
 .shell.is-multiview #view { min-height: 0; overflow: hidden; }
 .shell.is-admin { grid-template-columns: minmax(0, 1fr); }
 .shell.is-admin .rail { display: none; }
-.shell.is-admin .main { display: grid; grid-template-columns: 17rem minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sidebar header" "sidebar content"; min-height: 0; padding: 0; }
+.shell.is-admin .main { display: grid; grid-template-columns: 15.5rem minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sidebar header" "sidebar content"; min-height: 0; padding: 0; }
 .shell.is-admin.is-admin-manager .main { overflow: hidden; }
 .shell.is-admin #view { grid-area: content; min-height: 0; padding: 0.75rem 2.5rem max(4.5rem, calc(env(safe-area-inset-bottom) + 3rem)); }
 .shell.is-admin.is-admin-manager #view { height: 100%; padding: 0; }
