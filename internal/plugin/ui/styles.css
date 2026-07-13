@@ -202,12 +202,13 @@ button { cursor: pointer; }
 .continue-card { flex: 0 0 13.7rem; width: 13.7rem; min-width: 13.7rem; border: 0; border-radius: 0.5rem; background: transparent; color: var(--text); text-align: left; display: grid; grid-template-rows: auto 2.08rem 0.98rem; gap: 0.24rem; align-content: start; }
 .continue-card strong { display: -webkit-box; min-width: 0; height: 2.08rem; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.08; padding: 0 0.12rem; font-size: 0.86rem; }
 .continue-card .muted { min-width: 0; height: 0.98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.12rem; font-size: 0.76rem; line-height: 0.98rem; }
-.recent-channel-row { gap: 0.62rem; }
-.recent-channel-card { flex: 0 0 clamp(12rem, 16vw, 15rem); width: clamp(12rem, 16vw, 15rem); min-width: 12rem; grid-template-rows: auto auto; gap: 0.58rem; padding-bottom: 0.15rem; }
+.recent-channel-row { gap: 0.62rem; padding-top: 0.35rem; margin-top: -0.35rem; }
+.recent-channel-card { position: relative; z-index: 0; flex: 0 0 clamp(12rem, 16vw, 15rem); width: clamp(12rem, 16vw, 15rem); min-width: 12rem; grid-template-rows: auto auto; gap: 0.58rem; padding-bottom: 0.15rem; }
 .recent-channel-card .poster-box { border: 1px solid var(--line); border-radius: 0.92rem; background: color-mix(in srgb, var(--panel) 88%, var(--rail-2)); transition: border-color 150ms ease, background-color 150ms ease, transform 150ms ease; }
 .recent-channel-copy { min-width: 0; display: grid; gap: 0.2rem; padding: 0 0.08rem; }
 .recent-channel-card strong { display: block; height: auto; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.88rem; line-height: 1.15; }
 .recent-channel-card .muted { height: auto; padding: 0; font-size: 0.72rem; line-height: 1.2; }
+.recent-channel-card:hover, .recent-channel-card:focus-visible { z-index: 2; }
 .recent-channel-card:hover .poster-box, .recent-channel-card:focus-visible .poster-box { border-color: color-mix(in srgb, var(--text) 38%, var(--line)); background: var(--panel-2); transform: translateY(-2px); }
 .favorites-row { gap: 0.62rem; }
 .home-favorite-card { flex: 0 0 10.8rem; width: 10.8rem; min-width: 10.8rem; grid-template-rows: auto 2.15rem 1rem; gap: 0.25rem; }
