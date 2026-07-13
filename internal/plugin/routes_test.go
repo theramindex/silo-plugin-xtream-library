@@ -775,8 +775,8 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
-		`<title>Xtream Codes Admin</title>`,
-		`<h1>Xtream Codes</h1>`,
+		`<title>XC Admin</title>`,
+		`<h1>XC Admin</h1>`,
 		`<div class="shell is-admin">`,
 		`.shell.is-admin .rail { display: none; }`,
 		`grid-template-areas: "sidebar header" "sidebar content"`,
@@ -786,7 +786,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`class="admin-brand"`,
 		`<div class="admin-identity">`,
 		`<p>Manage IPTV sources and organize the Live TV catalog.</p>`,
-		`<nav id="admin-tabs" class="admin-sidebar-nav" aria-label="Xtream Codes admin sections"></nav>`,
+		`<nav id="admin-tabs" class="admin-sidebar-nav" aria-label="XC Admin sections"></nav>`,
 		`class="admin-sidebar-link" href="../xtream"`,
 		`class=\"source-table-head\"`,
 		`border-radius: 1.15rem`,

@@ -378,7 +378,7 @@ func TestManifestExposesXtremeAdminRoutes(t *testing.T) {
 	paths := map[string]bool{}
 	for _, route := range manifest.GetHttpRoutes() {
 		paths[route.GetPath()] = true
-		if route.GetPath() == "/xtream/admin" && route.GetNavigationLabel() != "Xtream Codes Admin" {
+		if route.GetPath() == "/xtream/admin" && route.GetNavigationLabel() != "XC Admin" {
 			t.Fatalf("expected Xtreme admin navigation label, got %q", route.GetNavigationLabel())
 		}
 	}
