@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -137,20 +136,18 @@ func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
 	}
 }
 
-func TestGlobalConfigSchemaOffersOnlyXtreamAndM3UXMLTVSourceModes(t *testing.T) {
+func TestGlobalConfigSchemaDirectsAdministratorsToXCAdmin(t *testing.T) {
 	t.Parallel()
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
-	fields := connection.GetAdminForm().GetFields()
-	if len(fields) == 0 {
-		t.Fatal("expected source mode field")
+	if fields := connection.GetAdminForm().GetFields(); len(fields) != 0 {
+		t.Fatalf("expected no legacy configuration fields, got %+v", fields)
 	}
-	var options []string
-	for _, option := range fields[0].GetOptions() {
-		options = append(options, option.GetValue())
+	if !strings.Contains(connection.GetDescription(), "XC Admin plugin app") {
+		t.Fatalf("expected XC Admin disclaimer, got %q", connection.GetDescription())
 	}
-	if !reflect.DeepEqual(options, []string{string(SourceModeXtream), string(SourceModeM3UXMLTV)}) {
-		t.Fatalf("expected xtream and m3u/xmltv source modes, got %v", options)
+	if connection.GetAdminForm().GetSubmitLabel() != "" {
+		t.Fatalf("expected informational schema without submit action, got %q", connection.GetAdminForm().GetSubmitLabel())
 	}
 }
 
@@ -313,32 +310,16 @@ func TestGlobalConfigSchema_UsesObjectSchemasForConfigurePayloads(t *testing.T) 
 	}
 }
 
-func TestGlobalConfigSchema_ProvidesAdminFormsForSiloUI(t *testing.T) {
+func TestGlobalConfigSchema_HidesLegacyFieldsFromSiloUI(t *testing.T) {
 	t.Parallel()
 
 	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
 
-	if connection.GetAdminForm() == nil || len(connection.GetAdminForm().GetFields()) != 7 {
-		t.Fatalf("expected connection admin form fields, got %+v", connection.GetAdminForm())
+	if connection.GetAdminForm() == nil {
+		t.Fatal("expected explicit informational admin form")
 	}
-
-	if connection.GetAdminForm().GetFields()[0].GetControl().String() != "ADMIN_FORM_CONTROL_SELECT" {
-		t.Fatalf("expected source mode field control, got %s", connection.GetAdminForm().GetFields()[0].GetControl().String())
-	}
-	if len(connection.GetAdminForm().GetFields()[0].GetOptions()) != 2 {
-		t.Fatalf("expected xtream/m3u options, got %+v", connection.GetAdminForm().GetFields()[0].GetOptions())
-	}
-	if connection.GetAdminForm().GetFields()[3].GetControl().String() != "ADMIN_FORM_CONTROL_PASSWORD" {
-		t.Fatalf("expected password field control, got %s", connection.GetAdminForm().GetFields()[3].GetControl().String())
-	}
-	fieldKeys := map[string]bool{}
-	for _, field := range connection.GetAdminForm().GetFields() {
-		fieldKeys[field.GetKey()] = true
-	}
-	for _, key := range []string{"base_url", "username", "password", "live_stream_format", "m3u_url", "epg_xml_url"} {
-		if !fieldKeys[key] {
-			t.Fatalf("expected admin form field %q", key)
-		}
+	if len(connection.GetAdminForm().GetFields()) != 0 {
+		t.Fatalf("expected no editable legacy fields, got %+v", connection.GetAdminForm().GetFields())
 	}
 }
 
