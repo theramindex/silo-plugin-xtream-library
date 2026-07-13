@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.33",
+  "version": "0.2.34",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -21,7 +21,7 @@
     {
       "type": "scheduled_task.v1",
       "id": "xtream-sync",
-      "display_name": "Xtreme Codes for Silo",
+      "display_name": "XC for Silo",
       "description": "Xtream-first IPTV app with Live TV, guide, VOD catalog, and series catalog routes."
     },
     {
@@ -39,7 +39,7 @@
     {
       "type": "http_routes.v1",
       "id": "dispatcharr-routes",
-      "display_name": "Live TV App",
+      "display_name": "XC for Silo",
       "description": "Serves the Dispatcharr IPTV app, API, and playback routes."
     }
   ],
@@ -50,7 +50,7 @@
       "path": "/dispatcharr",
       "access": "authenticated",
       "navigable": true,
-      "navigation_label": "Live TV (Xtreme Codes)",
+      "navigation_label": "XC for Silo",
       "navigation_kind": "user"
     },
     {
@@ -330,7 +330,7 @@
     }
   ],
   "metadata": {
-    "display_name": "Xtreme Codes for Silo",
+    "display_name": "XC for Silo",
     "summary": "Silo-hosted Xtream-first IPTV app with Live TV, guide, VOD, and series routes.",
     "jellyfin_api_integration": false
   },

@@ -437,6 +437,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if response.GetHeaders()["cache-control"] != "no-store" {
 		t.Fatalf("expected app shell to disable browser caching, got %q", response.GetHeaders()["cache-control"])
 	}
+	if !strings.Contains(string(response.GetBody()), `<title>XC for Silo</title>`) || !strings.Contains(string(response.GetBody()), `<h1>XC for Silo</h1>`) {
+		t.Fatalf("expected the user app identity to be XC for Silo")
+	}
 	if !strings.Contains(string(response.GetBody()), `src="xtream/assets/app.js?v=`) || strings.Contains(string(response.GetBody()), "__ASSET_VERSION__") {
 		t.Fatalf("expected root app shell to reference versioned assets: %s", string(response.GetBody()))
 	}

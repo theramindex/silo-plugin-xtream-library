@@ -1303,7 +1303,7 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 		body = strings.Replace(body, "__APP_TITLE__", "Xtream Codes Admin", 2)
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
-	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
+	body = strings.Replace(body, "__APP_TITLE__", "XC for Silo", 2)
 	return strings.Replace(body, "__ROUTE_CLASS__", "", 1)
 }
 
