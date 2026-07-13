@@ -367,31 +367,21 @@ func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings
 
 	if options.channelsOnly {
 		programs = preservedProgramsForChannels(s.store.Current(), config.CatalogCacheKey(settings), channels)
-	} else if !tightDeadline && strings.TrimSpace(settings.EPGXMLURL) != "" {
-		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, settings.EPGXMLURL, channels)
+	} else if !tightDeadline && channelsHaveGuideIDs(channels) {
+		rawURL := strings.TrimSpace(settings.EPGXMLURL)
+		if rawURL == "" {
+			var err error
+			rawURL, err = xtreamXMLTVURL(source)
+			if err != nil {
+				return model.CatalogState{}, err
+			}
+		}
+		xmltvPrograms, err := s.xmltvProgramsForChannels(ctx, rawURL, channels)
 		if err != nil {
 			s.store.RecordFailure(nowUnix, err.Error())
 			return model.CatalogState{}, err
 		}
 		programs = append(programs, xmltvPrograms...)
-	}
-
-	if !options.channelsOnly && len(programs) == 0 {
-		for _, stream := range streams {
-			if tightDeadline {
-				continue
-			}
-			channel := mapping.MapXtreamChannel(stream)
-			namespaceXtreamChannel(&channel, source)
-			epg, err := client.ShortEPG(ctx, stream.StreamID)
-			if err != nil {
-				s.store.RecordFailure(nowUnix, err.Error())
-				return model.CatalogState{}, err
-			}
-			for _, listing := range epg.EPGListings {
-				programs = append(programs, mapping.MapXtreamProgram(channel.ID, listing))
-			}
-		}
 	}
 
 	return model.CatalogState{
@@ -401,6 +391,15 @@ func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings
 		Health:   s.syncHealthForOperation(settings, nowUnix, len(programs), options),
 		Content:  content,
 	}, nil
+}
+
+func channelsHaveGuideIDs(channels []model.Channel) bool {
+	for _, channel := range channels {
+		if strings.TrimSpace(channel.GuideID) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func namespaceXtreamChannel(channel *model.Channel, source config.XtreamSource) {
@@ -820,7 +819,55 @@ func (s *Service) RefreshGuideChannelsNow(ctx context.Context, settings config.S
 }
 
 func (s *Service) refreshXtreamEPG(ctx context.Context, settings config.Settings, nowUnix int64) error {
-	return s.refreshXtreamEPGChannels(ctx, settings, nil, nowUnix)
+	snapshot := s.store.Current()
+	programs := make([]model.Program, 0)
+	for _, source := range settings.EffectiveXtreamSources() {
+		channels := xtreamChannelsForSource(snapshot.Catalog.Channels, source.ID)
+		if len(channels) == 0 {
+			continue
+		}
+		rawURL, err := xtreamXMLTVURL(source)
+		if err != nil {
+			return err
+		}
+		sourcePrograms, err := s.xmltvProgramsForChannels(ctx, rawURL, channels)
+		if err != nil {
+			return fmt.Errorf("refresh Xtreme source %q guide: %w", source.ID, err)
+		}
+		programs = append(programs, sourcePrograms...)
+	}
+	return s.replacePrograms(programs, nowUnix)
+}
+
+func xtreamChannelsForSource(channels []model.Channel, sourceID string) []model.Channel {
+	sourceID = strings.TrimSpace(sourceID)
+	if sourceID == "" {
+		sourceID = "primary"
+	}
+	result := make([]model.Channel, 0)
+	for _, channel := range channels {
+		channelSourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:")
+		if channelSourceID == "" {
+			channelSourceID = "primary"
+		}
+		if channelSourceID == sourceID {
+			result = append(result, channel)
+		}
+	}
+	return result
+}
+
+func xtreamXMLTVURL(source config.XtreamSource) (string, error) {
+	endpoint, err := url.Parse(strings.TrimSpace(source.BaseURL))
+	if err != nil {
+		return "", fmt.Errorf("parse Xtreme source %q base url: %w", source.ID, err)
+	}
+	endpoint.Path = "/xmltv.php"
+	query := endpoint.Query()
+	query.Set("username", source.Username)
+	query.Set("password", source.Password)
+	endpoint.RawQuery = query.Encode()
+	return endpoint.String(), nil
 }
 
 func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.Settings, requested map[string]bool, nowUnix int64) error {

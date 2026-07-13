@@ -145,6 +145,8 @@ type GuidePingPayload struct {
 	Refreshing      bool   `json:"refreshing"`
 }
 
+const guidePingChannelLimit = 24
+
 type ContentPayload struct {
 	Available  bool             `json:"available"`
 	Reason     string           `json:"reason,omitempty"`
@@ -585,6 +587,9 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 
 	s.ensureCatalogHydrated(ctx)
 	channelIDs := normalizeChannelIDs(payload.ChannelIDs)
+	if len(channelIDs) > guidePingChannelLimit {
+		channelIDs = channelIDs[:guidePingChannelLimit]
+	}
 	currentPrograms := currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
 	if len(channelIDs) == 0 || currentPrograms >= len(channelIDs) {
 		return s.respondJSON(http.StatusOK, GuidePingPayload{Status: "fresh", CheckedChannels: len(channelIDs), CurrentPrograms: currentPrograms})
