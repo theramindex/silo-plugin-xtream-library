@@ -1233,10 +1233,10 @@ func (s *HTTPRoutesServer) playerPageHTML(request *pluginv1.HandleHTTPRequest) s
 	}
 	body = strings.ReplaceAll(body, "__ASSET_PREFIX__", assetPrefix)
 	body = strings.ReplaceAll(body, "__ASSET_VERSION__", pluginAssetVersion())
-	if request.GetPath() == "/dispatcharr/admin" {
+	if request.GetPath() == "/dispatcharr/admin" || request.GetPath() == "/xtream/admin" {
 		body = removeTemplateBlock(body, "<!-- USER_NAV_START -->", "<!-- USER_NAV_END -->")
 		body = replaceTemplateBlock(body, "<!-- USER_TOPBAR_START -->", "<!-- USER_TOPBAR_END -->", adminTopbarHTML())
-		body = strings.Replace(body, "__APP_TITLE__", "Live TV (Xtreme Codes) Admin", 2)
+		body = strings.Replace(body, "__APP_TITLE__", "Xtream Codes Admin", 2)
 		return strings.Replace(body, "__ROUTE_CLASS__", "is-admin", 1)
 	}
 	body = strings.Replace(body, "__APP_TITLE__", "Live TV", 2)
@@ -1283,7 +1283,7 @@ func replaceTemplateBlock(body string, startMarker string, endMarker string, rep
 }
 
 func adminTopbarHTML() string {
-	return `<div class="admin-topbar"><div class="admin-title"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><h1>Live TV (Xtreme Codes) Admin</h1></div><nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav><div id="admin-actions" class="admin-actions"></div></div>`
+	return `<div class="admin-topbar"><div class="admin-identity"><a class="back" href="/" aria-label="Back to Silo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg></a><div><span>Live TV plugin</span><h1>Xtream Codes Admin</h1></div></div><nav id="admin-tabs" class="admin-tabs" aria-label="Xtream Codes admin sections"></nav><div class="admin-command"><a class="admin-open-live" href="../xtream">Open Live TV<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5H19.5V10.5M19.25 4.75 11 13M10.5 6H6.75A2.25 2.25 0 0 0 4.5 8.25v9A2.25 2.25 0 0 0 6.75 19.5h9A2.25 2.25 0 0 0 18 17.25V13.5"/></svg></a><div id="admin-actions" class="admin-actions"></div></div></div>`
 }
 
 func sanitizeThemeSlug(value string) string {
