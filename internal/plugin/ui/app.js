@@ -4405,6 +4405,10 @@ function renderAdminCategoryAliasSettings() {
     root.innerHTML = "<div class=\"settings-note alias-disabled-state\"><strong>Available with split folders</strong><span>Choose <em>Split by separator</em> above to create alternate category paths.</span></div>";
     return;
   }
+  if (!sourceGroups.length && !aliases.length) {
+    root.innerHTML = "<div class=\"settings-note alias-disabled-state\"><strong>No provider categories loaded</strong><span>Refresh the catalog after enabling a source, then return here to add alternate paths.</span></div>";
+    return;
+  }
   const addRow = "<div class=\"alias-builder\"><label><span>Provider category</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select></label><label><span>Alternate path</span><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add path</button></div>";
   const rows = aliases.map(function(alias, index) {
     const count = adminSourceGroupCount(alias.sourcePath);

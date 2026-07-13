@@ -812,6 +812,7 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 		`function renderAdminSourcesTab()`,
 		`Category organization`,
 		`Alternate paths`,
+		`No provider categories loaded`,
 		`function renderAdminCategoryAliasSettings()`,
 		`function renderAdminECMSettings()`,
 		`root.innerHTML = adminSaveStatusHTML() + "<div class=\"settings-row ecm-url-row compact-row\"`,
