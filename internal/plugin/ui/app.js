@@ -4225,8 +4225,7 @@ function handleAdminSourceAction(action, sourceID) {
 }
 function renderAdminSettingsTab() {
   return ""
-    + "<div class=\"settings-card settings-card-compact\"><h2>Group method</h2><div id=\"admin-category-settings\" class=\"settings-list\"></div></div>"
-    + "<div class=\"settings-card\"><div class=\"settings-card-head\"><div><h2>Presentation Overrides</h2><p>Add alternate category paths without changing the provider groups.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></div>"
+    + "<div class=\"settings-card organization-card\"><div class=\"settings-card-head\"><div><h2>Category organization</h2><p>Choose how provider categories become folders in XC for Silo.</p></div></div><section class=\"organization-section\"><div id=\"admin-category-settings\" class=\"settings-list\"></div></section><section class=\"organization-section organization-alias-section\"><div class=\"organization-section-head\"><div><h3>Alternate paths</h3><p>Show a provider category in another location without changing the source.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></section></div>"
     + "";
 }
 function renderAdminRecordingSettings() {
@@ -4309,20 +4308,18 @@ function renderAdminECMSettings() {
 function renderAdminCategorySettings() {
   const settings = adminSettings();
   const root = byId("admin-category-settings");
-  const profileAccess = state.app && state.app.source && state.app.source.profileAccess ? state.app.source.profileAccess : {};
-  const sourceHelp = "Choose whether virtual categories come from provider groups, channel names, or a combination. Every delimiter segment becomes a nested folder.";
+  const sourceHelp = "Choose which Xtream names Silo uses to build nested folders.";
   const nested = settings.mode !== "normal" ? "<div class=\"settings-list-nested\">"
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Delimiter</strong><small>Split source names into nested virtual groups.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe: Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash: Sports - NHL Teams</option></select></div>"
-    + "<div class=\"settings-row settings-form-row virtual-label-row\"><span class=\"settings-field-copy\"><strong>Virtual groups label</strong><small>Only the suffix after Virtual is editable.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Groups\"></div></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Build folders from</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Provider categories</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Provider categories and channel names</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel names only</option></select></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Separator</strong><small>Each matching separator starts another folder level.</small></span><select data-admin-category-field=\"delimiter\"><option value=\"pipe\"" + (settings.delimiter === "pipe" ? " selected" : "") + ">Pipe · Sports | NHL Teams</option><option value=\"dash\"" + (settings.delimiter === "dash" ? " selected" : "") + ">Dash · Sports - NHL Teams</option></select></div>"
+    + "<div class=\"settings-row settings-form-row virtual-label-row\"><span class=\"settings-field-copy\"><strong>Folder collection label</strong><small>Name the top-level collection that contains generated folders.</small></span><div class=\"virtual-label-control\"><span>Virtual</span><input data-admin-category-field=\"virtualGroupLabel\" value=\"" + escapeHTML(virtualGroupLabelSuffix(settings.virtualGroupLabel)) + "\" placeholder=\"Categories\"></div></div>"
+    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Collapse repeated folders</strong><small>Remove adjacent duplicate names when category and channel paths overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label>"
+    + renderOrganizationPreview(settings)
     + "</div>" : "";
   root.innerHTML = adminSaveStatusHTML()
-    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Mode</strong><small>Choose how Silo builds the browse hierarchy.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Normal</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">By delimiter</option></select></div>"
+    + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Folder structure</strong><small>Keep provider categories intact or split their names into nested folders.</small></span><select data-admin-category-field=\"mode\"><option value=\"normal\"" + (settings.mode === "normal" ? " selected" : "") + ">Keep provider categories</option><option value=\"delimiter\"" + (settings.mode === "delimiter" ? " selected" : "") + ">Split by separator</option></select></div>"
     + nested
-    + "<div class=\"settings-row settings-form-row settings-source-row\"><span class=\"settings-field-copy\"><strong>Virtual group source</strong><small>" + escapeHTML(sourceHelp) + "</small></span><select data-admin-category-field=\"virtualGroupSource\"><option value=\"group\"" + (virtualGroupSourceMode() === "group" ? " selected" : "") + ">Group pipe</option><option value=\"group_channel\"" + (virtualGroupSourceMode() === "group_channel" ? " selected" : "") + ">Group pipe + channel pipe</option><option value=\"profile_group\"" + (virtualGroupSourceMode() === "profile_group" ? " selected" : "") + ">Profile pipe + group pipe</option><option value=\"channel\"" + (virtualGroupSourceMode() === "channel" ? " selected" : "") + ">Channel pipe</option></select></div>"
-    + "<label class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Collapse duplicate virtual groups</strong><small>Skip repeated names when group, profile, or channel path labels overlap.</small></span><input type=\"checkbox\" data-admin-category-field=\"collapseDuplicateVirtualGroups\"" + (settings.collapseDuplicateVirtualGroups !== false ? " checked" : "") + "></label>"
-    + renderOrganizationPreview(settings)
-    + (virtualGroupSourceMode() === "profile_group" && profileAccess.status !== "available" ? "<div class=\"settings-note settings-warning\">" + escapeHTML(profileAccess.message || "No Channel Profiles are available to the configured Dispatcharr account. Assign profiles in Dispatcharr, then refresh Live TV.") + "</div>" : "")
-    + (settings.mode === "normal" ? "<div class=\"settings-note\">Channel groups are shown as provided, without remapping or resorting.</div>" : "");
+    + (settings.mode === "normal" ? "<div class=\"settings-note organization-mode-note\">Provider categories appear exactly as supplied by each Xtream source.</div>" : "");
 }
 function organizationPreviewPath(settings) {
   const channel = effectiveChannels(false)[0] || {};
@@ -4404,14 +4401,17 @@ function renderAdminCategoryAliasSettings() {
   const sourceOptions = sourceGroups.map(function(group) {
     return "<option value=\"" + escapeHTML(group.sourcePath) + "\">" + escapeHTML(group.sourcePath) + " (" + escapeHTML(String(group.count)) + ")</option>";
   }).join("");
-  const addRow = "<div class=\"alias-builder\"><label><span>Source group</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select></label><label><span>Also show as</span><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add</button></div>";
+  if (settings.mode !== "delimiter") {
+    root.innerHTML = "<div class=\"settings-note alias-disabled-state\"><strong>Available with split folders</strong><span>Choose <em>Split by separator</em> above to create alternate category paths.</span></div>";
+    return;
+  }
+  const addRow = "<div class=\"alias-builder\"><label><span>Provider category</span><select id=\"admin-alias-source\"" + (!sourceGroups.length ? " disabled" : "") + ">" + sourceOptions + "</select></label><label><span>Alternate path</span><input id=\"admin-alias-path\" placeholder=\"Sports | Arabic\"" + (!sourceGroups.length ? " disabled" : "") + "></label><button data-admin-alias-action=\"add\"" + (!sourceGroups.length ? " disabled" : "") + ">Add path</button></div>";
   const rows = aliases.map(function(alias, index) {
     const count = adminSourceGroupCount(alias.sourcePath);
-    return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\"><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-arrow\">&rarr;</span><label><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternative group name\"></label><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><span class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></span></div>";
+    return "<div class=\"alias-table-row" + (!count ? " stale" : "") + "\"><div class=\"alias-table-source\"><strong title=\"" + escapeHTML(alias.sourcePath) + "\">" + escapeHTML(alias.sourcePath) + "</strong>" + (!count ? "<small>Source not found</small>" : "") + "</div><span class=\"alias-table-arrow\">&rarr;</span><label><input data-admin-alias-index=\"" + index + "\" data-admin-alias-field=\"aliasPath\" value=\"" + escapeHTML(alias.aliasPath) + "\" title=\"" + escapeHTML(alias.aliasPath) + "\" aria-label=\"Alternate path\"></label><span class=\"alias-table-count\">" + escapeHTML(String(count)) + "</span><span class=\"alias-table-actions\"><button data-admin-alias-action=\"remove\" data-admin-alias-index=\"" + index + "\">Remove</button></span></div>";
   }).join("");
-  root.innerHTML = (settings.mode !== "delimiter" ? "<div class=\"settings-note settings-warning\">Alternative group names apply when category mode is By delimiter.</div>" : "")
-    + addRow
-    + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Source group</span><span></span><span>Also show as</span><span>Channels</span><span>Actions</span></div>" + (rows || "<div class=\"empty\">No alternative group names yet.</div>") + "</div>";
+  root.innerHTML = addRow
+    + "<div class=\"alias-table\"><div class=\"alias-table-head\"><span>Provider category</span><span></span><span>Alternate path</span><span>Channels</span><span>Actions</span></div>" + (rows || "<div class=\"empty alias-empty\"><strong>No alternate paths</strong><span>Categories will only appear in their provider location.</span></div>") + "</div>";
 }
 function renderAdminEventKeywordSettings() {
   const root = byId("admin-event-keyword-settings");
