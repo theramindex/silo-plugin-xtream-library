@@ -817,7 +817,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-dialog > footer .admin-save { background: var(--text); color: var(--bg); }
 @container (max-width: 65rem) {
   .source-table-head, .source-table-row { min-width: 0; grid-template-columns: minmax(12rem, 1.4fr) minmax(7rem, 0.8fr) 5.5rem 6rem 6.5rem; }
-  .source-table-head span:last-child { display: none; }
+  .source-table-head { display: none; }
   .source-actions { grid-column: 1 / -1; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 0.72rem; }
 }
 @media (max-width: 960px) {
