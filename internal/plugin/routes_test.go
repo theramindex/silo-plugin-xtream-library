@@ -742,7 +742,7 @@ func TestManifestDeclaresPublicApplicationRoutesOnly(t *testing.T) {
 func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	t.Parallel()
 
-	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/dispatcharr/admin"})
+	response, err := NewHTTPRoutesServer(cache.NewStore()).Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "GET", Path: "/xtream/admin"})
 	if err != nil {
 		t.Fatalf("admin route: %v", err)
 	}
@@ -751,15 +751,17 @@ func TestHTTPRoutesServerAdminPageIncludesCategoryMapping(t *testing.T) {
 	}
 	body := string(response.GetBody()) + "\n" + playerAppJavaScript() + "\n" + playerStylesCSS()
 	for _, want := range []string{
-		`<title>Live TV (Xtreme Codes) Admin</title>`,
-		`<h1>Live TV (Xtreme Codes) Admin</h1>`,
+		`<title>Xtream Codes Admin</title>`,
+		`<h1>Xtream Codes Admin</h1>`,
 		`<div class="shell is-admin">`,
 		`.shell.is-admin .rail { display: none; }`,
 		`.shell.is-admin .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; padding: 0; }`,
 		`.admin-topbar`,
-		`justify-content: flex-start`,
 		`<div class="admin-topbar">`,
-		`<nav id="admin-tabs" class="admin-tabs" aria-label="Live TV admin sections"></nav>`,
+		`<div class="admin-identity">`,
+		`<span>Live TV plugin</span>`,
+		`<nav id="admin-tabs" class="admin-tabs" aria-label="Xtream Codes admin sections"></nav>`,
+		`class="admin-open-live" href="../xtream">Open Live TV`,
 		`<div id="admin-actions" class="admin-actions"></div>`,
 		`const adminSettingsKey = "adminCategorySettings"`,
 		`state.adminTab = "sources"`,
