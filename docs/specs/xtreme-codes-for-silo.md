@@ -48,9 +48,9 @@ features are excluded.
    account before normal use, so that invalid credentials are surfaced early.
 4. As an administrator, I want to select M3U/XMLTV as a secondary Source Mode,
    so that a compatible provider remains usable when Xtream is unavailable.
-5. As an administrator, I want the app to state that one Xtream Account is
-   shared upstream, so that I can provision an appropriate provider connection
-   allowance.
+5. As an administrator, I want to pool compatible sub-accounts for one Xtream
+   provider and set each account's connection allowance, so that playback can
+   use the available provider capacity without changing catalog identity.
 6. As an administrator, I want provider secrets absent from normal catalog,
    status, and UI responses, so that routine use does not reveal credentials.
 7. As a viewer, I want a Live TV app entry in Silo, so that I can reach
@@ -113,9 +113,10 @@ features are excluded.
 - Whether the final gateway redirects, streams, or uses another SDK-supported
   response mechanism is deliberately deferred until the SDK capability
   contract is verified. No generic arbitrary-URL proxy is allowed.
-- The plugin does not promise or implement per-user upstream credentials,
-  trusted per-user tracking, or plugin-enforced concurrent stream limits.
-  Upstream connection enforcement remains the provider's responsibility.
+- The plugin does not promise per-user upstream credentials or visibility into
+  connections made outside XC for Silo. It enforces configured limits against
+  its own heartbeat-backed watch-session leases; the provider remains the
+  authority for the actual upstream allowance.
 - Full Xtream content includes Live TV, EPG, VOD, series metadata, episode
   discovery, and episode playback.
 - Provider Catch-up means the provider's archived/replay support only. It must
@@ -159,8 +160,8 @@ features are excluded.
   Dispatcharr-specific sports or event features.
 - DVR, recording scheduling, recording management, local stream buffering, or
   local timeshift.
-- Per-user Xtream credentials, trusted per-user stream accounting, or
-  plugin-enforced concurrency limits.
+- Per-user Xtream credentials or authoritative accounting across other apps,
+  devices, and provider clients.
 - Plugin-owned databases, migrations, persistent catalog/session tables, and
   external database infrastructure.
 - A generic arbitrary-URL media proxy, server-side transcoding, and any

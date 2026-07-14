@@ -71,6 +71,74 @@ func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {
 	source.Username = strings.TrimSpace(source.Username)
 	source.AlternateEPGURL = strings.TrimSpace(source.AlternateEPGURL)
 	source.AlternateEPGPolicy = source.EffectiveAlternateEPGPolicy()
+	if len(source.Accounts) == 0 {
+		missing := make([]string, 0, 4)
+		if source.ID == "" {
+			missing = append(missing, "a valid server URL")
+		}
+		if source.BaseURL == "" {
+			missing = append(missing, "server")
+		}
+		if source.Username == "" {
+			missing = append(missing, "username")
+		}
+		if source.Password == "" {
+			missing = append(missing, "password")
+		}
+		if len(missing) > 0 {
+			return XtreamSource{}, fmt.Errorf("source requires %s", strings.Join(missing, ", "))
+		}
+	}
+	if len(source.Accounts) == 0 && source.Username != "" {
+		accountID := NormalizeSourceID(source.Username)
+		if accountID == "" {
+			accountID = "catalog"
+		}
+		source.Accounts = []XtreamAccount{{ID: accountID, Name: "Catalog", Username: source.Username, Password: source.Password, Enabled: true, Catalog: true, Compatible: true}}
+		source.CatalogAccountID = accountID
+	}
+	seenAccounts := map[string]bool{}
+	for index := range source.Accounts {
+		account := &source.Accounts[index]
+		account.ID = NormalizeSourceID(account.ID)
+		account.Name = strings.TrimSpace(account.Name)
+		account.Username = strings.TrimSpace(account.Username)
+		if account.ID == "" {
+			account.ID = NormalizeSourceID(account.Username)
+		}
+		if account.Name == "" {
+			account.Name = account.Username
+		}
+		if account.ConnectionLimit < 0 {
+			return XtreamSource{}, fmt.Errorf("account %q connection limit must not be negative", account.ID)
+		}
+		if account.ID == "" || account.Username == "" || account.Password == "" {
+			return XtreamSource{}, fmt.Errorf("source account requires id, username, and password")
+		}
+		if seenAccounts[account.ID] {
+			return XtreamSource{}, fmt.Errorf("source account id %q is duplicated", account.ID)
+		}
+		seenAccounts[account.ID] = true
+	}
+	source.CatalogAccountID = NormalizeSourceID(source.CatalogAccountID)
+	if source.CatalogAccountID == "" && len(source.Accounts) > 0 {
+		source.CatalogAccountID = source.Accounts[0].ID
+	}
+	catalogFound := false
+	for index := range source.Accounts {
+		isCatalog := source.Accounts[index].ID == source.CatalogAccountID
+		source.Accounts[index].Catalog = isCatalog
+		if isCatalog {
+			catalogFound = true
+			source.Accounts[index].Enabled = true
+			source.Accounts[index].Compatible = true
+			source.Username = source.Accounts[index].Username
+			source.Password = source.Accounts[index].Password
+		}
+	}
+	if len(source.Accounts) > 0 && !catalogFound {
+		return XtreamSource{}, fmt.Errorf("catalog account %q was not found", source.CatalogAccountID)
+	}
 	if source.Name == "" {
 		source.Name = DefaultXtreamSourceName(source.BaseURL, source.Username)
 	}

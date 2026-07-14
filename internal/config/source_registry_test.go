@@ -96,3 +96,49 @@ func TestNormalizeXtreamSourceRejectsEnabledAlternateEPGWithoutURL(t *testing.T)
 		t.Fatalf("expected alternate EPG URL validation, got %v", err)
 	}
 }
+
+func TestSourceRegistryMigratesLegacyCredentialsIntoCatalogAccount(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "sources.json")
+	registry := NewSourceRegistry(path)
+	if err := registry.Save([]XtreamSource{{
+		ID: "frost", Name: "Frost", BaseURL: "https://frost.example",
+		Username: "catalog-user", Password: "catalog-secret", Enabled: true,
+	}}); err != nil {
+		t.Fatalf("save legacy source: %v", err)
+	}
+	loaded, err := registry.Load()
+	if err != nil || len(loaded) != 1 {
+		t.Fatalf("load migrated source: sources=%+v err=%v", loaded, err)
+	}
+	source := loaded[0]
+	if source.CatalogAccountID == "" || len(source.Accounts) != 1 {
+		t.Fatalf("expected one migrated catalog account, got %+v", source)
+	}
+	account := source.Accounts[0]
+	if account.ID != source.CatalogAccountID || account.Username != "catalog-user" || account.Password != "catalog-secret" || !account.Catalog || !account.Compatible {
+		t.Fatalf("unexpected migrated account: %+v", account)
+	}
+}
+
+func TestNormalizeXtreamSourceKeepsCatalogAndPlaybackAccountsSeparate(t *testing.T) {
+	t.Parallel()
+	source, err := NormalizeXtreamSource(XtreamSource{
+		ID: "frost", Name: "Frost", BaseURL: "https://frost.example", Enabled: true,
+		CatalogAccountID: "catalog",
+		Accounts: []XtreamAccount{
+			{ID: "catalog", Name: "Catalog", Username: "catalog-user", Password: "one", Enabled: true, Catalog: true, Compatible: true, ConnectionLimit: 5},
+			{ID: "backup", Name: "Backup", Username: "backup-user", Password: "two", Enabled: true, Compatible: true, ConnectionLimit: 5},
+		},
+	})
+	if err != nil {
+		t.Fatalf("normalize pooled source: %v", err)
+	}
+	if source.Username != "catalog-user" || source.Password != "one" {
+		t.Fatalf("catalog sync credentials should follow catalog account: %+v", source)
+	}
+	accounts := source.EffectivePlaybackAccounts()
+	if len(accounts) != 2 || accounts[1].Username != "backup-user" || accounts[1].ConnectionLimit != 5 {
+		t.Fatalf("unexpected playback pool: %+v", accounts)
+	}
+}

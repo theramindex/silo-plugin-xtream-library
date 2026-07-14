@@ -52,6 +52,7 @@ type HTTPRoutesServer struct {
 	guideWarmLastUnix   int64
 	profileWarmLastUnix int64
 	relay               *hlsRelay
+	accountPool         *accountPool
 }
 
 type catalogSyncer interface {
@@ -92,7 +93,7 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 }
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
-	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sourceRegistry: config.NewSourceRegistry(""), relay: newHLSRelay()}
+	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sourceRegistry: config.NewSourceRegistry(""), relay: newHLSRelay(), accountPool: newAccountPool(nil)}
 	server.sourceEPGTester = testAlternateEPGSource
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
@@ -314,7 +315,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if strings.TrimSpace(channelID) == "" {
 			return textResponse(http.StatusBadRequest, "missing channel_id query parameter"), nil
 		}
-		streamURL, err := s.resolveStreamURL(channelID)
+		streamURL, err := s.resolveStreamURL(channelID, queryValue(request, "session_id"))
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
@@ -960,19 +961,35 @@ func (s *HTTPRoutesServer) handleAdminSettings(ctx context.Context, request *plu
 }
 
 type adminSourcePayload struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	BaseURL             string `json:"baseUrl"`
-	Username            string `json:"username"`
-	Password            string `json:"password,omitempty"`
-	LiveFormat          string `json:"liveFormat"`
-	Enabled             bool   `json:"enabled"`
-	PasswordConfigured  bool   `json:"passwordConfigured"`
-	ChannelCount        int    `json:"channelCount"`
-	AlternateEPGEnabled bool   `json:"alternateEpgEnabled"`
-	AlternateEPGURL     string `json:"alternateEpgUrl,omitempty"`
-	AlternateEPGPolicy  string `json:"alternateEpgPolicy"`
-	Action              string `json:"action,omitempty"`
+	ID                  string                `json:"id"`
+	Name                string                `json:"name"`
+	BaseURL             string                `json:"baseUrl"`
+	Username            string                `json:"username"`
+	Password            string                `json:"password,omitempty"`
+	LiveFormat          string                `json:"liveFormat"`
+	Enabled             bool                  `json:"enabled"`
+	PasswordConfigured  bool                  `json:"passwordConfigured"`
+	ChannelCount        int                   `json:"channelCount"`
+	AlternateEPGEnabled bool                  `json:"alternateEpgEnabled"`
+	AlternateEPGURL     string                `json:"alternateEpgUrl,omitempty"`
+	AlternateEPGPolicy  string                `json:"alternateEpgPolicy"`
+	Action              string                `json:"action,omitempty"`
+	AccountID           string                `json:"accountId,omitempty"`
+	CatalogAccountID    string                `json:"catalogAccountId,omitempty"`
+	Accounts            []adminAccountPayload `json:"accounts,omitempty"`
+}
+
+type adminAccountPayload struct {
+	ID                 string `json:"id"`
+	Name               string `json:"name,omitempty"`
+	Username           string `json:"username"`
+	Password           string `json:"password,omitempty"`
+	Enabled            bool   `json:"enabled"`
+	Catalog            bool   `json:"catalog,omitempty"`
+	Compatible         bool   `json:"compatible,omitempty"`
+	ConnectionLimit    int    `json:"connectionLimit,omitempty"`
+	ActiveConnections  int    `json:"activeConnections"`
+	PasswordConfigured bool   `json:"passwordConfigured"`
 }
 
 type alternateEPGTestPayload = matching.AlternateEPGCoverage
@@ -1027,8 +1044,39 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 	if password == "" && index >= 0 {
 		password = sources[index].Password
 	}
-	sourceID := config.DeriveXtreamSourceID(payload.BaseURL, payload.Username)
-	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled, AlternateEPGEnabled: payload.AlternateEPGEnabled, AlternateEPGURL: payload.AlternateEPGURL, AlternateEPGPolicy: payload.AlternateEPGPolicy})
+	identityUsername := strings.TrimSpace(payload.Username)
+	if identityUsername == "" {
+		for _, account := range payload.Accounts {
+			if account.Catalog || payload.CatalogAccountID == account.ID {
+				identityUsername = account.Username
+				break
+			}
+		}
+	}
+	sourceID := config.DeriveXtreamSourceID(payload.BaseURL, identityUsername)
+	if index >= 0 {
+		sourceID = sources[index].ID
+	}
+	accounts := make([]config.XtreamAccount, 0, len(payload.Accounts))
+	for _, accountPayload := range payload.Accounts {
+		accountPassword := accountPayload.Password
+		if accountPassword == "" && index >= 0 {
+			for _, existing := range sources[index].Accounts {
+				if existing.ID == config.NormalizeSourceID(accountPayload.ID) {
+					accountPassword = existing.Password
+					break
+				}
+			}
+			if accountPassword == "" && (accountPayload.Catalog || payload.CatalogAccountID == accountPayload.ID) {
+				accountPassword = sources[index].Password
+			}
+		}
+		accounts = append(accounts, config.XtreamAccount{ID: accountPayload.ID, Name: accountPayload.Name, Username: accountPayload.Username, Password: accountPassword, Enabled: accountPayload.Enabled, Catalog: accountPayload.Catalog, Compatible: accountPayload.Compatible, ConnectionLimit: accountPayload.ConnectionLimit})
+	}
+	if len(accounts) == 0 && index >= 0 && len(sources[index].Accounts) > 0 {
+		accounts = sources[index].Accounts
+	}
+	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled, AlternateEPGEnabled: payload.AlternateEPGEnabled, AlternateEPGURL: payload.AlternateEPGURL, AlternateEPGPolicy: payload.AlternateEPGPolicy, CatalogAccountID: payload.CatalogAccountID, Accounts: accounts})
 	if err != nil {
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
@@ -1039,6 +1087,27 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 			return textResponse(http.StatusBadGateway, "connection test failed: "+err.Error()), nil
 		}
 		return s.respondJSON(http.StatusOK, map[string]any{"connected": true})
+	}
+	if payload.Action == "test_account" {
+		accountID := config.NormalizeSourceID(payload.AccountID)
+		var account config.XtreamAccount
+		found := false
+		for _, candidateAccount := range candidate.Accounts {
+			if candidateAccount.ID == accountID {
+				account = candidateAccount
+				found = true
+				break
+			}
+		}
+		if !found {
+			return textResponse(http.StatusBadRequest, "playback account not found"), nil
+		}
+		testCtx, cancel := context.WithTimeout(ctx, adminSourceConnectionTestTimeout)
+		defer cancel()
+		if err := xtream.NewClient(candidate.BaseURL, account.Username, account.Password).TestConnection(testCtx); err != nil {
+			return textResponse(http.StatusBadGateway, "account test failed: "+err.Error()), nil
+		}
+		return s.respondJSON(http.StatusOK, map[string]any{"connected": true, "compatible": true, "accountId": account.ID})
 	}
 	if payload.Action == "test_epg" {
 		if !candidate.AlternateEPGEnabled {
@@ -1107,7 +1176,15 @@ func (s *HTTPRoutesServer) adminSourceList(ctx context.Context) ([]adminSourcePa
 	}
 	result := make([]adminSourcePayload, 0, len(sources))
 	for _, source := range sources {
-		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID], AlternateEPGEnabled: source.AlternateEPGEnabled, AlternateEPGURL: source.AlternateEPGURL, AlternateEPGPolicy: source.EffectiveAlternateEPGPolicy()})
+		if normalized, normalizeErr := config.NormalizeXtreamSource(source); normalizeErr == nil {
+			source = normalized
+		}
+		usage := s.accountPool.Usage(source.ID)
+		accounts := make([]adminAccountPayload, 0, len(source.Accounts))
+		for _, account := range source.Accounts {
+			accounts = append(accounts, adminAccountPayload{ID: account.ID, Name: account.Name, Username: account.Username, Enabled: account.Enabled, Catalog: account.Catalog, Compatible: account.Compatible, ConnectionLimit: account.ConnectionLimit, ActiveConnections: usage[account.ID], PasswordConfigured: account.Password != ""})
+		}
+		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID], AlternateEPGEnabled: source.AlternateEPGEnabled, AlternateEPGURL: source.AlternateEPGURL, AlternateEPGPolicy: source.EffectiveAlternateEPGPolicy(), CatalogAccountID: source.CatalogAccountID, Accounts: accounts})
 	}
 	return result, nil
 }
@@ -1239,6 +1316,12 @@ func (s *HTTPRoutesServer) handleWatchStart(request *pluginv1.HandleHTTPRequest)
 		payload.ItemKind = "channel"
 	}
 	session := s.store.StartWatch(payload.ItemKind, payload.ItemID, payload.ItemName)
+	if source, ok := s.xtreamSourceForItem(payload.ItemID); ok {
+		if _, err := s.accountPool.Lease(session.ID, source); err != nil {
+			_, _ = s.store.StopWatch(session.ID, "account_pool_full")
+			return textResponse(http.StatusConflict, err.Error()), nil
+		}
+	}
 	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }
 
@@ -1254,6 +1337,7 @@ func (s *HTTPRoutesServer) handleWatchHeartbeat(request *pluginv1.HandleHTTPRequ
 	if !ok {
 		return textResponse(http.StatusNotFound, "watch session not found"), nil
 	}
+	s.accountPool.Touch(payload.SessionID)
 	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }
 
@@ -1269,6 +1353,7 @@ func (s *HTTPRoutesServer) handleWatchStop(request *pluginv1.HandleHTTPRequest) 
 	if !ok {
 		return textResponse(http.StatusNotFound, "watch session not found"), nil
 	}
+	s.accountPool.Release(payload.SessionID)
 	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }
 
@@ -1388,14 +1473,11 @@ func sanitizeThemeSlug(value string) string {
 	}, value)
 }
 
-func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
+func (s *HTTPRoutesServer) resolveStreamURL(channelID, sessionID string) (string, error) {
 	snapshot := s.store.Current()
 	for _, channel := range snapshot.Catalog.Channels {
 		if channel.ID != channelID {
 			continue
-		}
-		if strings.TrimSpace(channel.StreamURL) != "" {
-			return channel.StreamURL, nil
 		}
 		if strings.HasPrefix(channel.ID, "xtream:") && s.settingsProvider != nil {
 			sourceID, streamID, err := parseScopedXtreamID(channel.ID, "xtream:")
@@ -1407,16 +1489,44 @@ func (s *HTTPRoutesServer) resolveStreamURL(channelID string) (string, error) {
 			if !ok {
 				return "", fmt.Errorf("xtream source is unavailable")
 			}
-			client := xtream.NewClient(source.BaseURL, source.Username, source.Password)
+			account, ok := source.EffectiveCatalogAccount()
+			if !ok {
+				return "", fmt.Errorf("xtream catalog account is unavailable")
+			}
+			if strings.TrimSpace(sessionID) != "" {
+				account, err = s.accountPool.Lease(sessionID, source)
+				if err != nil {
+					return "", err
+				}
+			}
+			client := xtream.NewClient(source.BaseURL, account.Username, account.Password)
 			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, source.EffectiveLiveFormat())
 			if strings.TrimSpace(streamURL) == "" {
 				return "", fmt.Errorf("unable to resolve stream url")
 			}
 			return streamURL, nil
 		}
+		if strings.TrimSpace(channel.StreamURL) != "" {
+			return channel.StreamURL, nil
+		}
 		return "", fmt.Errorf("stream url unavailable for channel")
 	}
 	return "", fmt.Errorf("channel not found")
+}
+
+func (s *HTTPRoutesServer) xtreamSourceForItem(itemID string) (config.XtreamSource, bool) {
+	if s.settingsProvider == nil || !strings.HasPrefix(strings.TrimSpace(itemID), "xtream:") {
+		return config.XtreamSource{}, false
+	}
+	sourceID, _, err := parseScopedXtreamID(itemID, "xtream:")
+	if err != nil {
+		return config.XtreamSource{}, false
+	}
+	settings := s.settingsProvider()
+	if settings.EffectiveSourceMode() != config.SourceModeXtream {
+		return config.XtreamSource{}, false
+	}
+	return settings.XtreamSourceByID(sourceID)
 }
 
 func (s *HTTPRoutesServer) resolveVODStreamURL(_ context.Context, itemID string) (string, error) {

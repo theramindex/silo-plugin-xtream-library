@@ -2557,6 +2557,113 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	}
 }
 
+func TestHTTPRoutesServerAdminSourcesReturnsRedactedAccountPool(t *testing.T) {
+	t.Parallel()
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{
+			ID: "frost", Name: "Frost", BaseURL: "https://frost.example", Enabled: true,
+			CatalogAccountID: "catalog",
+			Accounts: []config.XtreamAccount{
+				{ID: "catalog", Name: "Catalog", Username: "catalog-user", Password: "one-secret", Enabled: true, Catalog: true, Compatible: true, ConnectionLimit: 5},
+				{ID: "backup", Name: "Backup", Username: "backup-user", Password: "two-secret", Enabled: true, Compatible: true, ConnectionLimit: 5},
+			},
+		}}}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("load account pool: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	body := string(response.GetBody())
+	if strings.Contains(body, "one-secret") || strings.Contains(body, "two-secret") {
+		t.Fatalf("account pool response leaked a password: %s", body)
+	}
+	for _, expected := range []string{`"catalogAccountId":"catalog"`, `"id":"backup"`, `"username":"backup-user"`, `"connectionLimit":5`, `"passwordConfigured":true`} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("account pool response missing %s: %s", expected, body)
+		}
+	}
+}
+
+func TestHTTPRoutesServerAddsPlaybackAccountWithoutReplacingLegacyCatalogCredentials(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "sources.json")
+	registry := config.NewSourceRegistry(path)
+	if err := registry.Save([]config.XtreamSource{{ID: "legacy", Name: "Legacy", BaseURL: "https://legacy.example", Username: "catalog-user", Password: "catalog-secret", LiveFormat: "ts", Enabled: true}}); err != nil {
+		t.Fatalf("seed legacy source: %v", err)
+	}
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings { return config.Settings{SourceMode: config.SourceModeXtream} })
+	server.sourceRegistry = registry
+	body := `{"id":"legacy","name":"Legacy","baseUrl":"https://legacy.example","username":"catalog-user","liveFormat":"ts","enabled":true,"catalogAccountId":"catalog-user","accounts":[{"id":"catalog-user","name":"Catalog","username":"catalog-user","enabled":true,"catalog":true,"compatible":true},{"id":"backup-user","name":"Backup","username":"backup-user","password":"backup-secret","enabled":true,"compatible":true,"connectionLimit":5}]}`
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}, Body: []byte(body)})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("save playback account: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	sources, err := registry.Load()
+	if err != nil || len(sources) != 1 {
+		t.Fatalf("load saved source: sources=%+v err=%v", sources, err)
+	}
+	catalog, ok := sources[0].EffectiveCatalogAccount()
+	if !ok || catalog.Username != "catalog-user" || catalog.Password != "catalog-secret" {
+		t.Fatalf("legacy catalog credentials changed: %+v", catalog)
+	}
+	if len(sources[0].Accounts) != 2 || sources[0].Accounts[1].Username != "backup-user" {
+		t.Fatalf("backup account was not saved: %+v", sources[0].Accounts)
+	}
+}
+
+func TestHTTPRoutesServerStreamUsesStickyAccountLeaseFromWatchSession(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Channels: []model.Channel{{
+		ID: "xtream:frost:101", SourceID: "xtream-source:frost", Name: "News", StreamURL: "https://frost.example/live/catalog-user/catalog-secret/101.ts",
+	}}}})
+	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{
+		ID: "frost", Name: "Frost", BaseURL: "https://frost.example", LiveFormat: "ts", Enabled: true,
+		CatalogAccountID: "a",
+		Accounts: []config.XtreamAccount{
+			{ID: "a", Username: "first-user", Password: "first-secret", Enabled: true, Catalog: true, Compatible: true, ConnectionLimit: 1},
+			{ID: "b", Username: "second-user", Password: "second-secret", Enabled: true, Compatible: true, ConnectionLimit: 1},
+		},
+	}}}
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings { return settings })
+	start := func() string {
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/watch/start", Body: []byte(`{"itemKind":"channel","itemId":"xtream:frost:101","itemName":"News"}`)})
+		if err != nil || response.GetStatusCode() != http.StatusOK {
+			t.Fatalf("start watch: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+		}
+		var payload struct {
+			Session cache.WatchSession `json:"session"`
+		}
+		if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+			t.Fatalf("decode watch session: %v", err)
+		}
+		return payload.Session.ID
+	}
+	stream := func(sessionID string) string {
+		query, queryErr := structpb.NewStruct(map[string]any{"channel_id": "xtream:frost:101", "session_id": sessionID})
+		if queryErr != nil {
+			t.Fatalf("build stream query: %v", queryErr)
+		}
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/stream", Query: query})
+		if err != nil || response.GetStatusCode() != http.StatusFound {
+			t.Fatalf("resolve stream: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+		}
+		return response.GetHeaders()["location"]
+	}
+	firstSession := start()
+	secondSession := start()
+	if location := stream(firstSession); !strings.Contains(location, "/first-user/first-secret/101.ts") {
+		t.Fatalf("first session did not use first account: %s", location)
+	}
+	if location := stream(secondSession); !strings.Contains(location, "/second-user/second-secret/101.ts") {
+		t.Fatalf("second session did not use second account: %s", location)
+	}
+	if location := stream(firstSession); !strings.Contains(location, "/first-user/first-secret/101.ts") {
+		t.Fatalf("first session was not sticky: %s", location)
+	}
+}
+
 func TestAdminSourceConnectionTestFinishesBeforeSiloRouteDeadline(t *testing.T) {
 	t.Parallel()
 	if adminSourceConnectionTestTimeout >= 10*time.Second {

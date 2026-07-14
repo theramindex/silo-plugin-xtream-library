@@ -47,16 +47,62 @@ type Settings struct {
 }
 
 type XtreamSource struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	BaseURL             string `json:"baseUrl"`
-	Username            string `json:"username"`
-	Password            string `json:"password"`
-	LiveFormat          string `json:"liveFormat"`
-	Enabled             bool   `json:"enabled"`
-	AlternateEPGEnabled bool   `json:"alternateEpgEnabled,omitempty"`
-	AlternateEPGURL     string `json:"alternateEpgUrl,omitempty"`
-	AlternateEPGPolicy  string `json:"alternateEpgPolicy,omitempty"`
+	ID                  string          `json:"id"`
+	Name                string          `json:"name"`
+	BaseURL             string          `json:"baseUrl"`
+	Username            string          `json:"username"`
+	Password            string          `json:"password"`
+	LiveFormat          string          `json:"liveFormat"`
+	Enabled             bool            `json:"enabled"`
+	AlternateEPGEnabled bool            `json:"alternateEpgEnabled,omitempty"`
+	AlternateEPGURL     string          `json:"alternateEpgUrl,omitempty"`
+	AlternateEPGPolicy  string          `json:"alternateEpgPolicy,omitempty"`
+	CatalogAccountID    string          `json:"catalogAccountId,omitempty"`
+	Accounts            []XtreamAccount `json:"accounts,omitempty"`
+}
+
+type XtreamAccount struct {
+	ID              string `json:"id"`
+	Name            string `json:"name,omitempty"`
+	Username        string `json:"username"`
+	Password        string `json:"password"`
+	Enabled         bool   `json:"enabled"`
+	Catalog         bool   `json:"catalog,omitempty"`
+	Compatible      bool   `json:"compatible,omitempty"`
+	ConnectionLimit int    `json:"connectionLimit,omitempty"`
+}
+
+func (s XtreamSource) EffectiveCatalogAccount() (XtreamAccount, bool) {
+	for _, account := range s.Accounts {
+		if account.ID == s.CatalogAccountID || account.Catalog {
+			return account, true
+		}
+	}
+	if strings.TrimSpace(s.Username) == "" || strings.TrimSpace(s.Password) == "" {
+		return XtreamAccount{}, false
+	}
+	accountID := NormalizeSourceID(s.Username)
+	if accountID == "" {
+		accountID = "catalog"
+	}
+	return XtreamAccount{ID: accountID, Name: "Catalog", Username: s.Username, Password: s.Password, Enabled: true, Catalog: true, Compatible: true}, true
+}
+
+func (s XtreamSource) EffectivePlaybackAccounts() []XtreamAccount {
+	if len(s.Accounts) == 0 {
+		account, ok := s.EffectiveCatalogAccount()
+		if !ok {
+			return nil
+		}
+		return []XtreamAccount{account}
+	}
+	result := make([]XtreamAccount, 0, len(s.Accounts))
+	for _, account := range s.Accounts {
+		if account.Enabled && account.Compatible {
+			result = append(result, account)
+		}
+	}
+	return result
 }
 
 func (s XtreamSource) EffectiveLiveFormat() string {
