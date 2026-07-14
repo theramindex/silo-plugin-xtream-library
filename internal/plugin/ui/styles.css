@@ -869,7 +869,8 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-switch-control input:checked + .source-switch::after { transform: translateX(1.05rem); }
 .source-switch-control input:focus-visible + .source-switch { outline: 2px solid var(--accent); outline-offset: 3px; }
 .source-step-action { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
-.source-step-action button { min-height: 2.4rem; border: 1px solid var(--line); border-radius: 0.58rem; background: transparent; color: var(--text); padding: 0 0.8rem; font-weight: 780; }
+.source-step-action button { min-height: 2.4rem; border: 1px solid var(--line); border-radius: 0.58rem; background: transparent; color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; padding: 0 0.8rem; font-weight: 780; }
+.source-step-action button svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
 .source-epg-result { grid-column: 1 / -1; border: 1px solid color-mix(in srgb, var(--green) 38%, var(--line)); border-radius: 0.8rem; background: color-mix(in srgb, var(--green) 10%, transparent); display: grid; gap: 0.22rem; padding: 0.8rem 0.9rem; }
 .source-epg-result strong { color: var(--text); font-size: 0.82rem; }
 .source-epg-result span { color: var(--muted); font-size: 0.74rem; }
@@ -887,7 +888,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-account-row { border: 1px solid var(--line); border-radius: 0.9rem; background: color-mix(in srgb, var(--panel) 72%, transparent); padding: 0.9rem; display: grid; gap: 0.8rem; }
 .source-account-head, .source-account-controls { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
 .source-account-head > div { min-width: 0; display: grid; gap: 0.15rem; }
-.source-account-head small, .source-account-note, .source-account-empty { color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
+.source-account-head small, .source-account-empty { color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
 .source-account-head button, .source-account-controls button { min-height: 2.2rem; border: 1px solid var(--line); border-radius: 0.55rem; background: transparent; color: var(--text); padding: 0 0.7rem; font-weight: 780; }
 .source-account-head button.danger { color: var(--danger); padding: 0; width: 2.2rem; display: grid; place-items: center; }
 .source-account-head button svg { width: 1rem; height: 1rem; }
@@ -897,7 +898,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-account-fields input { min-width: 0; min-height: 2.45rem; border: 1px solid var(--line); border-radius: 0.55rem; background: transparent; color: var(--text); padding: 0 0.65rem; }
 .source-account-fields input:read-only { opacity: 0.65; }
 .source-account-controls label { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.72rem; font-weight: 750; }
-.source-account-note { margin: 0.75rem 0 0; }
+.source-account-add-action { justify-content: flex-start; margin-top: 0.8rem; }
 @container (max-width: 65rem) {
   .source-table-head, .source-table-row { min-width: 0; grid-template-columns: minmax(10rem, 1.25fr) 6.5rem 4.5rem 4.5rem 5.25rem minmax(18rem, auto); }
   .source-table-head { display: none; }
