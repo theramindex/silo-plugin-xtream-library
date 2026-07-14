@@ -7,6 +7,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	sdkconfig "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/config"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestValidate_XtreamRequiresCredentials(t *testing.T) {
@@ -148,6 +149,27 @@ func TestGlobalConfigSchemaDirectsAdministratorsToXCAdmin(t *testing.T) {
 	}
 	if connection.GetAdminForm().GetSubmitLabel() != "" {
 		t.Fatalf("expected informational schema without submit action, got %q", connection.GetAdminForm().GetSubmitLabel())
+	}
+}
+
+func TestGlobalConfigSchemaAcceptsEmptyLegacyConnection(t *testing.T) {
+	t.Parallel()
+
+	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
+	resource, err := jsonschema.UnmarshalJSON(strings.NewReader(connection.GetJsonSchema()))
+	if err != nil {
+		t.Fatalf("decode connection schema: %v", err)
+	}
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource("connection.schema.json", resource); err != nil {
+		t.Fatalf("add connection schema: %v", err)
+	}
+	schema, err := compiler.Compile("connection.schema.json")
+	if err != nil {
+		t.Fatalf("compile connection schema: %v", err)
+	}
+	if err := schema.Validate(map[string]any{}); err != nil {
+		t.Fatalf("empty legacy connection should be valid after source management moved to XC Admin: %v", err)
 	}
 }
 
