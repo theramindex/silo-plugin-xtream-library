@@ -680,9 +680,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `.guide-commandbar-title { min-width: 0; display: flex; flex-direction: column; align-items: flex-start;`) ||
 		!strings.Contains(body, `.guide-commandbar { position: relative; z-index: 12; display: grid;`) ||
 		!strings.Contains(body, `grid-template-columns: minmax(10rem, 1fr) minmax(30rem, 54rem);`) ||
-		!strings.Contains(body, `.guide-tools { position: relative; z-index: 12; display: flex;`) ||
+		!strings.Contains(body, `.guide-tools { --guide-control-radius: 0.72rem; position: relative; z-index: 12; display: flex;`) ||
+		!strings.Contains(body, `.guide-category-trigger { width: 100%; min-height: 2.75rem; border: 1px solid var(--line); border-radius: var(--guide-control-radius);`) ||
+		!strings.Contains(body, `.guide-search-field { flex: 1 1 30rem; width: min(34rem, 100%); min-width: 18rem; min-height: 2.75rem; border: 1px solid var(--line); border-radius: var(--guide-control-radius);`) ||
 		!strings.Contains(body, `justify-content: flex-end;`) {
-		t.Fatalf("expected the shared guide heading, category picker, and search to form one compact command bar")
+		t.Fatalf("expected the shared guide heading, category picker, and search to form one normalized command bar")
 	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
