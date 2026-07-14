@@ -1245,6 +1245,7 @@ function destroyMultiviewMedia(tile) {
   if (tile.hls) { tile.hls.destroy(); tile.hls = null; }
   if (tile.tsPlayer) { tile.tsPlayer.destroy(); tile.tsPlayer = null; }
   tile.attached = false;
+  tile.attaching = false;
 }
 function resetMultiviewMedia() {
   items(state.multiviewTiles).forEach(destroyMultiviewMedia);
@@ -1272,13 +1273,17 @@ function startMultiviewHeartbeat() {
   }, 30000);
 }
 function startMultiviewWatch(tile) {
-  if (!tile || tile.session || !tile.channel) return;
+  if (!tile || !tile.channel) return Promise.resolve(tile && tile.session ? tile.session : null);
+  if (tile.session) return Promise.resolve(tile.session);
+  if (tile.sessionPromise) return tile.sessionPromise;
   recordWatchPreference(tile.channel);
-  postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: tile.channel.id, itemName: tile.channel.name }).then(function(payload) {
+  tile.sessionPromise = postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: tile.channel.id, itemName: tile.channel.name }).then(function(payload) {
     tile.session = payload.session;
     startMultiviewHeartbeat();
     renderRail();
-  }).catch(function() {});
+    return tile.session;
+  }).finally(function() { tile.sessionPromise = null; });
+  return tile.sessionPromise;
 }
 function stopMultiviewWatch(tile, reason) {
   if (!tile || !tile.session) return;
@@ -3426,8 +3431,8 @@ function renderMultiviewPage() {
   if (!state.multiviewActiveTileID && tiles[0]) state.multiviewActiveTileID = tiles[0].id;
   if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
   const countClass = "count-" + Math.max(tiles.length, 1);
-  const title = tiles.length ? tiles.length + " channel" + (tiles.length === 1 ? "" : "s") : "Choose channels";
-  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(title) + " · focused tile owns audio · each tile uses one provider connection</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+  const guidance = tiles.length ? "Select a tile to hear its audio." : "Choose up to four channels.";
+  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(guidance) + "</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
     + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
     + (tiles.length && tiles.length < 4 ? renderMultiviewPicker() : "")
     + "</section>";
@@ -3489,15 +3494,20 @@ function attachMultiviewPlayers() {
   }
   items(state.multiviewTiles).forEach(function(tile) {
     const video = byId(tile.videoID);
-    if (!video || tile.attached || !tile.channel) return;
-    const attachment = attachVideoSource(video, browserStreamURL(tile.channel), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat });
-    tile.hls = attachment.hls;
-    tile.tsPlayer = attachment.tsPlayer;
-    tile.attached = true;
-    video.addEventListener("click", function() { focusMultiviewTile(tile.id); });
-    video.addEventListener("dblclick", function() { openMultiviewTileSingle(tile.id); });
-    video.play().catch(function() {});
-    startMultiviewWatch(tile);
+    if (!video || tile.attached || tile.attaching || !tile.channel) return;
+    tile.attaching = true;
+    startMultiviewWatch(tile).then(function(session) {
+      if (!document.body.contains(video) || tile.attached) return;
+      const attachment = attachVideoSource(video, browserStreamURL(tile.channel, session && session.id), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat });
+      tile.hls = attachment.hls;
+      tile.tsPlayer = attachment.tsPlayer;
+      tile.attached = true;
+      video.addEventListener("click", function() { focusMultiviewTile(tile.id); });
+      video.addEventListener("dblclick", function() { openMultiviewTileSingle(tile.id); });
+      video.play().catch(function() {});
+    }).catch(function(error) {
+      showAppToast("Could not reserve a provider connection: " + readableError(error));
+    }).finally(function() { tile.attaching = false; });
   });
   syncMultiviewAudio();
 }
@@ -3601,10 +3611,10 @@ function renderPlayerGuidePanel() {
   }).join("") : "<div class=\"player-guide-empty\">No matching channels.</div>") + "</div>";
 }
 function currentStreamURL() {
-  return state.currentChannel ? route("/dispatcharr/stream?channel_id=" + encodeURIComponent(state.currentChannel.id)) : "";
+  return state.currentChannel ? browserStreamURL(state.currentChannel, state.currentSession && state.currentSession.id) : "";
 }
-function browserStreamURL(channel) {
-  return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2");
+function browserStreamURL(channel, sessionID) {
+  return route("/dispatcharr/stream?channel_id=" + encodeURIComponent(channel.id) + "&output_profile=2" + (sessionID ? "&session_id=" + encodeURIComponent(sessionID) : ""));
 }
 function stopTimeShiftSession() {
   state.timeShiftAttempt += 1;
@@ -3655,7 +3665,7 @@ async function prepareTimeShift(channel) {
 function fallbackFromTimeShift(channel, message) {
   if (state.view !== "player" || !channel || !state.currentChannel || channel.id !== state.currentChannel.id) return;
   stopTimeShiftSession();
-  setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+  setVideoSource(browserStreamURL(channel, state.currentSession && state.currentSession.id), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
   if (message) showPlayerToast(message);
 }
 function timeShiftSeek(delta) {
@@ -4193,10 +4203,14 @@ function renderAdminSourcesTab() {
   const rows = sources.map(function(source) {
     const status = source.enabled ? "Enabled" : "Disabled";
     const epg = source.alternateEpgEnabled ? "Alternate EPG · " + (source.alternateEpgPolicy === "prefer_alternate" ? "Preferred" : "Fill missing") : "Provider EPG";
-    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small><small class=\"source-epg-summary\">" + escapeHTML(epg) + "</small></div><div class=\"source-user\"><span>" + escapeHTML(source.username || "—") + "</span><small>Username</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
+    const accounts = items(source.accounts);
+    const active = accounts.reduce(function(total, account) { return total + (Number(account.activeConnections) || 0); }, 0);
+    const capacity = accounts.reduce(function(total, account) { return total + (Number(account.connectionLimit) || 0); }, 0);
+    const accountSummary = accounts.length ? accounts.length + " account" + (accounts.length === 1 ? "" : "s") : "1 account";
+    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small><small class=\"source-epg-summary\">" + escapeHTML(epg) + "</small></div><div class=\"source-user\"><span>" + escapeHTML(accountSummary) + "</span><small>" + escapeHTML(String(active) + " active" + (capacity ? " · " + capacity + " pooled" : "")) + "</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
   }).join("");
   const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
-  const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Account</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
+  const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Pool</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
   return "<div class=\"settings-card source-manager-card\">" + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
 }
 function renderAdminSourceEditor() {
@@ -4206,15 +4220,40 @@ function renderAdminSourceEditor() {
   const step = state.adminSourceEditorStep || "general";
   const epgResult = state.adminSourceEPGResult;
   const epgError = state.adminSourceEPGError;
-  const nav = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "guide", label: "Alternate EPG", icon: "guide" }, { id: "playback", label: "Playback", icon: "play" }].map(function(item) {
+  const nav = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "accounts", label: "Sub-accounts", icon: "integrations" }, { id: "guide", label: "Alternate EPG", icon: "guide" }, { id: "playback", label: "Playback", icon: "play" }].map(function(item) {
     return "<button type=\"button\" data-source-step=\"" + item.id + "\" class=\"" + (step === item.id ? "active" : "") + "\">" + icon(item.icon) + "<span>" + item.label + "</span></button>";
   }).join("");
   let content = "";
   if (step === "general") content = "<div class=\"source-step-copy\"><h3>General</h3><p>Name this source and choose whether it participates in catalog refreshes.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Display name <small>· optional</small></span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Defaults to provider domain\"></label><label class=\"source-field-wide\"><span>Source ID</span><input value=\"" + escapeHTML(derivedSourceID(source.baseUrl, source.username) || source.id || "") + "\" placeholder=\"Generated after entering server and username\" readonly><small>Generated from the provider domain and username. Saving migrates legacy IDs such as primary.</small></label><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Enabled</strong><small>Include this source in channel, guide, and content refreshes.</small></span><span class=\"source-switch-control\"><input id=\"source-enabled\" type=\"checkbox\" aria-label=\"Enabled\"" + (source.enabled !== false ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label></div>";
   if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Enter the Xtreme Codes server and account credentials.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"><small>Use the provider base URL, not player_api.php.</small></label><label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label><label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"" + escapeHTML(source.password || "") + "\" autocomplete=\"new-password\"></label><div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button></div></div>";
+  if (step === "accounts") content = renderSourceAccountsStep(source);
   if (step === "guide") content = "<div class=\"source-step-copy\"><h3>Alternate EPG</h3><p>Overlay an optional XMLTV feed onto this source. Channel and playback IDs are never changed.</p></div><div class=\"source-form\"><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Use alternate EPG</strong><small>Provider guide remains available if this feed fails.</small></span><span class=\"source-switch-control\"><input id=\"source-alternate-epg-enabled\" type=\"checkbox\" aria-label=\"Use alternate EPG\"" + (source.alternateEpgEnabled ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label><label class=\"source-field-wide\"><span>XMLTV URL</span><input id=\"source-alternate-epg-url\" type=\"url\" value=\"" + escapeHTML(source.alternateEpgUrl || "") + "\" placeholder=\"https://epg.example/guide.xml\"><small>Use a feed you are authorized to access. XC for Silo does not bundle a third-party guide.</small></label><label class=\"source-field-wide\"><span>Merge policy</span><select id=\"source-alternate-epg-policy\"><option value=\"fill_missing\"" + (source.alternateEpgPolicy !== "prefer_alternate" ? " selected" : "") + ">Fill missing guide data</option><option value=\"prefer_alternate\"" + (source.alternateEpgPolicy === "prefer_alternate" ? " selected" : "") + ">Prefer alternate guide</option></select><small>Fill missing preserves overlapping Xtream programs and fills actual schedule gaps. Prefer alternate replaces programs only on matched channels.</small></label>" + (epgResult ? "<div class=\"source-epg-result\"><strong>Coverage test passed</strong><span>" + escapeHTML(String(epgResult.matchedChannels)) + " matched · " + escapeHTML(String(epgResult.unmatchedChannels)) + " unmatched · " + escapeHTML(String(epgResult.programCount)) + " programs</span></div>" : "") + (epgError ? "<div class=\"source-epg-result error\"><strong>Coverage test failed</strong><span>" + escapeHTML(epgError) + "</span></div>" : "") + "<div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-epg\">Test EPG and coverage</button></div></div>";
   if (step === "playback") content = "<div class=\"source-step-copy\"><h3>Playback</h3><p>Choose the live stream container requested from this provider.</p></div><div class=\"source-format-options\"><button type=\"button\" data-source-format=\"m3u8\" class=\"" + (source.liveFormat !== "ts" ? "active" : "") + "\"><strong>HLS</strong><span>.m3u8 · recommended for browsers</span></button><button type=\"button\" data-source-format=\"ts\" class=\"" + (source.liveFormat === "ts" ? "active" : "") + "\"><strong>MPEG-TS</strong><span>.ts · provider compatibility</span></button></div>";
   return "<div class=\"source-dialog-backdrop\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\"><header><div class=\"source-dialog-icon\">" + icon("guide") + "</div><div><h2 id=\"source-dialog-title\">" + (editing ? "Edit Source" : "Add Source") + "</h2><p>Configure an Xtreme Codes provider account.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></header><div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Source setup steps\">" + nav + "</nav><div class=\"source-dialog-content\">" + content + "</div></div><footer><button type=\"button\" data-source-action=\"cancel\">Cancel</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">" + (editing ? "Save Changes" : "Add Source") + "</button></footer></section></div>";
+}
+function renderSourceAccountsStep(source) {
+  ensureSourceCatalogAccount(source);
+  const accounts = items(source.accounts);
+  const catalogID = source.catalogAccountId || (accounts.find(function(account) { return account.catalog; }) || {}).id || "";
+  const rows = accounts.map(function(account, index) {
+    const catalog = account.id === catalogID || account.catalog;
+    const status = catalog || account.compatible ? "Ready" : "Test required";
+    return "<div class=\"source-account-row\" data-account-row=\"" + index + "\"><div class=\"source-account-head\"><div><strong>" + escapeHTML(account.name || account.username || (catalog ? "Catalog account" : "Playback account")) + "</strong><small>" + (catalog ? "Catalog + playback" : status) + (account.activeConnections ? " · " + account.activeConnections + " active" : "") + "</small></div>" + (catalog ? "<span class=\"source-account-badge\">Primary</span>" : "<button type=\"button\" class=\"danger\" data-account-action=\"remove\" data-account-index=\"" + index + "\" aria-label=\"Remove account\">" + icon("x") + "</button>") + "</div><div class=\"source-account-fields\"><label><span>Name</span><input data-account-field=\"name\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(account.name || "") + "\" placeholder=\"Backup account\"></label><label><span>Username</span><input data-account-field=\"username\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(account.username || "") + "\"" + (catalog ? " readonly" : "") + "></label><label><span>Password" + (account.passwordConfigured ? " · leave blank to keep" : "") + "</span><input type=\"password\" data-account-field=\"password\" data-account-index=\"" + index + "\" value=\"\" autocomplete=\"new-password\"" + (catalog ? " readonly" : "") + "></label><label><span>Stream limit <small>· 0 = unlimited</small></span><input type=\"number\" min=\"0\" data-account-field=\"connectionLimit\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(String(account.connectionLimit || 0)) + "\"></label></div><div class=\"source-account-controls\"><label><input type=\"checkbox\" data-account-field=\"enabled\" data-account-index=\"" + index + "\"" + (account.enabled !== false ? " checked" : "") + (catalog ? " disabled" : "") + "> Enabled for playback</label>" + (!catalog ? "<button type=\"button\" data-account-action=\"test\" data-account-index=\"" + index + "\">Test account</button>" : "") + "</div></div>";
+  }).join("");
+  return "<div class=\"source-step-copy\"><h3>Sub-accounts</h3><p>Pool credentials for this provider. The primary account builds the catalog; compatible enabled accounts share playback.</p></div><div class=\"source-account-list\">" + (rows || "<div class=\"source-account-empty\">The connection account becomes the primary catalog account when you save.</div>") + "</div><div class=\"source-step-action\"><button type=\"button\" data-account-action=\"add\">" + icon("plus") + " Add playback account</button></div><p class=\"source-account-note\">Set each provider-issued concurrency limit. XC for Silo leases the least-used compatible account per watch session and releases it when playback stops.</p>";
+}
+function sourceAccountID(username) {
+  return String(username || "catalog").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "catalog";
+}
+function ensureSourceCatalogAccount(source) {
+  source.accounts = items(source.accounts);
+  let catalog = source.accounts.find(function(account) { return account.id === source.catalogAccountId || account.catalog; });
+  if (!catalog && source.username) {
+    catalog = { id: sourceAccountID(source.username), name: "Catalog", username: source.username, password: source.password || "", passwordConfigured: !!source.passwordConfigured, enabled: true, catalog: true, compatible: true, connectionLimit: 0 };
+    source.accounts.unshift(catalog);
+    source.catalogAccountId = catalog.id;
+  }
+  return catalog || null;
 }
 function derivedSourceID(baseUrl, username) {
   let host = "";
@@ -4226,7 +4265,17 @@ function adminSourceByID(id) {
 }
 function sourceEditorPayload(action) {
   const source = state.adminSourceEditor || {};
-  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", enabled: source.enabled !== false, alternateEpgEnabled: !!source.alternateEpgEnabled, alternateEpgUrl: source.alternateEpgUrl || "", alternateEpgPolicy: source.alternateEpgPolicy || "fill_missing" };
+  ensureSourceCatalogAccount(source);
+  let accounts = items(source.accounts).map(function(account) { return Object.assign({}, account); });
+  let catalog = accounts.find(function(account) { return account.id === source.catalogAccountId || account.catalog; });
+  if (catalog) {
+    catalog.username = source.username || catalog.username || "";
+    if (source.password) catalog.password = source.password;
+    catalog.enabled = true;
+    catalog.catalog = true;
+    catalog.compatible = true;
+  }
+  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", enabled: source.enabled !== false, alternateEpgEnabled: !!source.alternateEpgEnabled, alternateEpgUrl: source.alternateEpgUrl || "", alternateEpgPolicy: source.alternateEpgPolicy || "fill_missing", catalogAccountId: source.catalogAccountId || (catalog && catalog.id) || "", accounts: accounts };
 }
 async function refreshAdminSources() {
   const payload = await getJSON("/dispatcharr/api/admin-sources");
@@ -4250,10 +4299,15 @@ async function submitAdminSource(payload, successMessage) {
       state.adminSourceEPGError = "";
       state.adminSourceMessage = "Alternate EPG matched " + result.coverage.matchedChannels + " channels, left " + result.coverage.unmatchedChannels + " unmatched, and supplied " + result.coverage.programCount + " programs.";
     } else state.adminSourceMessage = successMessage;
-    if (payload.action !== "test" && payload.action !== "test_epg") state.adminSourceEditor = null;
+    if (payload.action === "test_account" && result && result.compatible) {
+      const account = items(state.adminSourceEditor && state.adminSourceEditor.accounts).find(function(candidate) { return candidate.id === result.accountId; });
+      if (account) account.compatible = true;
+      state.adminSourceMessage = "Playback account verified.";
+    }
+    if (payload.action !== "test" && payload.action !== "test_epg" && payload.action !== "test_account") state.adminSourceEditor = null;
   } catch (error) {
     if (requestID !== state.adminSourceRequestID) return;
-    const errorPrefix = payload.action === "test" ? "Connection test failed: " : (payload.action === "test_epg" ? "Alternate EPG test failed: " : "Could not save source: ");
+    const errorPrefix = payload.action === "test" ? "Connection test failed: " : (payload.action === "test_account" ? "Playback account test failed: " : (payload.action === "test_epg" ? "Alternate EPG test failed: " : "Could not save source: "));
     state.adminSourceMessage = errorPrefix + readableError(error);
     if (payload.action === "test_epg") {
       state.adminSourceEPGResult = null;
@@ -4261,6 +4315,29 @@ async function submitAdminSource(payload, successMessage) {
     }
   }
   renderAdminPage();
+}
+function handleSourceAccountAction(action, index) {
+  const source = state.adminSourceEditor;
+  if (!source) return;
+  source.accounts = items(source.accounts);
+  if (action === "add") {
+    source.accounts.push({ id: "", name: "", username: "", password: "", enabled: true, compatible: false, connectionLimit: 0 });
+    renderAdminPage();
+    return;
+  }
+  const account = source.accounts[index];
+  if (!account) return;
+  if (action === "remove") {
+    source.accounts.splice(index, 1);
+    renderAdminPage();
+    return;
+  }
+  if (action === "test") {
+    if (!account.id) account.id = String(account.username || "account").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const payload = sourceEditorPayload("test_account");
+    payload.accountId = account.id;
+    submitAdminSource(payload, "Playback account verified.");
+  }
 }
 function handleAdminSourceAction(action, sourceID) {
   const source = adminSourceByID(sourceID);
@@ -4285,8 +4362,8 @@ function handleAdminSourceAction(action, sourceID) {
     renderAdminPage();
     return;
   }
-  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing" }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
-  if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "" }); state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
+  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing", accounts: [] }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
+  if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "", accounts: items(source.accounts).map(function(account) { return Object.assign({}, account, { password: "" }); }) }); state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
   if (action === "cancel") state.adminSourceEditor = null;
   if (action === "save") return submitAdminSource(sourceEditorPayload("save"), "Source saved. Catalog refresh queued.");
   if (action === "test-editor") return submitAdminSource(sourceEditorPayload("test"), "Connection successful.");
@@ -4919,7 +4996,13 @@ async function playChannel(channel) {
     return;
   }
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
-  startWatch(channel);
+  let watchSession = null;
+  try {
+    watchSession = await startWatch(channel);
+  } catch (error) {
+    showPlayerToast("Could not reserve a provider connection: " + readableError(error));
+    return;
+  }
   if (liveRewindEnabled() && channel.streamFormat !== "hls") {
     showPlayerToast("Preparing Live Rewind...");
     try {
@@ -4937,7 +5020,7 @@ async function playChannel(channel) {
       if (timeShiftAttempt === state.timeShiftAttempt && !(error && error.superseded)) fallbackFromTimeShift(channel, "Live Rewind unavailable. Playing live.");
     }
   } else {
-    setVideoSource(browserStreamURL(channel), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+    setVideoSource(browserStreamURL(channel, watchSession && watchSession.id), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
   }
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
   const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
@@ -4948,14 +5031,15 @@ async function playChannel(channel) {
 function startWatch(channel) {
   if (state.currentSession) postJSON("/dispatcharr/api/watch/stop", { sessionId: state.currentSession.id, reason: "switch_channel" }).catch(function() {});
   recordWatchPreference(channel);
-  postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: channel.id, itemName: channel.name }).then(function(payload) {
+  return postJSON("/dispatcharr/api/watch/start", { itemKind: "channel", itemId: channel.id, itemName: channel.name }).then(function(payload) {
     state.currentSession = payload.session;
     if (state.heartbeat) clearInterval(state.heartbeat);
     state.heartbeat = setInterval(function() {
       if (state.currentSession) postJSON("/dispatcharr/api/watch/heartbeat", { sessionId: state.currentSession.id }).catch(function() {});
     }, 30000);
     renderRail();
-  }).catch(function() {});
+    return state.currentSession;
+  });
 }
 function handlePlayerAction(action, button) {
   const video = byId("player");
@@ -5535,6 +5619,12 @@ document.addEventListener("click", function(event) {
     handleAdminSourceAction(sourceAction.getAttribute("data-source-action"), sourceAction.getAttribute("data-source-id") || "");
     return;
   }
+  const accountAction = event.target.closest("[data-account-action]");
+  if (accountAction) {
+    event.preventDefault();
+    handleSourceAccountAction(accountAction.getAttribute("data-account-action"), Number(accountAction.getAttribute("data-account-index")));
+    return;
+  }
   const sourceStep = event.target.closest("[data-source-step]");
   if (sourceStep) {
     event.preventDefault();
@@ -5767,6 +5857,16 @@ document.addEventListener("change", function(event) {
   renderCategorySettings();
 });
 document.addEventListener("input", function(event) {
+  if (event.target && event.target.hasAttribute("data-account-field") && state.adminSourceEditor) {
+    const index = Number(event.target.getAttribute("data-account-index"));
+    const account = items(state.adminSourceEditor.accounts)[index];
+    if (!account) return;
+    const field = event.target.getAttribute("data-account-field");
+    account[field] = event.target.type === "checkbox" ? !!event.target.checked : (event.target.type === "number" ? Math.max(0, Number(event.target.value) || 0) : event.target.value);
+    if (field === "username" && !account.id) account.id = String(account.username || "account").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (field === "username" || field === "password") account.compatible = false;
+    return;
+  }
   const sourceFieldMap = { "source-name": "name", "source-url": "baseUrl", "source-username": "username", "source-password": "password", "source-enabled": "enabled", "source-alternate-epg-enabled": "alternateEpgEnabled", "source-alternate-epg-url": "alternateEpgUrl", "source-alternate-epg-policy": "alternateEpgPolicy" };
   if (event.target && sourceFieldMap[event.target.id] && state.adminSourceEditor) {
     const field = sourceFieldMap[event.target.id];

@@ -11,6 +11,7 @@ M3U/XMLTV as a reduced-feature secondary source.
 - Four-tile Multiview with one active audio tile
 - Manual, startup, and host-scheduled catalog refreshes
 - Optional per-source alternate XMLTV EPG with fill-missing and prefer-alternate policies
+- Per-provider playback credential pools with sticky session leasing and configurable account limits
 - M3U/XMLTV Live TV and guide support
 
 ## Source modes
@@ -41,9 +42,13 @@ Silo SDK does not provide a typed viewer identity or streaming response body,
 so this plugin does not claim per-user upstream credentials, plugin-enforced
 stream limits, server transcoding, or a media proxy.
 
-An administrator-configured Xtream account is shared upstream. Each Multiview
-tile consumes a provider connection; provision the upstream account
-accordingly.
+Each provider keeps one primary account for catalog and guide refreshes. XC
+Admin can add compatible sub-accounts for playback and set the provider-issued
+stream limit for each account. A watch session stays on one account, the
+least-used available account is selected for new playback, and the lease is
+released when playback stops or its heartbeat expires. Each Multiview tile
+uses one lease. These counters cover XC for Silo sessions only; they cannot see
+connections created outside this plugin.
 
 ## Out of scope
 

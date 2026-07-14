@@ -469,7 +469,6 @@ button { cursor: pointer; }
   .shell.is-multiview .main { display: block; overflow: auto; }
   .shell.is-multiview #view { overflow: visible; }
   .sports-score-scroll { overflow: visible; padding-right: 0; }
-  .multiview-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(13rem, 42vh); }
   .sports-card-head { align-items: flex-start; }
   .sports-status { align-self: start; }
   .sports-matchup { gap: 0.5rem; }
@@ -481,18 +480,17 @@ button { cursor: pointer; }
   .favorites-count { margin-top: 0.15rem; }
   .favorites-empty { min-height: 22rem; padding: 1.25rem; }
 }
-.multiview-page { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 0.9rem; }
+.multiview-page { min-height: 0; display: grid; grid-template-rows: auto auto auto; align-content: start; gap: 0.9rem; }
 .multiview-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
 .multiview-toolbar h2 { margin: 0; font-size: 1.08rem; }
 .multiview-toolbar p { margin: 0.12rem 0 0; color: var(--muted); font-size: 0.78rem; font-weight: 760; }
 .multiview-actions { display: flex; align-items: center; gap: 0.45rem; }
 .multiview-count { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); padding: 0.35rem 0.62rem; font-size: 0.76rem; font-weight: 900; }
-.multiview-grid { min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(14rem, 1fr); gap: 0.55rem; }
+.multiview-grid { min-height: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 0.55rem; }
 .multiview-grid.count-1 { grid-template-columns: minmax(0, 1fr); }
-.multiview-grid.count-1 .multiview-tile { min-height: min(68vh, 42rem); }
-.multiview-tile { position: relative; min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 0.5rem; background: #050505; display: grid; place-items: center; }
+.multiview-tile { position: relative; min-width: 0; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid var(--line); border-radius: 0.5rem; background: #050505; display: grid; place-items: center; }
 .multiview-tile.active { border-color: color-mix(in srgb, var(--accent) 72%, white 8%); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent); }
-.multiview-video { width: 100%; height: 100%; object-fit: cover; background: #050505; }
+.multiview-video { width: 100%; height: 100%; object-fit: contain; background: #050505; }
 .multiview-tile-meta { position: absolute; left: 0.65rem; right: 0.65rem; bottom: 0.6rem; display: flex; align-items: end; justify-content: space-between; gap: 0.6rem; pointer-events: none; }
 .multiview-tile-meta strong, .multiview-tile-meta small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 10px rgba(0,0,0,0.7); }
 .multiview-tile-meta strong { color: white; font-size: 0.92rem; }
@@ -516,6 +514,9 @@ button { cursor: pointer; }
 .multiview-channel-add strong, .multiview-channel-add small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .multiview-channel-add small { color: var(--muted); font-size: 0.74rem; font-weight: 760; }
 .multiview-no-results { border: 1px dashed var(--line); border-radius: 0.5rem; color: var(--muted); padding: 1rem; text-align: center; font-weight: 850; }
+@media (max-width: 900px) {
+  .multiview-grid { grid-template-columns: minmax(0, 1fr); }
+}
 .channel-button-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 0.5rem; }
 .virtual-channel-button { border: 0; border-radius: 0.5rem; background: var(--panel); color: var(--text); display: grid; grid-template-columns: 3.2rem minmax(0, 1fr); align-items: center; gap: 0.7rem; min-height: 4rem; padding: 0.55rem 0.65rem; text-align: left; }
 .virtual-channel-button:hover { background: var(--panel-2); }
@@ -882,6 +883,21 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .source-dialog > footer { min-height: 5rem; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; align-items: center; gap: 0.7rem; padding: 0.85rem 1.45rem; }
 .source-dialog > footer button { min-height: 2.65rem; border: 0; border-radius: 0.65rem; background: transparent; color: var(--text); padding: 0 1rem; font-weight: 820; }
 .source-dialog > footer .admin-save { background: var(--text); color: var(--bg); }
+.source-account-list { display: grid; gap: 0.8rem; }
+.source-account-row { border: 1px solid var(--line); border-radius: 0.9rem; background: color-mix(in srgb, var(--panel) 72%, transparent); padding: 0.9rem; display: grid; gap: 0.8rem; }
+.source-account-head, .source-account-controls { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.source-account-head > div { min-width: 0; display: grid; gap: 0.15rem; }
+.source-account-head small, .source-account-note, .source-account-empty { color: var(--muted); font-size: 0.72rem; line-height: 1.45; }
+.source-account-head button, .source-account-controls button { min-height: 2.2rem; border: 1px solid var(--line); border-radius: 0.55rem; background: transparent; color: var(--text); padding: 0 0.7rem; font-weight: 780; }
+.source-account-head button.danger { color: var(--danger); padding: 0; width: 2.2rem; display: grid; place-items: center; }
+.source-account-head button svg { width: 1rem; height: 1rem; }
+.source-account-badge { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); padding: 0.25rem 0.55rem; font-size: 0.66rem; font-weight: 850; }
+.source-account-fields { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr 0.8fr; gap: 0.6rem; }
+.source-account-fields label { min-width: 0; display: grid; gap: 0.3rem; color: var(--muted); font-size: 0.68rem; font-weight: 800; }
+.source-account-fields input { min-width: 0; min-height: 2.45rem; border: 1px solid var(--line); border-radius: 0.55rem; background: transparent; color: var(--text); padding: 0 0.65rem; }
+.source-account-fields input:read-only { opacity: 0.65; }
+.source-account-controls label { display: flex; align-items: center; gap: 0.45rem; color: var(--muted); font-size: 0.72rem; font-weight: 750; }
+.source-account-note { margin: 0.75rem 0 0; }
 @container (max-width: 65rem) {
   .source-table-head, .source-table-row { min-width: 0; grid-template-columns: minmax(10rem, 1.25fr) 6.5rem 4.5rem 4.5rem 5.25rem minmax(18rem, auto); }
   .source-table-head { display: none; }
@@ -907,6 +923,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .source-state { display: none; }
   .source-actions { grid-column: 1 / -1; justify-content: flex-start; flex-wrap: wrap; }
   .source-form { grid-template-columns: 1fr; }
+  .source-account-fields { grid-template-columns: 1fr 1fr; }
   .source-field-wide { grid-column: auto; }
   .source-dialog-backdrop { padding: 0; }
   .source-dialog { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
@@ -915,6 +932,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .source-dialog-nav button { flex: 1 0 auto; min-height: 2.6rem; }
   .source-dialog-content { padding: 1.25rem; }
   .source-format-options { grid-template-columns: 1fr; }
+  .source-account-fields { grid-template-columns: 1fr; }
 }
 .settings-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 0.85rem; }
 .settings-card-head p { margin: 0.32rem 0 0; max-width: 48rem; color: var(--muted); font-size: 0.82rem; line-height: 1.35; }
