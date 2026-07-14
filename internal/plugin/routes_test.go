@@ -670,6 +670,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if !strings.Contains(body, `<div class="guide-commandbar">`) ||
 		!strings.Contains(body, `<div class="guide-commandbar-title"><strong>TV Guide</strong>`) ||
+		!strings.Contains(body, `.guide-commandbar-title { min-width: 0; display: flex; flex-direction: column; align-items: flex-start;`) ||
 		!strings.Contains(body, `.guide-commandbar { position: relative; z-index: 12; display: grid;`) ||
 		!strings.Contains(body, `grid-template-columns: minmax(10rem, 1fr) minmax(30rem, 54rem);`) ||
 		!strings.Contains(body, `.guide-tools { position: relative; z-index: 12; display: flex;`) ||
