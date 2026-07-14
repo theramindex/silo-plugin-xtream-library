@@ -500,9 +500,9 @@ button { cursor: pointer; }
 .guide-commandbar-title { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.12rem; }
 .guide-commandbar-title > strong { color: var(--text); font-size: 1.05rem; font-weight: 900; white-space: nowrap; }
 .guide-commandbar-title .guide-freshness { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.guide-tools { position: relative; z-index: 12; display: flex; align-items: center; justify-content: flex-end; gap: 0.55rem; width: 100%; }
+.guide-tools { --guide-control-radius: 0.72rem; position: relative; z-index: 12; display: flex; align-items: center; justify-content: flex-end; gap: 0.55rem; width: 100%; }
 .guide-category-picker { position: relative; flex: 0 1 18rem; width: min(18rem, 100%); min-width: 12rem; }
-.guide-category-trigger { width: 100%; min-height: 2.75rem; border: 1px solid var(--line); border-radius: 0.72rem; background: var(--panel); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; padding: 0.34rem 0.5rem 0.34rem 0.72rem; text-align: left; }
+.guide-category-trigger { width: 100%; min-height: 2.75rem; border: 1px solid var(--line); border-radius: var(--guide-control-radius); background: var(--panel); color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; padding: 0.34rem 0.5rem 0.34rem 0.72rem; text-align: left; }
 .guide-category-trigger:hover, .guide-category-trigger:focus-visible, .guide-category-picker.open .guide-category-trigger { border-color: color-mix(in srgb, var(--text) 30%, var(--line)); background: var(--panel-2); outline: 0; }
 .guide-category-trigger-copy { min-width: 0; display: grid; gap: 0.02rem; }
 .guide-category-trigger-copy small { color: var(--muted); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.055em; line-height: 1; text-transform: uppercase; }
@@ -526,7 +526,7 @@ button { cursor: pointer; }
 .guide-category-option strong { font-size: 0.84rem; font-weight: 850; }
 .guide-category-option small { margin-top: 0.05rem; color: var(--muted); font-size: 0.68rem; font-weight: 680; }
 .guide-category-empty { color: var(--muted); padding: 1.1rem 0.7rem; text-align: center; font-size: 0.82rem; font-weight: 720; }
-.guide-search-field { flex: 1 1 30rem; width: min(34rem, 100%); min-width: 18rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); display: flex; align-items: center; gap: 0.48rem; padding: 0 0.78rem; }
+.guide-search-field { flex: 1 1 30rem; width: min(34rem, 100%); min-width: 18rem; min-height: 2.75rem; border: 1px solid var(--line); border-radius: var(--guide-control-radius); background: var(--panel); display: flex; align-items: center; gap: 0.48rem; padding: 0 0.78rem; }
 .guide-search-field:focus-within { border-color: color-mix(in srgb, var(--text) 30%, var(--line)); background: var(--panel-2); }
 .guide-search-field svg { width: 1rem; height: 1rem; color: var(--muted); flex: 0 0 auto; }
 .guide-search-field .search { width: 100%; min-width: 0; border: 0; border-radius: 0; outline: 0; background: transparent; padding-inline: 0; }
