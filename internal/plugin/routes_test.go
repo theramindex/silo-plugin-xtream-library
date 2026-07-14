@@ -420,6 +420,21 @@ vm.createContext(sandbox); vm.runInContext(source, sandbox);
 	}
 }
 
+func TestPlayerAppAuthenticatesMediaLoaderRequests(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{
+		`function playerRequestHeaders()`,
+		`hlsOptions.xhrSetup = function(xhr)`,
+		`headers: playerRequestHeaders()`,
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("player media loaders must include Silo authentication through %q", expected)
+		}
+	}
+}
+
 func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	t.Parallel()
 
