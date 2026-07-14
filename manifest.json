@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.46",
+  "version": "0.2.47",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -94,14 +94,14 @@
       "id": "dispatcharr-asset-runtime-a",
       "method": "GET",
       "path": "/dispatcharr/assets/xc-runtime-a.js",
-      "access": "authenticated",
+      "access": "public",
       "navigable": false
     },
     {
       "id": "dispatcharr-asset-runtime-b",
       "method": "GET",
       "path": "/dispatcharr/assets/xc-runtime-b.js",
-      "access": "authenticated",
+      "access": "public",
       "navigable": false
     },
     {
