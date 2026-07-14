@@ -117,6 +117,34 @@ func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
 	}
 }
 
+func TestManifestPlayerRuntimeAssetsDoNotRequireBrowserAuthorization(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+
+	want := map[string]bool{
+		"/xtream/assets/xc-runtime-a.js": false,
+		"/xtream/assets/xc-runtime-b.js": false,
+	}
+	for _, route := range manifest.GetHttpRoutes() {
+		if _, ok := want[route.GetPath()]; !ok {
+			continue
+		}
+		want[route.GetPath()] = true
+		if route.GetAccess() != "public" {
+			t.Fatalf("player runtime route %q requires %q access; native script requests cannot attach Silo authorization", route.GetPath(), route.GetAccess())
+		}
+	}
+	for path, found := range want {
+		if !found {
+			t.Fatalf("manifest is missing player runtime route %q", path)
+		}
+	}
+}
+
 func TestSDKHTTPRouteContractHasNoTypedViewerIdentityOrStreamingBody(t *testing.T) {
 	t.Parallel()
 
