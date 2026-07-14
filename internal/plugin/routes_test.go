@@ -2557,6 +2557,27 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	}
 }
 
+func TestAdminSourceConnectionTestFinishesBeforeSiloRouteDeadline(t *testing.T) {
+	t.Parallel()
+	if adminSourceConnectionTestTimeout >= 10*time.Second {
+		t.Fatalf("connection test timeout %s must remain below Silo's 10 second plugin route deadline", adminSourceConnectionTestTimeout)
+	}
+}
+
+func TestPlayerAppIgnoresStaleAdminSourceResponses(t *testing.T) {
+	t.Parallel()
+	script := playerAppJavaScript()
+	for _, expected := range []string{
+		`state.adminSourceRequestID = 0`,
+		`const requestID = ++state.adminSourceRequestID`,
+		`if (requestID !== state.adminSourceRequestID) return`,
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("admin source requests must suppress stale responses through %q", expected)
+		}
+	}
+}
+
 func TestHTTPRoutesServerAdminSourcesTestsAlternateEPGCoverage(t *testing.T) {
 	t.Parallel()
 	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {

@@ -24,6 +24,7 @@ state.adminSourceEditorStep = "general";
 state.adminSourceMessage = "";
 state.adminSourceEPGResult = null;
 state.adminSourceEPGError = "";
+state.adminSourceRequestID = 0;
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -4233,6 +4234,7 @@ async function refreshAdminSources() {
   if (state.view === "admin") renderAdminPage();
 }
 async function submitAdminSource(payload, successMessage) {
+  const requestID = ++state.adminSourceRequestID;
   state.adminSourceMessage = "";
   if (payload.action === "test_epg") {
     state.adminSourceEPGResult = null;
@@ -4241,6 +4243,7 @@ async function submitAdminSource(payload, successMessage) {
   }
   try {
     const result = await postJSON("/dispatcharr/api/admin-sources", payload);
+    if (requestID !== state.adminSourceRequestID) return;
     if (result && result.sources) state.adminSources = items(result.sources);
     if (payload.action === "test_epg" && result && result.coverage) {
       state.adminSourceEPGResult = result.coverage;
@@ -4249,7 +4252,9 @@ async function submitAdminSource(payload, successMessage) {
     } else state.adminSourceMessage = successMessage;
     if (payload.action !== "test" && payload.action !== "test_epg") state.adminSourceEditor = null;
   } catch (error) {
-    state.adminSourceMessage = "Could not update source: " + readableError(error);
+    if (requestID !== state.adminSourceRequestID) return;
+    const errorPrefix = payload.action === "test" ? "Connection test failed: " : (payload.action === "test_epg" ? "Alternate EPG test failed: " : "Could not save source: ");
+    state.adminSourceMessage = errorPrefix + readableError(error);
     if (payload.action === "test_epg") {
       state.adminSourceEPGResult = null;
       state.adminSourceEPGError = readableError(error);

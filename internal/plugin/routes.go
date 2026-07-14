@@ -36,6 +36,8 @@ var (
 	assetVersionValue string
 )
 
+const adminSourceConnectionTestTimeout = 8 * time.Second
+
 type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
 	store                *cache.Store
@@ -1036,7 +1038,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
 	if payload.Action == "test" {
-		testCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+		testCtx, cancel := context.WithTimeout(ctx, adminSourceConnectionTestTimeout)
 		defer cancel()
 		if err := xtream.NewClient(candidate.BaseURL, candidate.Username, candidate.Password).TestConnection(testCtx); err != nil {
 			return textResponse(http.StatusBadGateway, "connection test failed: "+err.Error()), nil
