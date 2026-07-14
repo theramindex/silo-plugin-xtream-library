@@ -40,19 +40,18 @@ const adminSourceConnectionTestTimeout = 8 * time.Second
 
 type HTTPRoutesServer struct {
 	pluginv1.UnimplementedHttpRoutesServer
-	store                *cache.Store
-	settingsProvider     func() config.Settings
-	adminPersister       func(context.Context, map[string]any) error
-	adminStorage         adminSettingsStorage
-	sourceRegistry       *config.SourceRegistry
-	sourceChannelCounter func(context.Context, config.XtreamSource) (int, error)
-	sourceEPGTester      func(context.Context, config.XtreamSource, []model.Channel) (alternateEPGTestPayload, error)
-	coordinator          *RefreshCoordinator
-	hydrateMu            sync.Mutex
-	refreshMu            sync.Mutex
-	guideWarmLastUnix    int64
-	profileWarmLastUnix  int64
-	relay                *hlsRelay
+	store               *cache.Store
+	settingsProvider    func() config.Settings
+	adminPersister      func(context.Context, map[string]any) error
+	adminStorage        adminSettingsStorage
+	sourceRegistry      *config.SourceRegistry
+	sourceEPGTester     func(context.Context, config.XtreamSource, []model.Channel) (alternateEPGTestPayload, error)
+	coordinator         *RefreshCoordinator
+	hydrateMu           sync.Mutex
+	refreshMu           sync.Mutex
+	guideWarmLastUnix   int64
+	profileWarmLastUnix int64
+	relay               *hlsRelay
 }
 
 type catalogSyncer interface {
@@ -94,10 +93,6 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
 	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sourceRegistry: config.NewSourceRegistry(""), relay: newHLSRelay()}
-	server.sourceChannelCounter = func(ctx context.Context, source config.XtreamSource) (int, error) {
-		streams, err := xtream.NewClient(source.BaseURL, source.Username, source.Password).LiveStreams(ctx)
-		return len(streams), err
-	}
 	server.sourceEPGTester = testAlternateEPGSource
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
@@ -990,7 +985,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 		return textResponse(http.StatusServiceUnavailable, "source registry unavailable"), nil
 	}
 	if request.GetMethod() == http.MethodGet {
-		sources, err := s.adminSourceList(ctx, true)
+		sources, err := s.adminSourceList(ctx)
 		if err != nil {
 			return textResponse(http.StatusInternalServerError, "could not load source registry"), nil
 		}
@@ -1099,7 +1094,7 @@ func hasEnabledXtreamSource(sources []config.XtreamSource) bool {
 	return false
 }
 
-func (s *HTTPRoutesServer) adminSourceList(ctx context.Context, refreshCounts bool) ([]adminSourcePayload, error) {
+func (s *HTTPRoutesServer) adminSourceList(ctx context.Context) ([]adminSourcePayload, error) {
 	sources, err := s.mutableSourceRegistry()
 	if err != nil {
 		return nil, err
@@ -1109,30 +1104,6 @@ func (s *HTTPRoutesServer) adminSourceList(ctx context.Context, refreshCounts bo
 		if sourceID := adminChannelSourceID(channel, sources); sourceID != "" {
 			counts[sourceID]++
 		}
-	}
-	if refreshCounts && s.sourceChannelCounter != nil {
-		var workers sync.WaitGroup
-		var countsMu sync.Mutex
-		for _, source := range sources {
-			if !source.Enabled {
-				continue
-			}
-			source := source
-			workers.Add(1)
-			go func() {
-				defer workers.Done()
-				countCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-				defer cancel()
-				count, err := s.sourceChannelCounter(countCtx, source)
-				if err != nil {
-					return
-				}
-				countsMu.Lock()
-				counts[source.ID] = count
-				countsMu.Unlock()
-			}()
-		}
-		workers.Wait()
 	}
 	result := make([]adminSourcePayload, 0, len(sources))
 	for _, source := range sources {
@@ -1190,7 +1161,7 @@ func adminChannelSourceID(channel model.Channel, sources []config.XtreamSource) 
 }
 
 func (s *HTTPRoutesServer) respondAdminSourceList(ctx context.Context) (*pluginv1.HandleHTTPResponse, error) {
-	sources, err := s.adminSourceList(ctx, false)
+	sources, err := s.adminSourceList(ctx)
 	if err != nil {
 		return textResponse(http.StatusInternalServerError, "could not load source registry"), nil
 	}

@@ -2617,7 +2617,6 @@ func TestHTTPRoutesServerAdminSourcesCountsLegacyAndScopedXtreamChannels(t *test
 		}}
 	})
 	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
-	server.sourceChannelCounter = func(context.Context, config.XtreamSource) (int, error) { return 0, errors.New("use cached count") }
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
 	if err != nil || response.GetStatusCode() != http.StatusOK {
 		t.Fatalf("load source counts: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
@@ -2633,30 +2632,27 @@ func TestHTTPRoutesServerAdminSourcesCountsLegacyAndScopedXtreamChannels(t *test
 	}
 }
 
-func TestHTTPRoutesServerAdminSourcesUsesProviderChannelCount(t *testing.T) {
+func TestHTTPRoutesServerAdminSourcesDoesNotBlockOnProviderChannelCount(t *testing.T) {
 	t.Parallel()
+	providerCalled := make(chan struct{}, 1)
+	provider := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		providerCalled <- struct{}{}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`[]`))
+	}))
+	defer provider.Close()
 	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
-		return config.Settings{XtreamSources: []config.XtreamSource{{ID: "primary", Name: "Primary", BaseURL: "https://provider.example", Username: "demo", Password: "secret", Enabled: true}}}
+		return config.Settings{XtreamSources: []config.XtreamSource{{ID: "primary", Name: "Primary", BaseURL: provider.URL, Username: "demo", Password: "secret", Enabled: true}}}
 	})
 	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
-	server.sourceChannelCounter = func(_ context.Context, source config.XtreamSource) (int, error) {
-		if source.ID != "primary" {
-			t.Fatalf("unexpected source %q", source.ID)
-		}
-		return 4827, nil
-	}
 	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"}})
 	if err != nil || response.GetStatusCode() != http.StatusOK {
 		t.Fatalf("load provider source count: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
 	}
-	var payload struct {
-		Sources []adminSourcePayload `json:"sources"`
-	}
-	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
-		t.Fatalf("decode provider source count: %v", err)
-	}
-	if len(payload.Sources) != 1 || payload.Sources[0].ChannelCount != 4827 {
-		t.Fatalf("expected provider count, got %+v", payload.Sources)
+	select {
+	case <-providerCalled:
+		t.Fatal("source listing must use cached catalog counts instead of blocking on provider I/O")
+	default:
 	}
 }
 
