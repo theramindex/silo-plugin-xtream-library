@@ -706,6 +706,15 @@ function coreRequestOptions(options) {
   next.headers = headers;
   return next;
 }
+function playerRequestHeaders() {
+  const headers = {};
+  if (coreAccessToken) headers.Authorization = "Bearer " + coreAccessToken;
+  const profileID = coreStoredValue("profile_id");
+  const profileToken = coreStoredValue("profile_token");
+  if (profileID) headers["X-Profile-Id"] = profileID;
+  if (profileToken) headers["X-Profile-Token"] = profileToken;
+  return headers;
+}
 async function refreshCoreSession() {
   const refreshToken = coreStoredValue("refresh_token");
   if (!refreshToken) return false;
@@ -3705,7 +3714,13 @@ function attachVideoSource(video, url, options) {
   };
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
-    attachment.hls = new Hls(rewindable ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : {});
+    const hlsOptions = rewindable ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : {};
+    hlsOptions.xhrSetup = function(xhr) {
+      const headers = playerRequestHeaders();
+      Object.keys(headers).forEach(function(name) { xhr.setRequestHeader(name, headers[name]); });
+      xhr.withCredentials = true;
+    };
+    attachment.hls = new Hls(hlsOptions);
     if (options && typeof options.onFatal === "function") {
       let fatalHandled = false;
       attachment.hls.on(Hls.Events.ERROR, function(_, data) {
@@ -3718,7 +3733,7 @@ function attachVideoSource(video, url, options) {
     attachment.hls.loadSource(url);
     attachment.hls.attachMedia(video);
   } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
-    attachment.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: !rewindable, url: url });
+    attachment.tsPlayer = mpegts.createPlayer({ type: "mpegts", isLive: !rewindable, url: url, headers: playerRequestHeaders() });
     attachment.tsPlayer.attachMediaElement(video);
     attachment.tsPlayer.load();
   } else {
