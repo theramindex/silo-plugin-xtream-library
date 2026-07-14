@@ -1003,6 +1003,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.RecordWatchDefaultsSafe {
 		t.Fatalf("expected first playback to initialize watch-history preference maps safely: %+v", result)
 	}
+	if !result.FavoriteRemovalClearsAll {
+		t.Fatalf("expected removing a favorite to clear explicit, automatic, and ordered preference state: %+v", result)
+	}
 	if result.ProfileOrganizationMode != "delimiter" {
 		t.Fatalf("expected profile organization to require delimiter mode: %+v", result)
 	}
@@ -1144,6 +1147,8 @@ func TestHTTPRoutesServerAppPageIncludesOrderedFavorites(t *testing.T) {
 		`const isFavorite = setChannelFavorite(id, !favoriteMap()[id]);`,
 		`data-favorite-move=\"up\"`,
 		`data-favorite-move=\"down\"`,
+		`data-favorite-remove`,
+		`delete state.app.preferences.autoFavorites[id];`,
 		`clip-path: inset(0);`,
 		`.epg-cell .epg-play { position: absolute; inset: 0;`,
 		`max-width: 100%; overflow: hidden; white-space: nowrap;`,
@@ -1176,6 +1181,7 @@ type virtualAliasResult struct {
 	ProfileOverridePath                  bool   `json:"profileOverridePath"`
 	ProfileSelectionDefaultsAll          bool   `json:"profileSelectionDefaultsAll"`
 	RecordWatchDefaultsSafe              bool   `json:"recordWatchDefaultsSafe"`
+	FavoriteRemovalClearsAll             bool   `json:"favoriteRemovalClearsAll"`
 	ProfileSelectionFiltersChannels      bool   `json:"profileSelectionFiltersChannels"`
 	ProfileSelectionFiltersPaths         bool   `json:"profileSelectionFiltersPaths"`
 	ProfileSelectionFiltersPrograms      bool   `json:"profileSelectionFiltersPrograms"`
@@ -1490,6 +1496,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	state.app.preferences.continueWatching["channel:ny-local"] = { plays: 2 };
 	recordWatchPreference(channelByID("channel:ny-local"));
 	const recordWatchDefaultsSafe = state.app.preferences.continueWatching["channel:ny-local"].plays === 3 && state.app.preferences.autoFavorites["channel:ny-local"] === true;
+	setChannelFavorite("channel:ny-local", true);
+	state.app.preferences.autoFavorites["channel:ny-local"] = true;
+	setChannelFavorite("channel:ny-local", false);
+	const favoriteRemovalClearsAll = !state.app.preferences.favorites["channel:ny-local"] && !state.app.preferences.autoFavorites["channel:ny-local"] && state.app.preferences.favoriteOrder.indexOf("channel:ny-local") === -1;
 	state.app.preferences = defaultPrefs();
 	normalizePreferences();
 	const defaultProfileChannelIDs = effectiveChannels(false).map(function(channel) { return channel.id; });
@@ -1524,6 +1534,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     profileOverridePath: !!profileOverride && nestedProfileGroupPaths.indexOf("US TV / NY / Information / Athletics / Regional") !== -1,
     profileSelectionDefaultsAll: profileSelectionDefaultsAll,
     recordWatchDefaultsSafe: recordWatchDefaultsSafe,
+    favoriteRemovalClearsAll: favoriteRemovalClearsAll,
     profileSelectionFiltersChannels: profileSelectionFiltersChannels,
     profileSelectionFiltersPaths: profileSelectionFiltersPaths,
     profileSelectionFiltersPrograms: profileSelectionFiltersPrograms,

@@ -961,6 +961,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .settings-row input[type="checkbox"], .settings-list label input[type="checkbox"] { min-width: 0; width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
 .settings-row button, .settings-actions button { border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); padding: 0.45rem 0.7rem; font-weight: 820; }
 .settings-row button:hover, .settings-actions button:hover { background: var(--panel-2); }
+.settings-actions button.danger { color: #ff9e9e; }
 .settings-row button:disabled, .settings-actions button:disabled { cursor: default; opacity: 0.48; }
 .virtual-label-control { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 0.5rem; margin-left: auto; min-width: min(100%, 18rem); }
 .virtual-label-control > span { color: var(--muted); font-weight: 850; text-align: right; white-space: nowrap; }
