@@ -545,8 +545,9 @@ button { cursor: pointer; }
 .time-head span { min-width: 0; min-height: 2.05rem; padding: 0 0.65rem; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 1px solid color-mix(in srgb, var(--line) 72%, transparent); }
 .time-head span:first-child { position: sticky; left: 0; z-index: 10; color: var(--text); font-size: 0.98rem; background: color-mix(in srgb, var(--panel) 94%, white 6%); border-left: 0; }
 .time-head span:not(:first-child) { background: color-mix(in srgb, var(--panel) 94%, white 6%); }
-.epg-row { display: grid; grid-template-columns: var(--epg-logo-col) var(--epg-width); gap: 0; height: var(--epg-row-h); margin-bottom: 0; overflow: visible; border-bottom: 1px solid color-mix(in srgb, var(--line) 78%, transparent); }
-.epg-row:last-child { border-bottom: 0; }
+.epg-row { position: relative; display: grid; grid-template-columns: var(--epg-logo-col) var(--epg-width); gap: 0; height: var(--epg-row-h); margin-bottom: 0; overflow: visible; border-bottom: 0; }
+.epg-row::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; height: 1px; background: color-mix(in srgb, var(--text) 9%, transparent); pointer-events: none; }
+.epg-row:last-child::after { display: none; }
 .epg-channel { position: sticky; left: 0; z-index: 2; border: 0; border-right: 1px solid color-mix(in srgb, var(--line) 78%, transparent); border-radius: 0; background: color-mix(in srgb, var(--bg) 82%, var(--panel)); color: white; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; justify-items: center; gap: 0; padding: 0.42rem 0.55rem; height: var(--epg-row-h); min-height: var(--epg-row-h); overflow: visible; text-align: center; }
 .epg-channel .logo { width: 4.4rem; height: 2.4rem; border-radius: 0; background: transparent; }
 .epg-channel-title { display: none; }
