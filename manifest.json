@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.50",
+  "version": "0.2.51",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -50,7 +50,7 @@
       "path": "/dispatcharr",
       "access": "authenticated",
       "navigable": true,
-      "navigation_label": "XC for Silo",
+      "navigation_label": "Live TV (XC)",
       "navigation_kind": "user"
     },
     {
