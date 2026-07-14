@@ -39,32 +39,39 @@ const connectionJSONSchema = `{
 	      "format": "uri"
 	    }
   },
-  "required": ["source_mode"],
   "additionalProperties": false,
-  "allOf": [
+  "anyOf": [
     {
-      "if": {
-        "properties": {
-          "source_mode": {
-            "const": "xtream"
-          }
-        }
-      },
-      "then": {
-        "required": ["base_url", "username", "password"]
-      }
+      "maxProperties": 0
     },
     {
-      "if": {
-        "properties": {
-          "source_mode": {
-            "const": "m3u_xmltv"
+      "required": ["source_mode"],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source_mode": {
+                "const": "xtream"
+              }
+            }
+          },
+          "then": {
+            "required": ["base_url", "username", "password"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source_mode": {
+                "const": "m3u_xmltv"
+              }
+            }
+          },
+          "then": {
+            "required": ["m3u_url", "epg_xml_url"]
           }
         }
-      },
-      "then": {
-        "required": ["m3u_url", "epg_xml_url"]
-      }
+      ]
     }
   ]
 }`
