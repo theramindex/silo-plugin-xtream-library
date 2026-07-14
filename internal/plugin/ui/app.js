@@ -1103,6 +1103,7 @@ function setChannelFavorite(channelID, enabled) {
     state.app.preferences.favoriteOrder = uniqueIDs(items(state.app.preferences.favoriteOrder).concat([id]));
   } else {
     delete state.app.preferences.favorites[id];
+    delete state.app.preferences.autoFavorites[id];
     state.app.preferences.favoriteOrder = items(state.app.preferences.favoriteOrder).filter(function(item) { return item !== id; });
   }
   normalizePreferences();
@@ -2604,7 +2605,8 @@ function toggleBroadcastEventChannels(eventID) {
 function favoriteCards(channels) {
   if (!channels.length) return "<div class=\"empty\">No favorite channels yet.</div>";
   return "<div class=\"row-scroll\">" + channels.map(function(channel, index) {
-    const controls = favoriteMap()[channel.id] ? "<div class=\"settings-actions\"><button data-favorite-move=\"up\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === 0 ? " disabled" : "") + ">Move up</button><button data-favorite-move=\"down\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === channels.length - 1 ? " disabled" : "") + ">Move down</button></div>" : "";
+    const reorder = favoriteMap()[channel.id] ? "<button data-favorite-move=\"up\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === 0 ? " disabled" : "") + ">Move up</button><button data-favorite-move=\"down\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === channels.length - 1 ? " disabled" : "") + ">Move down</button>" : "";
+    const controls = "<div class=\"settings-actions\">" + reorder + "<button class=\"danger\" data-favorite-remove data-channel-id=\"" + escapeHTML(channel.id) + "\" aria-label=\"Remove " + escapeHTML(channel.name || "channel") + " from favorites\">Remove</button></div>";
     return "<div class=\"favorite-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + controls + "</div>";
   }).join("") + "</div>";
 }
@@ -5541,6 +5543,13 @@ document.addEventListener("click", function(event) {
   if (favoriteMove) {
     event.preventDefault();
     moveFavorite(favoriteMove.getAttribute("data-channel-id"), favoriteMove.getAttribute("data-favorite-move"));
+    return;
+  }
+  const favoriteRemove = event.target.closest("[data-favorite-remove]");
+  if (favoriteRemove) {
+    event.preventDefault();
+    setChannelFavorite(favoriteRemove.getAttribute("data-channel-id"), false);
+    render();
     return;
   }
   const multiviewAction = event.target.closest("[data-multiview-action]");
