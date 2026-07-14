@@ -1000,6 +1000,9 @@ func TestDelimiterVirtualFoldersApplyToSourceGroups(t *testing.T) {
 	if !result.ProfileSelectionDefaultsAll || !result.ProfileSelectionFiltersChannels || !result.ProfileSelectionFiltersPaths || !result.ProfileSelectionFiltersPrograms || !result.ProfileSelectionFiltersEventChannels || !result.ProfileSelectionDropsStaleIDs {
 		t.Fatalf("expected per-user profile selection to filter every Live TV discovery surface: %+v", result)
 	}
+	if !result.RecordWatchDefaultsSafe {
+		t.Fatalf("expected first playback to initialize watch-history preference maps safely: %+v", result)
+	}
 	if result.ProfileOrganizationMode != "delimiter" {
 		t.Fatalf("expected profile organization to require delimiter mode: %+v", result)
 	}
@@ -1172,6 +1175,7 @@ type virtualAliasResult struct {
 	ProfileNestedGroupPath               bool   `json:"profileNestedGroupPath"`
 	ProfileOverridePath                  bool   `json:"profileOverridePath"`
 	ProfileSelectionDefaultsAll          bool   `json:"profileSelectionDefaultsAll"`
+	RecordWatchDefaultsSafe              bool   `json:"recordWatchDefaultsSafe"`
 	ProfileSelectionFiltersChannels      bool   `json:"profileSelectionFiltersChannels"`
 	ProfileSelectionFiltersPaths         bool   `json:"profileSelectionFiltersPaths"`
 	ProfileSelectionFiltersPrograms      bool   `json:"profileSelectionFiltersPrograms"`
@@ -1483,6 +1487,10 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
 	const originalPreferences = state.app.preferences;
 	const originalPrograms = state.app.programs;
 	state.app.preferences = defaultPrefs();
+	state.app.preferences.continueWatching["channel:ny-local"] = { plays: 2 };
+	recordWatchPreference(channelByID("channel:ny-local"));
+	const recordWatchDefaultsSafe = state.app.preferences.continueWatching["channel:ny-local"].plays === 3 && state.app.preferences.autoFavorites["channel:ny-local"] === true;
+	state.app.preferences = defaultPrefs();
 	normalizePreferences();
 	const defaultProfileChannelIDs = effectiveChannels(false).map(function(channel) { return channel.id; });
 	const profileSelectionDefaultsAll = defaultProfileChannelIDs.indexOf("channel:ny-local") !== -1 && defaultProfileChannelIDs.indexOf("channel:profile-us-tv-dup") !== -1;
@@ -1515,6 +1523,7 @@ const guideStartsAtCurrentSlot = guideWindow().start === Math.floor(Math.floor(D
     profileNestedGroupPath: nestedProfileGroupPaths.indexOf("US TV / NY / News / Sports / Regional") !== -1,
     profileOverridePath: !!profileOverride && nestedProfileGroupPaths.indexOf("US TV / NY / Information / Athletics / Regional") !== -1,
     profileSelectionDefaultsAll: profileSelectionDefaultsAll,
+    recordWatchDefaultsSafe: recordWatchDefaultsSafe,
     profileSelectionFiltersChannels: profileSelectionFiltersChannels,
     profileSelectionFiltersPaths: profileSelectionFiltersPaths,
     profileSelectionFiltersPrograms: profileSelectionFiltersPrograms,
