@@ -652,7 +652,9 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home section eyebrow labels to be removed")
 	}
 	if strings.Contains(body, `"Browse by category", "", "home-category-section"`) ||
-		!strings.Contains(body, `.home-section + .home-guide-section { margin-top: -1.5rem; }`) {
+		!strings.Contains(body, `.shell.is-home .topbar { margin-bottom: 0.75rem; }`) ||
+		!strings.Contains(body, `.home-page { --home-space-sm: 0.75rem; --home-space-md: 1.5rem;`) ||
+		!strings.Contains(body, `.home-section + .home-guide-section { margin-top: calc(-1 * var(--home-space-sm)); }`) {
 		t.Fatalf("expected a plain Categories heading and tighter spacing before the home guide")
 	}
 	if !strings.Contains(body, `.topbar-primary .nav { width: max-content; flex: 0 1 auto; }`) {
