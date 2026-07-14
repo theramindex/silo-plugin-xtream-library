@@ -3116,8 +3116,11 @@ func TestHTTPRoutesServerPlayerRoute(t *testing.T) {
 	if strings.Contains(body, "__ASSET_PREFIX__") || strings.Contains(body, "__PLAYER_LIBRARIES__") {
 		t.Fatalf("expected asset placeholders to be resolved")
 	}
-	if !strings.Contains(body, `src="assets/app.js?v=`) || !strings.Contains(body, `href="assets/app.css?v=`) || strings.Contains(body, "mpegts.js") {
-		t.Fatalf("expected external application assets and on-demand player libraries")
+	hlsIndex := strings.Index(body, `src="assets/xc-runtime-a.js?v=`)
+	mpegTSIndex := strings.Index(body, `src="assets/xc-runtime-b.js?v=`)
+	appIndex := strings.Index(body, `src="assets/app.js?v=`)
+	if hlsIndex < 0 || mpegTSIndex < 0 || appIndex < 0 || hlsIndex > appIndex || mpegTSIndex > appIndex || !strings.Contains(body, `href="assets/app.css?v=`) {
+		t.Fatalf("expected local player runtimes to load before the application")
 	}
 	if !strings.Contains(playerAppJavaScript(), "output_profile=2") {
 		t.Fatalf("expected browser playback to request AAC Xtream profile")
