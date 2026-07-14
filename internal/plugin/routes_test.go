@@ -652,8 +652,8 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home section eyebrow labels to be removed")
 	}
 	if strings.Contains(body, `"Your saved channels"`) ||
-		!strings.Contains(body, `.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { --epg-logo-col: 6.5rem;`) ||
-		!strings.Contains(body, `.home-guide .epg-channel-title { display: none; }`) {
+		!strings.Contains(body, `.guide-scroll { --epg-logo-col: 6.5rem;`) ||
+		!strings.Contains(body, `.epg-channel-title { display: none; }`) {
 		t.Fatalf("expected Favorites copy and home guide channel labels to stay compact")
 	}
 	if strings.Contains(body, `"Browse by category", "", "home-category-section"`) ||
@@ -3296,14 +3296,14 @@ func TestPlayerAppApprovedUXPassContracts(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		`.guide-scroll { --epg-logo-col: 12rem;`,
+		`.guide-scroll { --epg-logo-col: 6.5rem;`,
 		`.shell.is-guide .main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; overflow: hidden; padding-bottom: 0; }`,
 		`.shell.is-guide #view { min-height: 0; overflow: hidden; }`,
 		`.shell.is-guide .guide-page { min-height: 0; height: auto; max-height: none; }`,
 		`.shell.is-guide .guide-scroll { min-height: 0; max-height: calc(100dvh - 10.5rem); }`,
 		`.guide-commandbar {`,
 		`.epg-channel { position: sticky; left: 0; z-index: 2;`,
-		`grid-template-columns: 4.6rem minmax(0, 1fr);`,
+		`grid-template-columns: minmax(0, 1fr);`,
 		`.guide-window-spacer`,
 		`.guide-window`,
 		`.recovery-panel`,
