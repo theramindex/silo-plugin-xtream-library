@@ -686,6 +686,20 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		!strings.Contains(body, `justify-content: flex-end;`) {
 		t.Fatalf("expected the shared guide heading, category picker, and search to form one normalized command bar")
 	}
+	renderGuidePageIndex := strings.Index(body, `function renderGuidePage()`)
+	if renderGuidePageIndex == -1 {
+		t.Fatal("expected shared guide renderer")
+	}
+	renderGuidePageBody := body[renderGuidePageIndex:]
+	searchControlIndex := strings.Index(renderGuidePageBody, `guide-search-field`)
+	categoryControlIndex := strings.Index(renderGuidePageBody, `renderGuideCategoryPicker(categories)`)
+	if searchControlIndex == -1 || categoryControlIndex == -1 || searchControlIndex > categoryControlIndex {
+		t.Fatal("expected guide search to appear before the category picker")
+	}
+	if !strings.Contains(body, `.epg-row::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; z-index: 6; height: 1px;`) ||
+		!strings.Contains(body, `background: color-mix(in srgb, var(--text) 9%, transparent);`) {
+		t.Fatal("expected soft separators to span every guide channel lane")
+	}
 	if strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Groups")`) || strings.Contains(body, `+ (children.length ? sectionHeader("Virtual Categories")`) {
 		t.Fatalf("expected virtual child groups to render without a duplicate section heading")
 	}
