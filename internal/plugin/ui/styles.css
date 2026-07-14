@@ -219,7 +219,7 @@ button { cursor: pointer; }
 .poster-box span { max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 2.8rem; font-weight: 950; }
 .favorite-card { flex: 0 0 15.5rem; width: 15.5rem; display: grid; gap: 0.45rem; }
 .favorite-card .continue-card { flex: 0 0 auto; width: 100%; min-width: 0; }
-.home-guide { --epg-logo-col: 6.5rem; overflow-x: auto; overflow-y: hidden; min-height: 0; padding-bottom: 0; margin-top: 0; scrollbar-gutter: auto; }
+.home-guide { overflow-x: auto; overflow-y: hidden; min-height: 0; padding-bottom: 0; margin-top: 0; scrollbar-gutter: auto; }
 .home-guide .guide-page { display: block; min-width: 0; min-height: 0; height: auto; max-height: none; }
 .home-guide .epg-channel { grid-template-columns: minmax(0, 1fr); justify-items: center; padding-inline: 0.55rem; }
 .home-guide .epg-channel .logo { margin-inline: auto; }
@@ -535,7 +535,7 @@ button { cursor: pointer; }
 .guide-search-field .search { width: 100%; min-width: 0; border: 0; border-radius: 0; outline: 0; background: transparent; padding-inline: 0; }
 .select { border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--panel); padding: 0.55rem 0.75rem; }
 .guide-scroll { --epg-logo-col: 12rem; --epg-slot: 12rem; --epg-row-h: 4.25rem; flex: 0 1 auto; min-height: 0; max-height: calc(100dvh - 10.5rem); overflow: auto; overscroll-behavior: contain; scrollbar-gutter: auto; padding-bottom: 0; border: 1px solid color-mix(in srgb, var(--line) 70%, white 12%); border-radius: 0.42rem; background: color-mix(in srgb, var(--panel) 94%, white 6%); }
-.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { min-height: 0; overflow-x: auto; overflow-y: hidden; scrollbar-gutter: auto; }
+.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { --epg-logo-col: 6.5rem; min-height: 0; overflow-x: auto; overflow-y: hidden; scrollbar-gutter: auto; }
 .guide-timeline { width: calc(var(--epg-logo-col) + var(--epg-width)); min-width: calc(var(--epg-logo-col) + var(--epg-width)); }
 .guide-window-spacer { position: relative; min-width: 100%; }
 .guide-window { position: absolute; inset: 0 auto auto 0; width: 100%; min-width: max-content; }

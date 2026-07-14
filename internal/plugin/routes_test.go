@@ -652,7 +652,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		t.Fatalf("expected home section eyebrow labels to be removed")
 	}
 	if strings.Contains(body, `"Your saved channels"`) ||
-		!strings.Contains(body, `.home-guide { --epg-logo-col: 6.5rem;`) ||
+		!strings.Contains(body, `.home-guide.guide-scroll, .home-guide .guide-scroll, .home-guide #guide-scroll { --epg-logo-col: 6.5rem;`) ||
 		!strings.Contains(body, `.home-guide .epg-channel-title { display: none; }`) {
 		t.Fatalf("expected Favorites copy and home guide channel labels to stay compact")
 	}
