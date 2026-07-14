@@ -2606,8 +2606,10 @@ function favoriteCards(channels) {
   if (!channels.length) return "<div class=\"empty\">No favorite channels yet.</div>";
   return "<div class=\"row-scroll\">" + channels.map(function(channel, index) {
     const reorder = favoriteMap()[channel.id] ? "<button data-favorite-move=\"up\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === 0 ? " disabled" : "") + ">Move up</button><button data-favorite-move=\"down\" data-channel-id=\"" + escapeHTML(channel.id) + "\"" + (index === channels.length - 1 ? " disabled" : "") + ">Move down</button>" : "";
-    const controls = "<div class=\"settings-actions\">" + reorder + "<button class=\"danger\" data-favorite-remove data-channel-id=\"" + escapeHTML(channel.id) + "\" aria-label=\"Remove " + escapeHTML(channel.name || "channel") + " from favorites\">Remove</button></div>";
-    return "<div class=\"favorite-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + controls + "</div>";
+    const reorderControls = reorder ? "<div class=\"settings-actions favorite-reorder-actions\">" + reorder + "</div>" : "";
+    const removeLabel = "Remove " + (channel.name || "channel") + " from favorites";
+    const favoriteControl = "<button class=\"favorite-card-heart active\" type=\"button\" data-favorite-remove data-channel-id=\"" + escapeHTML(channel.id) + "\" aria-label=\"" + escapeHTML(removeLabel) + "\" aria-pressed=\"true\" title=\"Remove from favorites\">" + icon("heart-solid") + "</button>";
+    return "<div class=\"favorite-card\"><button class=\"continue-card\" data-channel=\"" + escapeHTML(channel.id) + "\"><div class=\"poster-box\">" + (channel.logoUrl ? "<img src=\"" + escapeHTML(channel.logoUrl) + "\" alt=\"\">" : "<span>" + escapeHTML((channel.name || "TV").slice(0, 5)) + "</span>") + "</div><strong>" + escapeHTML(channel.name || "Untitled") + "</strong><div class=\"muted\">" + escapeHTML(channel.categoryName || "Live TV") + "</div></button>" + favoriteControl + reorderControls + "</div>";
   }).join("") + "</div>";
 }
 function compareCategoryDisplayName(left, right) {

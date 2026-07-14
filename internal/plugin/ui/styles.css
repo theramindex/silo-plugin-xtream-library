@@ -217,8 +217,13 @@ button { cursor: pointer; }
 .poster-box { position: relative; aspect-ratio: 16 / 9; height: auto; border-radius: 0.5rem; background: var(--poster-fallback); display: grid; place-items: center; overflow: hidden; margin-bottom: 0; }
 .poster-box img { position: absolute; inset: 50% auto auto 50%; display: block; width: auto; height: auto; max-width: 65%; max-height: 65%; object-fit: contain; object-position: center; transform: translate(-50%, -50%); }
 .poster-box span { max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 2.8rem; font-weight: 950; }
-.favorite-card { flex: 0 0 15.5rem; width: 15.5rem; display: grid; gap: 0.45rem; }
+.favorite-card { position: relative; flex: 0 0 15.5rem; width: 15.5rem; display: grid; gap: 0.45rem; }
 .favorite-card .continue-card { flex: 0 0 auto; width: 100%; min-width: 0; }
+.favorite-card-heart { position: absolute; top: 0.55rem; right: 0.55rem; z-index: 2; width: 2.35rem; height: 2.35rem; display: grid; place-items: center; padding: 0; border: 1px solid color-mix(in srgb, var(--text) 18%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--panel) 88%, transparent); color: var(--accent); box-shadow: 0 0.4rem 1rem rgba(0,0,0,0.28); backdrop-filter: blur(12px); transition: transform 140ms ease, background-color 140ms ease, color 140ms ease; }
+.favorite-card-heart svg { width: 1.18rem; height: 1.18rem; }
+.favorite-card-heart:hover { transform: scale(1.06); background: var(--panel-2); color: color-mix(in srgb, var(--accent) 80%, white); }
+.favorite-card-heart:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.favorite-reorder-actions { margin-top: 0; }
 .home-guide { overflow-x: auto; overflow-y: hidden; min-height: 0; padding-bottom: 0; margin-top: 0; scrollbar-gutter: auto; }
 .home-guide .guide-page { display: block; min-width: 0; min-height: 0; height: auto; max-height: none; }
 .program { min-height: 3.05rem; border: 0; border-radius: 0.5rem; color: var(--text); text-align: left; padding: 0.48rem 0.65rem; background: color-mix(in srgb, var(--panel) 82%, black 18%); }
