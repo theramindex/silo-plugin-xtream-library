@@ -129,7 +129,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, favoriteOrder: [], hiddenCategories: {}, groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
+  return { favorites: {}, autoFavorites: {}, favoriteOrder: [], hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -284,8 +284,11 @@ function mergePrefs(remote) {
   remote = Object.assign(defaultPrefs(), remote || {});
   return {
     favorites: Object.assign({}, remote.favorites),
+    autoFavorites: Object.assign({}, remote.autoFavorites),
     favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
+    sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
+    keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     groupCategoriesByPipe: remote.groupCategoriesByPipe === true,
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),
     recentChannels: uniqueIDs(items(remote.recentChannels)).slice(0, 24),
