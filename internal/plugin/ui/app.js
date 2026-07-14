@@ -1637,7 +1637,7 @@ function renderHome() {
   const favorites = homeFavoriteChannels();
   root.innerHTML = "<div class=\"home-page\">"
     + (watched.length ? homeSection("Recently watched", rowCards(watched), "") : "")
-    + (favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites), "Your saved channels") : "")
+    + (favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites), "") : "")
     + homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched, favorites), "No current guide data for recently watched or favorite channels.", { hideFreshness: true }), "", guideFreshnessHTML(), "home-guide-section")
     + categoryGrid("home")
     + "</div>";

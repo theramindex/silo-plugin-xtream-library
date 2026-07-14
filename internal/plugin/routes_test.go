@@ -642,7 +642,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if !strings.Contains(body, `const watched = recent;`) ||
 		!strings.Contains(body, `watched.length ? homeSection("Recently watched", rowCards(watched), "")`) ||
-		!strings.Contains(body, `favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites)`) ||
+		!strings.Contains(body, `favorites.length ? homeSection("Favorites", favoriteHomeCards(favorites), "")`) ||
 		!strings.Contains(body, `homeSection("TV Guide", renderHomeGuide(homeGuideChannels(watched, favorites)`) ||
 		!strings.Contains(body, `guideFreshnessHTML(), "home-guide-section")`) ||
 		!strings.Contains(body, `+ categoryGrid("home")`) {
@@ -650,6 +650,11 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	}
 	if strings.Contains(body, `"Pick up where you left off"`) || strings.Contains(body, `), "Live now", guideFreshnessHTML()`) {
 		t.Fatalf("expected home section eyebrow labels to be removed")
+	}
+	if strings.Contains(body, `"Your saved channels"`) ||
+		!strings.Contains(body, `.home-guide { --epg-logo-col: 6.5rem;`) ||
+		!strings.Contains(body, `.home-guide .epg-channel-title { display: none; }`) {
+		t.Fatalf("expected Favorites copy and home guide channel labels to stay compact")
 	}
 	if strings.Contains(body, `"Browse by category", "", "home-category-section"`) ||
 		!strings.Contains(body, `.shell.is-home .topbar { margin-bottom: 0.75rem; }`) ||

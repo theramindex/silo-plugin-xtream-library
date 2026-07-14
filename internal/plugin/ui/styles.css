@@ -219,8 +219,11 @@ button { cursor: pointer; }
 .poster-box span { max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 2.8rem; font-weight: 950; }
 .favorite-card { flex: 0 0 15.5rem; width: 15.5rem; display: grid; gap: 0.45rem; }
 .favorite-card .continue-card { flex: 0 0 auto; width: 100%; min-width: 0; }
-.home-guide { overflow-x: auto; overflow-y: hidden; min-height: 0; padding-bottom: 0; margin-top: 0; scrollbar-gutter: auto; }
+.home-guide { --epg-logo-col: 6.5rem; overflow-x: auto; overflow-y: hidden; min-height: 0; padding-bottom: 0; margin-top: 0; scrollbar-gutter: auto; }
 .home-guide .guide-page { display: block; min-width: 0; min-height: 0; height: auto; max-height: none; }
+.home-guide .epg-channel { grid-template-columns: minmax(0, 1fr); justify-items: center; padding-inline: 0.55rem; }
+.home-guide .epg-channel .logo { margin-inline: auto; }
+.home-guide .epg-channel-title { display: none; }
 .program { min-height: 3.05rem; border: 0; border-radius: 0.5rem; color: var(--text); text-align: left; padding: 0.48rem 0.65rem; background: color-mix(in srgb, var(--panel) 82%, black 18%); }
 .program.live { background: color-mix(in srgb, var(--green) 34%, var(--panel)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 48%, transparent); }
 .program time { color: var(--muted); font-size: 0.78rem; display: block; }
