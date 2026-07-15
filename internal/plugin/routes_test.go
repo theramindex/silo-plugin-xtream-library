@@ -80,6 +80,26 @@ func TestHTTPRoutesServerSupportsXtreamPublicNamespace(t *testing.T) {
 	}
 }
 
+func TestXtreamAppScriptConfiguresImmediateStartHLSResilienceBuffer(t *testing.T) {
+	t.Parallel()
+
+	script := playerAppJavaScript()
+	for _, expected := range []string{
+		`function liveHLSOptions(value)`,
+		`liveSyncDuration: bufferSeconds`,
+		`startFragPrefetch: true`,
+		`const hlsOptions = managedTimeShift ?`,
+		`managedTimeShift: true`,
+		`hlsBufferSeconds: channel.hlsBufferSeconds`,
+		`source-hls-buffer-seconds`,
+		`Playback still starts immediately`,
+	} {
+		if !strings.Contains(script, expected) {
+			t.Fatalf("expected HLS resilience behavior %q in app script", expected)
+		}
+	}
+}
+
 func TestXtreamPublicNamespaceRejectsRetiredDispatcharrFeatures(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +138,26 @@ func TestXtreamPublicAppPayloadRedactsStreamTargets(t *testing.T) {
 	}
 	if strings.Contains(string(response.GetBody()), "provider.example") || strings.Contains(string(response.GetBody()), "secret") {
 		t.Fatalf("app payload exposed a provider target: %s", response.GetBody())
+	}
+}
+
+func TestXtreamPublicAppPayloadIncludesPerSourceHLSBuffer(t *testing.T) {
+	t.Parallel()
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:frost:1", SourceID: "xtream-source:frost", Name: "News", StreamURL: "https://provider.example/live/demo/secret/1.m3u8"}}}})
+	server := NewHTTPRoutesServerWithSettings(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{ID: "frost", BaseURL: "https://provider.example", Username: "demo", Password: "secret", LiveFormat: "m3u8", HLSBufferSeconds: 24, Enabled: true}}}
+	})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/app"})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("load app payload: status=%d err=%v", response.GetStatusCode(), err)
+	}
+	var payload AppPayload
+	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
+		t.Fatalf("decode app payload: %v", err)
+	}
+	if len(payload.Channels) != 1 || payload.Channels[0].HLSBufferSeconds != 24 {
+		t.Fatalf("expected per-source HLS buffer, got %+v", payload.Channels)
 	}
 }
 
@@ -2538,7 +2578,7 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	})
 	server.sourceRegistry = config.NewSourceRegistry(path)
 	headers := map[string]string{"x-silo-user-role": "admin"}
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"id":"backup","name":"Backup","baseUrl":"https://backup.example","username":"backup","password":"second-secret","liveFormat":"m3u8","enabled":true,"alternateEpgEnabled":true,"alternateEpgUrl":"https://epg.example/guide.xml","alternateEpgPolicy":"prefer_alternate"}`)})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"id":"backup","name":"Backup","baseUrl":"https://backup.example","username":"backup","password":"second-secret","liveFormat":"m3u8","hlsBufferSeconds":24,"enabled":true,"alternateEpgEnabled":true,"alternateEpgUrl":"https://epg.example/guide.xml","alternateEpgPolicy":"prefer_alternate"}`)})
 	if err != nil {
 		t.Fatalf("save source: %v", err)
 	}
@@ -2554,6 +2594,9 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	}
 	if !sources[1].AlternateEPGEnabled || sources[1].AlternateEPGURL != "https://epg.example/guide.xml" || sources[1].AlternateEPGPolicy != config.AlternateEPGPolicyPreferAlternate {
 		t.Fatalf("expected alternate EPG settings to persist, got %+v", sources[1])
+	}
+	if sources[1].HLSBufferSeconds != 24 || !strings.Contains(string(response.GetBody()), `"hlsBufferSeconds":24`) {
+		t.Fatalf("expected HLS buffer setting to persist and round-trip, got source=%+v response=%s", sources[1], response.GetBody())
 	}
 }
 
