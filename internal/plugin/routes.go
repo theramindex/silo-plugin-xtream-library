@@ -108,18 +108,19 @@ type ChannelsPayload struct {
 }
 
 type PublicChannel struct {
-	ID           string   `json:"id"`
-	SourceID     string   `json:"sourceId"`
-	Name         string   `json:"name"`
-	Number       string   `json:"number,omitempty"`
-	GuideID      string   `json:"guideId,omitempty"`
-	LogoURL      string   `json:"logoUrl,omitempty"`
-	CategoryID   string   `json:"categoryId,omitempty"`
-	CategoryName string   `json:"categoryName,omitempty"`
-	ProfileIDs   []string `json:"profileIds,omitempty"`
-	StreamFormat string   `json:"streamFormat,omitempty"`
-	Catchup      bool     `json:"catchup,omitempty"`
-	CatchupMins  int      `json:"catchupMinutes,omitempty"`
+	ID               string   `json:"id"`
+	SourceID         string   `json:"sourceId"`
+	Name             string   `json:"name"`
+	Number           string   `json:"number,omitempty"`
+	GuideID          string   `json:"guideId,omitempty"`
+	LogoURL          string   `json:"logoUrl,omitempty"`
+	CategoryID       string   `json:"categoryId,omitempty"`
+	CategoryName     string   `json:"categoryName,omitempty"`
+	ProfileIDs       []string `json:"profileIds,omitempty"`
+	StreamFormat     string   `json:"streamFormat,omitempty"`
+	HLSBufferSeconds int      `json:"hlsBufferSeconds,omitempty"`
+	Catchup          bool     `json:"catchup,omitempty"`
+	CatchupMins      int      `json:"catchupMinutes,omitempty"`
 }
 
 type PublicVODItem struct {
@@ -717,27 +718,53 @@ func (s *HTTPRoutesServer) xtreamLiveStreamFormat(sourceMode model.SourceMode) s
 
 func (s *HTTPRoutesServer) publicChannels(channels []model.Channel, xtreamFormat string) []PublicChannel {
 	result := make([]PublicChannel, 0, len(channels))
+	hlsBufferBySource, defaultHLSBuffer := s.hlsBufferSettings()
 	for _, channel := range channels {
 		streamFormat := publicStreamFormat(channel.StreamURL)
 		if streamFormat == "" && strings.HasPrefix(channel.ID, "xtream:") {
 			streamFormat = xtreamFormat
 		}
+		hlsBufferSeconds := 0
+		if streamFormat == "hls" {
+			sourceID := strings.TrimPrefix(strings.TrimSpace(channel.SourceID), "xtream-source:")
+			hlsBufferSeconds = hlsBufferBySource[sourceID]
+			if hlsBufferSeconds == 0 {
+				hlsBufferSeconds = defaultHLSBuffer
+			}
+		}
 		result = append(result, PublicChannel{
-			ID:           channel.ID,
-			SourceID:     channel.SourceID,
-			Name:         channel.Name,
-			Number:       channel.Number,
-			GuideID:      channel.GuideID,
-			LogoURL:      s.relay.imageURL(channel.LogoURL),
-			CategoryID:   channel.CategoryID,
-			CategoryName: channel.CategoryName,
-			ProfileIDs:   append([]string(nil), channel.ProfileIDs...),
-			StreamFormat: streamFormat,
-			Catchup:      channel.Catchup,
-			CatchupMins:  channel.CatchupMins,
+			ID:               channel.ID,
+			SourceID:         channel.SourceID,
+			Name:             channel.Name,
+			Number:           channel.Number,
+			GuideID:          channel.GuideID,
+			LogoURL:          s.relay.imageURL(channel.LogoURL),
+			CategoryID:       channel.CategoryID,
+			CategoryName:     channel.CategoryName,
+			ProfileIDs:       append([]string(nil), channel.ProfileIDs...),
+			StreamFormat:     streamFormat,
+			HLSBufferSeconds: hlsBufferSeconds,
+			Catchup:          channel.Catchup,
+			CatchupMins:      channel.CatchupMins,
 		})
 	}
 	return result
+}
+
+func (s *HTTPRoutesServer) hlsBufferSettings() (map[string]int, int) {
+	result := make(map[string]int)
+	defaultBuffer := config.DefaultHLSBufferSeconds
+	if s.settingsProvider == nil {
+		return result, defaultBuffer
+	}
+	sources := s.settingsProvider().EffectiveXtreamSources()
+	for _, source := range sources {
+		result[source.ID] = source.EffectiveHLSBufferSeconds()
+	}
+	if len(sources) == 1 {
+		defaultBuffer = sources[0].EffectiveHLSBufferSeconds()
+	}
+	return result, defaultBuffer
 }
 
 func publicStreamFormat(rawURL string) string {
@@ -967,6 +994,7 @@ type adminSourcePayload struct {
 	Username            string                `json:"username"`
 	Password            string                `json:"password,omitempty"`
 	LiveFormat          string                `json:"liveFormat"`
+	HLSBufferSeconds    int                   `json:"hlsBufferSeconds"`
 	Enabled             bool                  `json:"enabled"`
 	PasswordConfigured  bool                  `json:"passwordConfigured"`
 	ChannelCount        int                   `json:"channelCount"`
@@ -1076,7 +1104,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 	if len(accounts) == 0 && index >= 0 && len(sources[index].Accounts) > 0 {
 		accounts = sources[index].Accounts
 	}
-	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, Enabled: payload.Enabled, AlternateEPGEnabled: payload.AlternateEPGEnabled, AlternateEPGURL: payload.AlternateEPGURL, AlternateEPGPolicy: payload.AlternateEPGPolicy, CatalogAccountID: payload.CatalogAccountID, Accounts: accounts})
+	candidate, err := config.NormalizeXtreamSource(config.XtreamSource{ID: sourceID, Name: payload.Name, BaseURL: payload.BaseURL, Username: payload.Username, Password: password, LiveFormat: payload.LiveFormat, HLSBufferSeconds: payload.HLSBufferSeconds, Enabled: payload.Enabled, AlternateEPGEnabled: payload.AlternateEPGEnabled, AlternateEPGURL: payload.AlternateEPGURL, AlternateEPGPolicy: payload.AlternateEPGPolicy, CatalogAccountID: payload.CatalogAccountID, Accounts: accounts})
 	if err != nil {
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
@@ -1190,7 +1218,7 @@ func (s *HTTPRoutesServer) adminSourceList(ctx context.Context) ([]adminSourcePa
 		for _, account := range source.Accounts {
 			accounts = append(accounts, adminAccountPayload{ID: account.ID, Name: account.Name, Username: account.Username, Enabled: account.Enabled, Catalog: account.Catalog, Compatible: account.Compatible, ConnectionLimit: account.ConnectionLimit, ActiveConnections: usage[account.ID], PasswordConfigured: account.Password != ""})
 		}
-		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID], AlternateEPGEnabled: source.AlternateEPGEnabled, AlternateEPGURL: source.AlternateEPGURL, AlternateEPGPolicy: source.EffectiveAlternateEPGPolicy(), CatalogAccountID: source.CatalogAccountID, Accounts: accounts})
+		result = append(result, adminSourcePayload{ID: source.ID, Name: source.Name, BaseURL: source.BaseURL, Username: source.Username, LiveFormat: source.EffectiveLiveFormat(), HLSBufferSeconds: source.EffectiveHLSBufferSeconds(), Enabled: source.Enabled, PasswordConfigured: source.Password != "", ChannelCount: counts[source.ID], AlternateEPGEnabled: source.AlternateEPGEnabled, AlternateEPGURL: source.AlternateEPGURL, AlternateEPGPolicy: source.EffectiveAlternateEPGPolicy(), CatalogAccountID: source.CatalogAccountID, Accounts: accounts})
 	}
 	return result, nil
 }

@@ -82,6 +82,28 @@ func TestNormalizeXtreamSourceDefaultsAlternateEPGPolicy(t *testing.T) {
 	}
 }
 
+func TestNormalizeXtreamSourceBoundsHLSBufferSeconds(t *testing.T) {
+	t.Parallel()
+	base := XtreamSource{ID: "provider-user", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true}
+
+	defaulted, err := NormalizeXtreamSource(base)
+	if err != nil {
+		t.Fatalf("normalize default source: %v", err)
+	}
+	if defaulted.HLSBufferSeconds != DefaultHLSBufferSeconds {
+		t.Fatalf("expected default HLS buffer %d, got %d", DefaultHLSBufferSeconds, defaulted.HLSBufferSeconds)
+	}
+
+	base.HLSBufferSeconds = 500
+	bounded, err := NormalizeXtreamSource(base)
+	if err != nil {
+		t.Fatalf("normalize bounded source: %v", err)
+	}
+	if bounded.HLSBufferSeconds != MaximumHLSBufferSeconds {
+		t.Fatalf("expected maximum HLS buffer %d, got %d", MaximumHLSBufferSeconds, bounded.HLSBufferSeconds)
+	}
+}
+
 func TestNormalizeXtreamSourceRejectsEnabledAlternateEPGWithoutURL(t *testing.T) {
 	t.Parallel()
 	_, err := NormalizeXtreamSource(XtreamSource{

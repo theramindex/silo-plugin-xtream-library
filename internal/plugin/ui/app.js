@@ -3498,7 +3498,7 @@ function attachMultiviewPlayers() {
     tile.attaching = true;
     startMultiviewWatch(tile).then(function(session) {
       if (!document.body.contains(video) || tile.attached) return;
-      const attachment = attachVideoSource(video, browserStreamURL(tile.channel, session && session.id), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat });
+      const attachment = attachVideoSource(video, browserStreamURL(tile.channel, session && session.id), { rewindable: isRewindableChannel(tile.channel), format: tile.channel.streamFormat, hlsBufferSeconds: tile.channel.hlsBufferSeconds });
       tile.hls = attachment.hls;
       tile.tsPlayer = attachment.tsPlayer;
       tile.attached = true;
@@ -3665,7 +3665,7 @@ async function prepareTimeShift(channel) {
 function fallbackFromTimeShift(channel, message) {
   if (state.view !== "player" || !channel || !state.currentChannel || channel.id !== state.currentChannel.id) return;
   stopTimeShiftSession();
-  setVideoSource(browserStreamURL(channel, state.currentSession && state.currentSession.id), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+  setVideoSource(browserStreamURL(channel, state.currentSession && state.currentSession.id), { rewindable: isRewindableChannel(channel), format: channel.streamFormat, hlsBufferSeconds: channel.hlsBufferSeconds });
   if (message) showPlayerToast(message);
 }
 function timeShiftSeek(delta) {
@@ -3708,8 +3708,25 @@ function applyAspectMode() {
   const video = byId("player");
   if (video) video.style.objectFit = state.aspectMode === "fit" ? "contain" : "cover";
 }
+function boundedHLSBufferSeconds(value) {
+  const seconds = Number(value) || 12;
+  return Math.max(5, Math.min(60, Math.round(seconds)));
+}
+function liveHLSOptions(value) {
+  const bufferSeconds = boundedHLSBufferSeconds(value);
+  return {
+    liveSyncDuration: bufferSeconds,
+    liveMaxLatencyDuration: bufferSeconds + Math.max(10, bufferSeconds),
+    maxBufferLength: Math.max(30, bufferSeconds * 2),
+    maxMaxBufferLength: Math.max(60, bufferSeconds * 3),
+    backBufferLength: 30,
+    startFragPrefetch: true,
+    maxLiveSyncPlaybackRate: 1.15
+  };
+}
 function attachVideoSource(video, url, options) {
   const rewindable = !!(options && options.rewindable);
+  const managedTimeShift = !!(options && options.managedTimeShift);
   const attachment = {
     hls: null,
     tsPlayer: null,
@@ -3725,22 +3742,34 @@ function attachVideoSource(video, url, options) {
   };
   const isHLS = (options && options.format === "hls") || url.indexOf(".m3u8") !== -1;
   if (window.Hls && Hls.isSupported() && isHLS) {
-    const hlsOptions = rewindable ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : {};
+    const hlsOptions = managedTimeShift ? { liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 5, maxBufferLength: 60 } : liveHLSOptions(options && options.hlsBufferSeconds);
     hlsOptions.xhrSetup = function(xhr) {
       const headers = playerRequestHeaders();
       Object.keys(headers).forEach(function(name) { xhr.setRequestHeader(name, headers[name]); });
       xhr.withCredentials = true;
     };
     attachment.hls = new Hls(hlsOptions);
-    if (options && typeof options.onFatal === "function") {
-      let fatalHandled = false;
-      attachment.hls.on(Hls.Events.ERROR, function(_, data) {
-        if (!fatalHandled && data && data.fatal) {
-          fatalHandled = true;
-          options.onFatal(data);
+    let recoveryAttempts = 0;
+    let fatalHandled = false;
+    attachment.hls.on(Hls.Events.FRAG_LOADED, function() { recoveryAttempts = 0; });
+    attachment.hls.on(Hls.Events.ERROR, function(_, data) {
+      if (!data || !data.fatal) return;
+      if (!managedTimeShift && recoveryAttempts < 2) {
+        recoveryAttempts += 1;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          attachment.hls.startLoad();
+          return;
         }
-      });
-    }
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          attachment.hls.recoverMediaError();
+          return;
+        }
+      }
+      if (!fatalHandled && options && typeof options.onFatal === "function") {
+        fatalHandled = true;
+        options.onFatal(data);
+      }
+    });
     attachment.hls.loadSource(url);
     attachment.hls.attachMedia(video);
   } else if (window.mpegts && mpegts.isSupported() && !isHLS) {
@@ -4228,7 +4257,7 @@ function renderAdminSourceEditor() {
   if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Enter the Xtreme Codes server and account credentials.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"><small>Use the provider base URL, not player_api.php.</small></label><label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label><label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"" + escapeHTML(source.password || "") + "\" autocomplete=\"new-password\"></label><div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button></div></div>";
   if (step === "accounts") content = renderSourceAccountsStep(source);
   if (step === "guide") content = "<div class=\"source-step-copy\"><h3>Alternate EPG</h3><p>Overlay an optional XMLTV feed onto this source. Channel and playback IDs are never changed.</p></div><div class=\"source-form\"><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Use alternate EPG</strong><small>Provider guide remains available if this feed fails.</small></span><span class=\"source-switch-control\"><input id=\"source-alternate-epg-enabled\" type=\"checkbox\" aria-label=\"Use alternate EPG\"" + (source.alternateEpgEnabled ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label><label class=\"source-field-wide\"><span>XMLTV URL</span><input id=\"source-alternate-epg-url\" type=\"url\" value=\"" + escapeHTML(source.alternateEpgUrl || "") + "\" placeholder=\"https://epg.example/guide.xml\"><small>Use a feed you are authorized to access. XC for Silo does not bundle a third-party guide.</small></label><label class=\"source-field-wide\"><span>Merge policy</span><select id=\"source-alternate-epg-policy\"><option value=\"fill_missing\"" + (source.alternateEpgPolicy !== "prefer_alternate" ? " selected" : "") + ">Fill missing guide data</option><option value=\"prefer_alternate\"" + (source.alternateEpgPolicy === "prefer_alternate" ? " selected" : "") + ">Prefer alternate guide</option></select><small>Fill missing preserves overlapping Xtream programs and fills actual schedule gaps. Prefer alternate replaces programs only on matched channels.</small></label>" + (epgResult ? "<div class=\"source-epg-result\"><strong>Coverage test passed</strong><span>" + escapeHTML(String(epgResult.matchedChannels)) + " matched · " + escapeHTML(String(epgResult.unmatchedChannels)) + " unmatched · " + escapeHTML(String(epgResult.programCount)) + " programs</span></div>" : "") + (epgError ? "<div class=\"source-epg-result error\"><strong>Coverage test failed</strong><span>" + escapeHTML(epgError) + "</span></div>" : "") + "<div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-epg\">Test EPG and coverage</button></div></div>";
-  if (step === "playback") content = "<div class=\"source-step-copy\"><h3>Playback</h3><p>Choose the live stream container requested from this provider.</p></div><div class=\"source-format-options\"><button type=\"button\" data-source-format=\"m3u8\" class=\"" + (source.liveFormat !== "ts" ? "active" : "") + "\"><strong>HLS</strong><span>.m3u8 · recommended for browsers</span></button><button type=\"button\" data-source-format=\"ts\" class=\"" + (source.liveFormat === "ts" ? "active" : "") + "\"><strong>MPEG-TS</strong><span>.ts · provider compatibility</span></button></div>";
+  if (step === "playback") content = "<div class=\"source-step-copy\"><h3>Playback</h3><p>Choose the live stream container requested from this provider.</p></div><div class=\"source-format-options\"><button type=\"button\" data-source-format=\"m3u8\" class=\"" + (source.liveFormat !== "ts" ? "active" : "") + "\"><strong>HLS</strong><span>.m3u8 · recommended for browsers</span></button><button type=\"button\" data-source-format=\"ts\" class=\"" + (source.liveFormat === "ts" ? "active" : "") + "\"><strong>MPEG-TS</strong><span>.ts · provider compatibility</span></button></div>" + (source.liveFormat === "ts" ? "" : "<div class=\"source-form\"><label class=\"source-field-wide\"><span>Live resilience buffer</span><input id=\"source-hls-buffer-seconds\" type=\"number\" min=\"5\" max=\"60\" step=\"1\" value=\"" + escapeHTML(String(boundedHLSBufferSeconds(source.hlsBufferSeconds))) + "\"><small>Seconds behind the live edge. Playback still starts immediately; higher values trade live delay for fewer stalls.</small></label></div>");
   return "<div class=\"source-dialog-backdrop\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\"><header><div class=\"source-dialog-icon\">" + icon("guide") + "</div><div><h2 id=\"source-dialog-title\">" + (editing ? "Edit Source" : "Add Source") + "</h2><p>Configure an Xtreme Codes provider account.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></header><div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Source setup steps\">" + nav + "</nav><div class=\"source-dialog-content\">" + content + "</div></div><footer><button type=\"button\" data-source-action=\"cancel\">Cancel</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">" + (editing ? "Save Changes" : "Add Source") + "</button></footer></section></div>";
 }
 function renderSourceAccountsStep(source) {
@@ -4275,7 +4304,7 @@ function sourceEditorPayload(action) {
     catalog.catalog = true;
     catalog.compatible = true;
   }
-  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", enabled: source.enabled !== false, alternateEpgEnabled: !!source.alternateEpgEnabled, alternateEpgUrl: source.alternateEpgUrl || "", alternateEpgPolicy: source.alternateEpgPolicy || "fill_missing", catalogAccountId: source.catalogAccountId || (catalog && catalog.id) || "", accounts: accounts };
+  return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", hlsBufferSeconds: boundedHLSBufferSeconds(source.hlsBufferSeconds), enabled: source.enabled !== false, alternateEpgEnabled: !!source.alternateEpgEnabled, alternateEpgUrl: source.alternateEpgUrl || "", alternateEpgPolicy: source.alternateEpgPolicy || "fill_missing", catalogAccountId: source.catalogAccountId || (catalog && catalog.id) || "", accounts: accounts };
 }
 async function refreshAdminSources() {
   const payload = await getJSON("/dispatcharr/api/admin-sources");
@@ -4362,7 +4391,7 @@ function handleAdminSourceAction(action, sourceID) {
     renderAdminPage();
     return;
   }
-  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing", accounts: [] }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
+  if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", hlsBufferSeconds: 12, alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing", accounts: [] }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
   if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "", accounts: items(source.accounts).map(function(account) { return Object.assign({}, account, { password: "" }); }) }); state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
   if (action === "cancel") state.adminSourceEditor = null;
   if (action === "save") return submitAdminSource(sourceEditorPayload("save"), "Source saved. Catalog refresh queued.");
@@ -4958,7 +4987,7 @@ function setVideoSource(url, options) {
   }
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable, format: options && options.format, onFatal: options && options.onFatal });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: options && options.managedTimeShift, format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal });
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);
@@ -5007,7 +5036,7 @@ async function playChannel(channel) {
     showPlayerToast("Preparing Live Rewind...");
     try {
       const manifestURL = await prepareTimeShift(channel);
-      setVideoSource(manifestURL, { rewindable: true, format: "hls", onFatal: function() { fallbackFromTimeShift(channel, "Live Rewind stopped. Continuing live."); } });
+      setVideoSource(manifestURL, { rewindable: true, managedTimeShift: true, format: "hls", onFatal: function() { fallbackFromTimeShift(channel, "Live Rewind stopped. Continuing live."); } });
       state.timeShiftTimelineTimer = setInterval(updateTimeShiftUI, 1000);
       const video = byId("player");
       if (video) {
@@ -5020,7 +5049,7 @@ async function playChannel(channel) {
       if (timeShiftAttempt === state.timeShiftAttempt && !(error && error.superseded)) fallbackFromTimeShift(channel, "Live Rewind unavailable. Playing live.");
     }
   } else {
-    setVideoSource(browserStreamURL(channel, watchSession && watchSession.id), { rewindable: isRewindableChannel(channel), format: channel.streamFormat });
+    setVideoSource(browserStreamURL(channel, watchSession && watchSession.id), { rewindable: isRewindableChannel(channel), format: channel.streamFormat, hlsBufferSeconds: channel.hlsBufferSeconds });
   }
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
   const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
@@ -5867,10 +5896,10 @@ document.addEventListener("input", function(event) {
     if (field === "username" || field === "password") account.compatible = false;
     return;
   }
-  const sourceFieldMap = { "source-name": "name", "source-url": "baseUrl", "source-username": "username", "source-password": "password", "source-enabled": "enabled", "source-alternate-epg-enabled": "alternateEpgEnabled", "source-alternate-epg-url": "alternateEpgUrl", "source-alternate-epg-policy": "alternateEpgPolicy" };
+  const sourceFieldMap = { "source-name": "name", "source-url": "baseUrl", "source-username": "username", "source-password": "password", "source-enabled": "enabled", "source-alternate-epg-enabled": "alternateEpgEnabled", "source-alternate-epg-url": "alternateEpgUrl", "source-alternate-epg-policy": "alternateEpgPolicy", "source-hls-buffer-seconds": "hlsBufferSeconds" };
   if (event.target && sourceFieldMap[event.target.id] && state.adminSourceEditor) {
     const field = sourceFieldMap[event.target.id];
-    state.adminSourceEditor[field] = event.target.type === "checkbox" ? !!event.target.checked : event.target.value;
+    state.adminSourceEditor[field] = event.target.type === "checkbox" ? !!event.target.checked : (event.target.type === "number" ? Number(event.target.value) || 0 : event.target.value);
     if (field.indexOf("alternateEpg") === 0) {
       state.adminSourceEPGResult = null;
       state.adminSourceEPGError = "";

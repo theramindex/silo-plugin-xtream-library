@@ -14,6 +14,9 @@ const (
 	MinimumDispatcharrVersion         = "0.27.1"
 	AlternateEPGPolicyFillMissing     = "fill_missing"
 	AlternateEPGPolicyPreferAlternate = "prefer_alternate"
+	DefaultHLSBufferSeconds           = 12
+	MinimumHLSBufferSeconds           = 5
+	MaximumHLSBufferSeconds           = 60
 )
 
 type SourceMode string
@@ -53,6 +56,7 @@ type XtreamSource struct {
 	Username            string          `json:"username"`
 	Password            string          `json:"password"`
 	LiveFormat          string          `json:"liveFormat"`
+	HLSBufferSeconds    int             `json:"hlsBufferSeconds,omitempty"`
 	Enabled             bool            `json:"enabled"`
 	AlternateEPGEnabled bool            `json:"alternateEpgEnabled,omitempty"`
 	AlternateEPGURL     string          `json:"alternateEpgUrl,omitempty"`
@@ -110,6 +114,19 @@ func (s XtreamSource) EffectiveLiveFormat() string {
 		return "ts"
 	}
 	return "m3u8"
+}
+
+func (s XtreamSource) EffectiveHLSBufferSeconds() int {
+	if s.HLSBufferSeconds <= 0 {
+		return DefaultHLSBufferSeconds
+	}
+	if s.HLSBufferSeconds < MinimumHLSBufferSeconds {
+		return MinimumHLSBufferSeconds
+	}
+	if s.HLSBufferSeconds > MaximumHLSBufferSeconds {
+		return MaximumHLSBufferSeconds
+	}
+	return s.HLSBufferSeconds
 }
 
 func (s XtreamSource) EffectiveAlternateEPGPolicy() string {

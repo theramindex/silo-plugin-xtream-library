@@ -71,6 +71,7 @@ func NormalizeXtreamSource(source XtreamSource) (XtreamSource, error) {
 	source.Username = strings.TrimSpace(source.Username)
 	source.AlternateEPGURL = strings.TrimSpace(source.AlternateEPGURL)
 	source.AlternateEPGPolicy = source.EffectiveAlternateEPGPolicy()
+	source.HLSBufferSeconds = source.EffectiveHLSBufferSeconds()
 	if len(source.Accounts) == 0 {
 		missing := make([]string, 0, 4)
 		if source.ID == "" {
