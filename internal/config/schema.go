@@ -6,76 +6,6 @@ import (
 
 type ConfigSchema = pluginv1.ConfigSchema
 
-const connectionJSONSchema = `{
-  "type": "object",
-  "properties": {
-    "source_mode": {
-      "type": "string",
-      "enum": ["xtream", "m3u_xmltv"],
-      "default": "xtream"
-    },
-    "base_url": {
-      "type": "string",
-      "format": "uri"
-    },
-    "username": {
-      "type": "string"
-    },
-    "password": {
-      "type": "string",
-      "writeOnly": true
-    },
-	    "live_stream_format": {
-	      "type": "string",
-	      "enum": ["m3u8", "ts"],
-	      "default": "m3u8"
-	    },
-    "m3u_url": {
-      "type": "string",
-      "format": "uri"
-    },
-	    "epg_xml_url": {
-	      "type": "string",
-	      "format": "uri"
-	    }
-  },
-  "additionalProperties": false,
-  "anyOf": [
-    {
-      "maxProperties": 0
-    },
-    {
-      "required": ["source_mode"],
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "source_mode": {
-                "const": "xtream"
-              }
-            }
-          },
-          "then": {
-            "required": ["base_url", "username", "password"]
-          }
-        },
-        {
-          "if": {
-            "properties": {
-              "source_mode": {
-                "const": "m3u_xmltv"
-              }
-            }
-          },
-          "then": {
-            "required": ["m3u_url", "epg_xml_url"]
-          }
-        }
-      ]
-    }
-  ]
-}`
-
 const categorySettingsJSONSchema = `{
   "type": "object",
   "properties": {
@@ -236,9 +166,7 @@ const categorySettingsJSONSchema = `{
 }`
 
 func GlobalConfigSchema() []*ConfigSchema {
-	return []*ConfigSchema{
-		objectSchema("connection", "Source configuration has moved", "Use the XC Admin plugin app to add, edit, test, refresh, enable, or remove Xtream Codes sources. Existing legacy credentials remain stored for compatibility, but they are no longer edited here.", connectionJSONSchema, false, []*pluginv1.AdminFormField{}, ""),
-	}
+	return nil
 }
 
 func UserConfigSchema() []*ConfigSchema {

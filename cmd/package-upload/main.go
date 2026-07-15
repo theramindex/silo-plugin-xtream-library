@@ -63,7 +63,7 @@ func main() {
 		archValue := firstNonEmpty(*goarch, runtime.GOARCH)
 		manifest.SupportedPlatforms = []*pluginv1.SupportedPlatform{{Os: osValue, Arch: archValue}}
 	}
-	manifest.GlobalConfigSchema = config.GlobalConfigSchema()
+	manifest.GlobalConfigSchema = nil
 	manifest.UserConfigSchema = config.UserConfigSchema()
 	rewritePublicManifestForXtream(manifest)
 

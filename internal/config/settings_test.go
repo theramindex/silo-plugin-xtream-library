@@ -7,7 +7,6 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	sdkconfig "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/config"
-	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 func TestValidate_XtreamRequiresCredentials(t *testing.T) {
@@ -117,75 +116,11 @@ func TestValidate_DirectLoginConfigPasses(t *testing.T) {
 	}
 }
 
-func TestGlobalConfigSchema_ContainsExpectedFields(t *testing.T) {
+func TestGlobalConfigSchemaIsEmptyBecauseXCAdminOwnsSources(t *testing.T) {
 	t.Parallel()
 
-	schema := GlobalConfigSchema()
-	if len(schema) != 1 {
-		t.Fatalf("expected one config schema entry, got %d", len(schema))
-	}
-
-	byKey := map[string]bool{}
-	for _, item := range schema {
-		byKey[item.GetKey()] = true
-	}
-
-	for _, key := range []string{"connection"} {
-		if !byKey[key] {
-			t.Fatalf("expected schema key %q", key)
-		}
-	}
-}
-
-func TestGlobalConfigSchemaDirectsAdministratorsToXCAdmin(t *testing.T) {
-	t.Parallel()
-
-	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
-	if fields := connection.GetAdminForm().GetFields(); len(fields) != 0 {
-		t.Fatalf("expected no legacy configuration fields, got %+v", fields)
-	}
-	if !strings.Contains(connection.GetDescription(), "XC Admin plugin app") {
-		t.Fatalf("expected XC Admin disclaimer, got %q", connection.GetDescription())
-	}
-	if connection.GetAdminForm().GetSubmitLabel() != "" {
-		t.Fatalf("expected informational schema without submit action, got %q", connection.GetAdminForm().GetSubmitLabel())
-	}
-}
-
-func TestGlobalConfigSchemaAcceptsEmptyLegacyConnection(t *testing.T) {
-	t.Parallel()
-
-	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
-	resource, err := jsonschema.UnmarshalJSON(strings.NewReader(connection.GetJsonSchema()))
-	if err != nil {
-		t.Fatalf("decode connection schema: %v", err)
-	}
-	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource("connection.schema.json", resource); err != nil {
-		t.Fatalf("add connection schema: %v", err)
-	}
-	schema, err := compiler.Compile("connection.schema.json")
-	if err != nil {
-		t.Fatalf("compile connection schema: %v", err)
-	}
-	if err := schema.Validate(map[string]any{}); err != nil {
-		t.Fatalf("empty legacy connection should be valid after source management moved to XC Admin: %v", err)
-	}
-}
-
-func TestGlobalConfigSchemaOmitsHostOwnedSchedulingAndDynamicRouteControls(t *testing.T) {
-	t.Parallel()
-
-	connection := GlobalConfigSchema()[0]
-	for _, removed := range []string{"live_tv_enabled", "channel_refresh_hours", "epg_refresh_hours"} {
-		if strings.Contains(connection.GetJsonSchema(), `"`+removed+`"`) {
-			t.Fatalf("connection schema exposes unsupported control %q", removed)
-		}
-		for _, field := range connection.GetAdminForm().GetFields() {
-			if field.GetKey() == removed {
-				t.Fatalf("admin form exposes unsupported control %q", removed)
-			}
-		}
+	if schema := GlobalConfigSchema(); len(schema) != 0 {
+		t.Fatalf("expected no global configuration after source management moved to XC Admin, got %+v", schema)
 	}
 }
 
@@ -292,56 +227,6 @@ func TestUserConfigSchema_DeclaresEventKeywordRuleOptions(t *testing.T) {
 	}
 	if property := ruleProperties["groupWindowMinutes"].(map[string]any); property["default"] != float64(60) || property["minimum"] != float64(15) || property["maximum"] != float64(360) {
 		t.Fatalf("expected groupWindowMinutes bounds/default, got %+v", property)
-	}
-}
-
-func TestGlobalConfigSchema_SecretsAndOptionalLegacyStatus(t *testing.T) {
-	t.Parallel()
-
-	schema := GlobalConfigSchema()
-	connection := mustFindSchema(t, schema, "connection")
-
-	if !strings.Contains(connection.GetJsonSchema(), "writeOnly") {
-		t.Fatalf("expected connection schema to declare writeOnly secret fields, got %q", connection.GetJsonSchema())
-	}
-
-	if connection.GetRequired() {
-		t.Fatal("expected legacy connection schema to remain optional now that Xtream Codes Admin owns sources")
-	}
-}
-
-func TestGlobalConfigSchema_UsesObjectSchemasForConfigurePayloads(t *testing.T) {
-	t.Parallel()
-
-	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
-	var schema map[string]any
-	if err := json.Unmarshal([]byte(connection.GetJsonSchema()), &schema); err != nil {
-		t.Fatalf("decode connection schema: %v", err)
-	}
-	if schema["type"] != "object" {
-		t.Fatalf("expected connection schema to be object-shaped, got %q", connection.GetJsonSchema())
-	}
-	properties, ok := schema["properties"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected connection schema properties, got %q", connection.GetJsonSchema())
-	}
-	for _, key := range []string{"source_mode", "base_url", "username", "password", "live_stream_format", "m3u_url", "epg_xml_url"} {
-		if _, ok := properties[key]; !ok {
-			t.Fatalf("expected connection schema property %q", key)
-		}
-	}
-}
-
-func TestGlobalConfigSchema_HidesLegacyFieldsFromSiloUI(t *testing.T) {
-	t.Parallel()
-
-	connection := mustFindSchema(t, GlobalConfigSchema(), "connection")
-
-	if connection.GetAdminForm() == nil {
-		t.Fatal("expected explicit informational admin form")
-	}
-	if len(connection.GetAdminForm().GetFields()) != 0 {
-		t.Fatalf("expected no editable legacy fields, got %+v", connection.GetAdminForm().GetFields())
 	}
 }
 
