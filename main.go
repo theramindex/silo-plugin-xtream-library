@@ -32,8 +32,9 @@ var buildVersion string
 
 type runtimeServer struct {
 	runtimedefault.Server
-	manifest *pluginv1.PluginManifest
-	settings *settingsState
+	manifest       *pluginv1.PluginManifest
+	settings       *settingsState
+	sourceRegistry *config.SourceRegistry
 }
 
 type settingsState struct {
@@ -51,86 +52,84 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 	}
 
 	current := s.settings.Get()
-	for _, entry := range request.GetConfig() {
-		values := entry.GetValue().AsMap()
-		switch entry.GetKey() {
-		case "connection":
-			applyConnectionConfig(&current, values)
-		}
-	}
+	s.migrateRetiredConnection(request, &current)
 	if current.ChannelRefreshH == 0 {
 		current.ChannelRefreshH = config.DefaultChannelRefreshHours
 	}
 	if current.EPGRefreshH == 0 {
 		current.EPGRefreshH = config.DefaultEPGRefreshHours
 	}
-	// Configure runs before the HTTP route capability is registered. Persist the
-	// host-provided values even when credentials are incomplete so XC Admin can
-	// load and repair them. Catalog refresh, scheduled tasks, connection tests,
-	// and playback validate operational settings at their own entry points.
+	// Provider settings are owned by XC Admin's durable source registry. Retired
+	// Silo global values are accepted only as a best-effort upgrade migration;
+	// incomplete values are ignored and can never block route registration.
 	s.settings.Set(current)
 	return &pluginv1.ConfigureResponse{}, nil
 }
 
-func applyConnectionConfig(settings *config.Settings, values map[string]any) {
-	applySourceMode(settings, values)
-	applyFirstPresentString(&settings.XtreamBaseURL, values, "xtream_base_url", "base_url")
-	applyFirstPresentString(&settings.XtreamUsername, values, "xtream_username", "username")
-	applyFirstPresentString(&settings.XtreamPassword, values, "xtream_password", "password")
-	applyStringIfPresent(&settings.XtreamLiveFormat, values, "live_stream_format")
-	applyM3UConfig(settings, values)
-	applyLegacyScheduleConfig(settings, values)
-	if settings.SourceMode == "" {
-		settings.SourceMode = config.SourceModeXtream
-	}
-}
-
-func applySourceMode(settings *config.Settings, values map[string]any) {
-	if value, ok := values["source_mode"].(string); ok {
-		switch config.SourceMode(value) {
-		case config.SourceModeXtream, config.SourceModeM3UXMLTV:
-			settings.SourceMode = config.SourceMode(value)
-		}
-	}
-}
-
-func applyM3UConfig(settings *config.Settings, values map[string]any) {
-	applyStringIfPresent(&settings.M3UURL, values, "m3u_url")
-	applyStringIfPresent(&settings.EPGXMLURL, values, "epg_xml_url")
-}
-
-func applyStringIfPresent(target *string, values map[string]any, key string) {
-	value, exists := values[key]
-	if !exists {
-		return
-	}
-	*target = asString(value)
-}
-
-func applyFirstPresentString(target *string, values map[string]any, keys ...string) {
-	for _, key := range keys {
-		value, exists := values[key]
-		if !exists {
-			continue
-		}
-		if stringValue := asString(value); stringValue != "" {
-			*target = stringValue
+func (s *runtimeServer) migrateRetiredConnection(request *pluginv1.ConfigureRequest, current *config.Settings) {
+	if s.sourceRegistry != nil {
+		sources, err := s.sourceRegistry.Load()
+		if err != nil {
+			log.Printf("xtream: inspect source registry before legacy migration failed: %v", err)
 			return
 		}
-		*target = ""
+		if len(sources) > 0 {
+			current.SourceMode = config.SourceModeXtream
+			current.XtreamSources = sources
+			return
+		}
+	}
+
+	for _, entry := range request.GetConfig() {
+		if entry.GetKey() != "connection" {
+			continue
+		}
+		values := entry.GetValue().AsMap()
+		if config.SourceMode(asString(values["source_mode"])) == config.SourceModeM3UXMLTV {
+			m3uURL := asString(values["m3u_url"])
+			epgURL := asString(values["epg_xml_url"])
+			if strings.TrimSpace(m3uURL) != "" && strings.TrimSpace(epgURL) != "" {
+				current.SourceMode = config.SourceModeM3UXMLTV
+				current.M3UURL = m3uURL
+				current.EPGXMLURL = epgURL
+			}
+			return
+		}
+
+		baseURL := firstString(values, "xtream_base_url", "base_url")
+		username := firstString(values, "xtream_username", "username")
+		password := firstString(values, "xtream_password", "password")
+		if strings.TrimSpace(baseURL) == "" || strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
+			return
+		}
+		source := config.XtreamSource{ID: config.DeriveXtreamSourceID(baseURL, username), Name: config.DefaultXtreamSourceName(baseURL, username), BaseURL: baseURL, Username: username, Password: password, LiveFormat: firstString(values, "live_stream_format"), Enabled: true}
+		if epgURL := strings.TrimSpace(asString(values["epg_xml_url"])); epgURL != "" {
+			source.AlternateEPGEnabled = true
+			source.AlternateEPGURL = epgURL
+			source.AlternateEPGPolicy = config.AlternateEPGPolicyPreferAlternate
+		}
+		if source.LiveFormat == "" {
+			source.LiveFormat = "m3u8"
+		}
+		if s.sourceRegistry != nil {
+			if err := s.sourceRegistry.Save([]config.XtreamSource{source}); err != nil {
+				log.Printf("xtream: migrate retired source failed: %v", err)
+				return
+			}
+		}
+		current.SourceMode = config.SourceModeXtream
+		current.XtreamSources = []config.XtreamSource{source}
+		return
 	}
 }
 
-func applyLegacyScheduleConfig(settings *config.Settings, values map[string]any) {
-	if value, ok := values["live_tv_enabled"].(bool); ok {
-		settings.LiveTVEnabled = value
+func firstString(values map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := asString(values[key]); value != "" {
+			return value
+		}
 	}
-	if value, ok := values["channel_refresh_hours"].(float64); ok {
-		settings.ChannelRefreshH = int(value)
-	}
-	if value, ok := values["epg_refresh_hours"].(float64); ok {
-		settings.EPGRefreshH = int(value)
-	}
+	return ""
 }
 
 func (s *settingsState) Get() config.Settings {
@@ -160,22 +159,29 @@ func main() {
 	settings := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	sourceRegistry := config.NewSourceRegistry("")
 	settingsProvider := func() config.Settings {
-		current := settings.Get()
-		if sources, loadErr := sourceRegistry.Load(); loadErr == nil && len(sources) > 0 {
-			current.XtreamSources = sources
-		}
-		return current
+		return settingsWithRegisteredSources(settings.Get(), sourceRegistry)
 	}
 	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{
-			Runtime:       &runtimeServer{manifest: manifest, settings: settings},
+			Runtime:       &runtimeServer{manifest: manifest, settings: settings, sourceRegistry: sourceRegistry},
 			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider),
 			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settingsProvider, coordinator, ""),
 		},
 	})
+}
+
+func settingsWithRegisteredSources(current config.Settings, sourceRegistry *config.SourceRegistry) config.Settings {
+	if sourceRegistry == nil {
+		return current
+	}
+	if sources, loadErr := sourceRegistry.Load(); loadErr == nil && len(sources) > 0 {
+		current.SourceMode = config.SourceModeXtream
+		current.XtreamSources = sources
+	}
+	return current
 }
 
 func loadManifest() (*pluginv1.PluginManifest, error) {
@@ -205,7 +211,7 @@ func loadManifest() (*pluginv1.PluginManifest, error) {
 			Arch: goruntime.GOARCH,
 		}}
 	}
-	manifest.GlobalConfigSchema = config.GlobalConfigSchema()
+	manifest.GlobalConfigSchema = nil
 	manifest.UserConfigSchema = config.UserConfigSchema()
 	rewritePublicManifestForXtream(manifest)
 

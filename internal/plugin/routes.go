@@ -1151,6 +1151,12 @@ func (s *HTTPRoutesServer) mutableSourceRegistry() ([]config.XtreamSource, error
 		return sources, nil
 	}
 	settings := s.settingsProvider()
+	if len(settings.XtreamSources) > 0 {
+		return settings.EffectiveXtreamSources(), nil
+	}
+	if strings.TrimSpace(settings.XtreamBaseURL) == "" || strings.TrimSpace(settings.XtreamUsername) == "" || strings.TrimSpace(settings.XtreamPassword) == "" {
+		return nil, nil
+	}
 	return settings.EffectiveXtreamSources(), nil
 }
 

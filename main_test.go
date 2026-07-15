@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -14,47 +15,191 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
+func TestRuntimeConfigureIgnoresRetiredGlobalConnection(t *testing.T) {
 	t.Parallel()
 
 	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
 	server := &runtimeServer{settings: state}
-
-	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "live_stream_format": "m3u8", "live_tv_enabled": true})},
-	}}
-
-	if _, err := server.Configure(context.Background(), req); err != nil {
-		t.Fatalf("configure: %v", err)
-	}
-
-	settings := state.Get()
-	if settings.SourceMode != config.SourceModeXtream {
-		t.Fatalf("expected source mode to update, got %q", settings.SourceMode)
-	}
-	if settings.XtreamBaseURL == "" || settings.XtreamUsername == "" || settings.XtreamPassword == "" {
-		t.Fatalf("expected xtream connection to be loaded, got %+v", settings)
-	}
-	if settings.EffectiveXtreamLiveFormat() != "m3u8" {
-		t.Fatalf("expected HLS Xtream output to be loaded, got %q", settings.EffectiveXtreamLiveFormat())
-	}
-}
-
-func TestRuntimeConfigureAllowsIncompleteConnectionSoAdminRoutesCanRepairIt(t *testing.T) {
-	t.Parallel()
-
-	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
-	server := &runtimeServer{settings: state}
 	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo"})},
+		{Key: "connection", Value: mustStruct(t, map[string]any{
+			"source_mode": "xtream",
+			"base_url":    "https://legacy.example.com",
+			"username":    "legacy-user",
+			"password":    "legacy-password",
+		})},
 	}}
 
 	if _, err := server.Configure(context.Background(), request); err != nil {
-		t.Fatalf("configure should keep routes available for repairing incomplete credentials: %v", err)
+		t.Fatalf("configure: %v", err)
 	}
 	settings := state.Get()
-	if settings.XtreamBaseURL != "https://provider.example.com" || settings.XtreamUsername != "demo" || settings.XtreamPassword != "" {
-		t.Fatalf("expected incomplete connection to remain available for repair, got %+v", settings)
+	if settings.XtreamBaseURL != "" || settings.XtreamUsername != "" || settings.XtreamPassword != "" {
+		t.Fatalf("retired global connection was imported: %+v", settings)
+	}
+}
+
+func TestRuntimeConfigureMigratesCompleteRetiredXtreamConnection(t *testing.T) {
+	t.Parallel()
+
+	registry := config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream}}
+	server := &runtimeServer{settings: state, sourceRegistry: registry}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: mustStruct(t, map[string]any{
+		"source_mode":        "xtream",
+		"base_url":           "https://provider.example.com",
+		"username":           "demo",
+		"password":           "secret",
+		"live_stream_format": "m3u8",
+	})}}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	sources, err := registry.Load()
+	if err != nil {
+		t.Fatalf("load migrated registry: %v", err)
+	}
+	if len(sources) != 1 || sources[0].BaseURL != "https://provider.example.com" || sources[0].Username != "demo" {
+		t.Fatalf("expected complete legacy source to migrate once, got %+v", sources)
+	}
+}
+
+func TestRuntimeConfigureMigrationPrefersRetiredXtreamAliasesAndPreservesCustomEPG(t *testing.T) {
+	t.Parallel()
+
+	registry := config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream}}
+	server := &runtimeServer{settings: state, sourceRegistry: registry}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: mustStruct(t, map[string]any{
+		"source_mode":     "xtream",
+		"base_url":        "https://shared-stale.example.com",
+		"username":        "shared-stale-user",
+		"password":        "shared-stale-password",
+		"xtream_base_url": "https://provider.example.com",
+		"xtream_username": "demo",
+		"xtream_password": "secret",
+		"epg_xml_url":     "https://guide.example.com/guide.xml",
+	})}}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	sources, err := registry.Load()
+	if err != nil {
+		t.Fatalf("load migrated registry: %v", err)
+	}
+	if len(sources) != 1 {
+		t.Fatalf("expected one migrated source, got %+v", sources)
+	}
+	source := sources[0]
+	if source.BaseURL != "https://provider.example.com" || source.Username != "demo" || source.Password != "secret" {
+		t.Fatalf("expected retired Xtream-specific aliases to retain precedence, got %+v", source)
+	}
+	if !source.AlternateEPGEnabled || source.AlternateEPGURL != "https://guide.example.com/guide.xml" || source.AlternateEPGPolicy != config.AlternateEPGPolicyPreferAlternate {
+		t.Fatalf("expected custom legacy XMLTV guide to migrate as a preferred alternate guide, got %+v", source)
+	}
+}
+
+func TestRuntimeConfigureRetainsCompleteRetiredM3UConnection(t *testing.T) {
+	t.Parallel()
+
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream}}
+	server := &runtimeServer{settings: state}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: mustStruct(t, map[string]any{
+		"source_mode": "m3u_xmltv",
+		"m3u_url":     "https://provider.example.com/playlist.m3u",
+		"epg_xml_url": "https://provider.example.com/guide.xml",
+	})}}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	settings := state.Get()
+	if settings.SourceMode != config.SourceModeM3UXMLTV || settings.M3UURL == "" || settings.EPGXMLURL == "" {
+		t.Fatalf("expected complete M3U/XMLTV connection to remain available during migration, got %+v", settings)
+	}
+}
+
+func TestRuntimeConfigureDurableXtreamRegistryOverridesRetiredM3UConnection(t *testing.T) {
+	t.Parallel()
+
+	registry := config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	durable := config.XtreamSource{ID: "durable", Name: "Durable", BaseURL: "https://provider.example.com", Username: "demo", Password: "secret", Enabled: true}
+	if err := registry.Save([]config.XtreamSource{durable}); err != nil {
+		t.Fatalf("save durable source: %v", err)
+	}
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeM3UXMLTV, M3UURL: "https://legacy.example.com/playlist.m3u", EPGXMLURL: "https://legacy.example.com/guide.xml"}}
+	server := &runtimeServer{settings: state, sourceRegistry: registry}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: mustStruct(t, map[string]any{
+		"source_mode": "m3u_xmltv",
+		"m3u_url":     "https://legacy.example.com/playlist.m3u",
+		"epg_xml_url": "https://legacy.example.com/guide.xml",
+	})}}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	settings := state.Get()
+	if settings.SourceMode != config.SourceModeXtream || len(settings.XtreamSources) != 1 || settings.XtreamSources[0].ID != "durable" {
+		t.Fatalf("durable XC Admin source must override retired M3U settings, got %+v", settings)
+	}
+}
+
+func TestRuntimeConfigureDoesNotOverwriteUnreadableRegistryDuringMigration(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "sources.json")
+	original := []byte("not-json")
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatalf("write corrupt registry: %v", err)
+	}
+	registry := config.NewSourceRegistry(path)
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream}}
+	server := &runtimeServer{settings: state, sourceRegistry: registry}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: mustStruct(t, map[string]any{
+		"source_mode": "xtream",
+		"base_url":    "https://legacy.example.com",
+		"username":    "legacy",
+		"password":    "secret",
+	})}}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure must keep routes available: %v", err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read registry after configure: %v", err)
+	}
+	if string(after) != string(original) {
+		t.Fatalf("migration overwrote unreadable registry: %q", after)
+	}
+}
+
+func TestSettingsWithRegisteredSourcesSwitchesLegacyM3UStateToXtream(t *testing.T) {
+	t.Parallel()
+
+	registry := config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	durable := config.XtreamSource{ID: "provider", Name: "Provider", BaseURL: "https://provider.example.com", Username: "demo", Password: "secret", Enabled: true}
+	if err := registry.Save([]config.XtreamSource{durable}); err != nil {
+		t.Fatalf("save durable source: %v", err)
+	}
+	legacy := config.Settings{SourceMode: config.SourceModeM3UXMLTV, M3UURL: "https://legacy.example.com/playlist.m3u", EPGXMLURL: "https://legacy.example.com/guide.xml"}
+
+	got := settingsWithRegisteredSources(legacy, registry)
+	if got.SourceMode != config.SourceModeXtream || len(got.XtreamSources) != 1 || got.XtreamSources[0].ID != "provider" {
+		t.Fatalf("durable XC Admin sources must immediately become authoritative, got %+v", got)
+	}
+}
+
+func TestManifestOmitsRetiredGlobalConfiguration(t *testing.T) {
+	t.Parallel()
+
+	manifest, err := loadManifest()
+	if err != nil {
+		t.Fatalf("load manifest: %v", err)
+	}
+	if len(manifest.GetGlobalConfigSchema()) != 0 {
+		t.Fatalf("expected XC Admin to be the only provider configuration surface, got %+v", manifest.GetGlobalConfigSchema())
 	}
 }
 
@@ -179,72 +324,7 @@ func exportedFieldNames(typ reflect.Type) []string {
 	return fields
 }
 
-func TestRuntimeConfigurePreservesSecretsOmittedByHost(t *testing.T) {
-	t.Parallel()
-
-	state := &settingsState{settings: config.Settings{
-		SourceMode:      config.SourceModeXtream,
-		XtreamBaseURL:   "https://provider.example.com",
-		XtreamUsername:  "demo",
-		XtreamPassword:  "existing-secret",
-		ChannelRefreshH: config.DefaultChannelRefreshHours,
-		EPGRefreshH:     config.DefaultEPGRefreshHours,
-	}}
-	server := &runtimeServer{settings: state}
-	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{
-			"source_mode": "xtream",
-			"base_url":    "https://provider.example.com",
-			"username":    "renamed-demo",
-		})},
-	}}
-
-	if _, err := server.Configure(context.Background(), request); err != nil {
-		t.Fatalf("configure: %v", err)
-	}
-	settings := state.Get()
-	if settings.XtreamPassword != "existing-secret" {
-		t.Fatalf("omitted secret was erased: %+v", settings)
-	}
-	if settings.XtreamUsername != "renamed-demo" {
-		t.Fatalf("expected present Xtreme field to update: %+v", settings)
-	}
-}
-
-func TestRuntimeConfigureMapsXtreamSharedConnectionFields(t *testing.T) {
-	t.Parallel()
-
-	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret", LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
-	server := &runtimeServer{settings: state}
-
-	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{
-			"source_mode":     "xtream",
-			"base_url":        "https://dispatcharr.example.com",
-			"username":        "xc-user",
-			"password":        "xc-pass",
-			"epg_xml_url":     "https://dispatcharr.example.com/xmltv.php?username=xc-user&password=xc-pass",
-			"live_tv_enabled": true,
-		})},
-	}}
-
-	if _, err := server.Configure(context.Background(), req); err != nil {
-		t.Fatalf("configure: %v", err)
-	}
-
-	settings := state.Get()
-	if settings.SourceMode != config.SourceModeXtream {
-		t.Fatalf("expected xtream source mode, got %q", settings.SourceMode)
-	}
-	if settings.XtreamBaseURL != "https://dispatcharr.example.com" || settings.XtreamUsername != "xc-user" || settings.XtreamPassword != "xc-pass" {
-		t.Fatalf("expected xtream connection to be loaded, got %+v", settings)
-	}
-	if settings.EPGXMLURL == "" {
-		t.Fatalf("expected custom xmltv url to be saved, got %+v", settings)
-	}
-}
-
-func TestRuntimeConfigureRejectsLegacyDispatcharrSourceMode(t *testing.T) {
+func TestRuntimeConfigureIgnoresRetiredDispatcharrSourceMode(t *testing.T) {
 	t.Parallel()
 
 	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret"}}
@@ -287,30 +367,6 @@ func TestRuntimeConfigureIgnoresInheritedDispatcharrConfigEntry(t *testing.T) {
 	}
 }
 
-func TestRuntimeConfigureMapsM3UXMLTVFromConnectionEntry(t *testing.T) {
-	t.Parallel()
-
-	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeDirectLogin, LiveTVEnabled: true, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
-	server := &runtimeServer{settings: state}
-
-	req := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{
-		{Key: "connection", Value: mustStruct(t, map[string]any{
-			"source_mode": "m3u_xmltv",
-			"m3u_url":     "https://provider.example.com/playlist.m3u",
-			"epg_xml_url": "https://provider.example.com/guide.xml",
-		})},
-	}}
-
-	if _, err := server.Configure(context.Background(), req); err != nil {
-		t.Fatalf("configure: %v", err)
-	}
-
-	settings := state.Get()
-	if settings.SourceMode != config.SourceModeM3UXMLTV || settings.M3UURL == "" || settings.EPGXMLURL == "" {
-		t.Fatalf("expected m3u/xmltv connection to be loaded, got %+v", settings)
-	}
-}
-
 func TestRuntimeConfigureIgnoresRetiredCategorySettings(t *testing.T) {
 	t.Parallel()
 
@@ -330,45 +386,6 @@ func TestRuntimeConfigureIgnoresRetiredCategorySettings(t *testing.T) {
 
 	if len(state.Get().AdminSettings) != 0 {
 		t.Fatalf("retired category settings changed standalone settings: %+v", state.Get())
-	}
-}
-
-func TestManifestGlobalConfigSchemasValidateExpectedObjects(t *testing.T) {
-	t.Parallel()
-
-	manifest, err := loadManifest()
-	if err != nil {
-		t.Fatalf("load manifest: %v", err)
-	}
-
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo", "password": "secret", "epg_xml_url": "https://provider.example.com/guide.xml"}); err != nil {
-		t.Fatalf("validate xtream connection schema: %v", err)
-	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u", "epg_xml_url": "https://provider.example.com/guide.xml"}); err != nil {
-		t.Fatalf("validate m3u/xmltv connection schema: %v", err)
-	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "m3u_xmltv", "m3u_url": "https://provider.example.com/playlist.m3u"}); err == nil {
-		t.Fatalf("expected incomplete m3u/xmltv connection to fail validation")
-	}
-	if err := configsdk.ValidateManifestGlobalValue(manifest, "connection", map[string]any{"source_mode": "direct_login", "base_url": "https://provider.example.com", "username": "demo", "password": "secret"}); err == nil {
-		t.Fatal("expected legacy Dispatcharr source mode to fail validation")
-	}
-	if false {
-		_ = configsdk.ValidateManifestGlobalValue(manifest, "category_settings", map[string]any{
-			"mode":                           "delimiter",
-			"delimiter":                      "pipe",
-			"virtualGroupSource":             "profile_group",
-			"collapseDuplicateVirtualGroups": true,
-			"ecmEnabled":                     false,
-			"ecmURL":                         "https://ecm.example.test/manage",
-			"categoryAliases": []any{
-				map[string]any{"sourcePath": "International | Arabic | Sports", "aliasPath": "Sports | Arabic"},
-				map[string]any{"sourcePath": "International | Arabic | Sports", "aliasPath": "World Cup | Arabic"},
-			},
-			"eventKeywords": []any{
-				map[string]any{"categoryId": "entertainment", "categoryName": "Entertainment", "keywords": []any{"Festival"}},
-			},
-		})
 	}
 }
 

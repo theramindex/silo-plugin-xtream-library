@@ -2776,6 +2776,23 @@ func TestHTTPRoutesServerAdminSourcesRequiresAdmin(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerEmptyRegistryDoesNotSynthesizeBlankLegacySource(t *testing.T) {
+	t.Parallel()
+
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+
+	sources, err := server.mutableSourceRegistry()
+	if err != nil {
+		t.Fatalf("load empty registry: %v", err)
+	}
+	if len(sources) != 0 {
+		t.Fatalf("fresh XC Admin should start with no sources, got %+v", sources)
+	}
+}
+
 func TestHTTPRoutesServerAdminSourcesReportsCorruptRegistry(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "sources.json")
