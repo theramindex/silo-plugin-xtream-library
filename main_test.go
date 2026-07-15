@@ -40,7 +40,7 @@ func TestRuntimeConfigureReadsObjectShapedConfigEntries(t *testing.T) {
 	}
 }
 
-func TestRuntimeConfigureRejectsInvalidStandaloneConnection(t *testing.T) {
+func TestRuntimeConfigureAllowsIncompleteConnectionSoAdminRoutesCanRepairIt(t *testing.T) {
 	t.Parallel()
 
 	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream, ChannelRefreshH: config.DefaultChannelRefreshHours, EPGRefreshH: config.DefaultEPGRefreshHours}}
@@ -49,8 +49,12 @@ func TestRuntimeConfigureRejectsInvalidStandaloneConnection(t *testing.T) {
 		{Key: "connection", Value: mustStruct(t, map[string]any{"source_mode": "xtream", "base_url": "https://provider.example.com", "username": "demo"})},
 	}}
 
-	if _, err := server.Configure(context.Background(), request); err == nil {
-		t.Fatal("expected invalid Xtream connection to be rejected")
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure should keep routes available for repairing incomplete credentials: %v", err)
+	}
+	settings := state.Get()
+	if settings.XtreamBaseURL != "https://provider.example.com" || settings.XtreamUsername != "demo" || settings.XtreamPassword != "" {
+		t.Fatalf("expected incomplete connection to remain available for repair, got %+v", settings)
 	}
 }
 

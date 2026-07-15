@@ -64,9 +64,10 @@ func (s *runtimeServer) Configure(_ context.Context, request *pluginv1.Configure
 	if current.EPGRefreshH == 0 {
 		current.EPGRefreshH = config.DefaultEPGRefreshHours
 	}
-	if err := current.Validate(); err != nil {
-		return nil, fmt.Errorf("validate Xtreme connection: %w", err)
-	}
+	// Configure runs before the HTTP route capability is registered. Persist the
+	// host-provided values even when credentials are incomplete so XC Admin can
+	// load and repair them. Catalog refresh, scheduled tasks, connection tests,
+	// and playback validate operational settings at their own entry points.
 	s.settings.Set(current)
 	return &pluginv1.ConfigureResponse{}, nil
 }
