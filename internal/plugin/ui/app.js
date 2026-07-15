@@ -1819,12 +1819,25 @@ function searchFilters() {
     { id: "shows", label: "Shows" }
   ];
 }
+function firstSearchMatches(collection, predicate, limit) {
+  const matches = [];
+  const source = items(collection);
+  for (let index = 0; index < source.length && matches.length < limit; index += 1) {
+    if (predicate(source[index])) matches.push(source[index]);
+  }
+  return matches;
+}
 function searchResultSections(query) {
   const filter = state.searchType || "all";
   const include = function(id) { return filter === "all" || filter === id || (filter === "guide" && (id === "programs" || id === "airings")); };
   const sections = [];
+  let programCatalog = null;
+  const programs = function() {
+    if (!programCatalog) programCatalog = programsFor("");
+    return programCatalog;
+  };
   if (include("channels")) {
-    const channels = searchableChannels().filter(function(channel) { return channelMatchesSearch(channel, query); }).slice(0, 18);
+    const channels = firstSearchMatches(searchableChannels(), function(channel) { return channelMatchesSearch(channel, query); }, 18);
     sections.push({ id: "channels", title: "Channels", rows: channels.map(function(channel) {
       return {
         attrs: "data-search-channel=\"" + escapeHTML(channel.id) + "\"",
@@ -1836,7 +1849,7 @@ function searchResultSections(query) {
     }) });
   }
   if (include("groups")) {
-    const groups = allDiscoveryGroups().filter(function(group) { return groupMatchesSearch(group, query); }).slice(0, 18);
+    const groups = firstSearchMatches(allDiscoveryGroups(), function(group) { return groupMatchesSearch(group, query); }, 18);
     sections.push({ id: "groups", title: "Groups", rows: groups.map(function(group) {
       return {
         attrs: "data-search-category=\"" + escapeHTML(group.id) + "\"",
@@ -1848,8 +1861,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("programs")) {
-    const programs = programsFor("").filter(function(program) { return programMatchesSearch(program, query); }).slice(0, 18);
-    sections.push({ id: "programs", title: "Guide Programs", rows: programs.map(function(program) {
+    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programMatchesSearch(program, query); }, 18);
+    sections.push({ id: "programs", title: "Guide Programs", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -1864,7 +1877,7 @@ function searchResultSections(query) {
     }) });
   }
   if (include("airings")) {
-    const airings = groupedUpcomingAirings(programsFor(""), query).slice(0, 12);
+    const airings = groupedUpcomingAirings(programs(), query).slice(0, 12);
     sections.push({ id: "airings", title: "Upcoming Airings", rows: airings.map(function(group) {
       const first = group.programs[0] || {};
       const channel = channelByID(first.channelId) || {};
@@ -1878,8 +1891,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("sports")) {
-    const programs = programsFor("").filter(function(program) { return programLooksSports(program) && programMatchesSearch(program, query); }).slice(0, 12);
-    sections.push({ id: "sports", title: "Sports From Guide", rows: programs.map(function(program) {
+    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programLooksSports(program) && programMatchesSearch(program, query); }, 12);
+    sections.push({ id: "sports", title: "Sports From Guide", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -1891,8 +1904,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("events")) {
-    const programs = programsFor("").filter(function(program) { return programLooksEvent(program) && programMatchesSearch(program, query); }).slice(0, 12);
-    sections.push({ id: "events", title: "Events From Guide", rows: programs.map(function(program) {
+    const matchingPrograms = firstSearchMatches(programs(), function(program) { return programLooksEvent(program) && programMatchesSearch(program, query); }, 12);
+    sections.push({ id: "events", title: "Events From Guide", rows: matchingPrograms.map(function(program) {
       const channel = channelByID(program.channelId) || {};
       return {
         attrs: "data-search-program-channel=\"" + escapeHTML(program.channelId || "") + "\" data-search-program=\"" + escapeHTML(program.id || "") + "\"",
@@ -1904,8 +1917,8 @@ function searchResultSections(query) {
     }) });
   }
   if (include("movies")) {
-    const vodMovies = items(state.app && state.app.vod && state.app.vod.items).filter(function(item) { return contentMatchesSearch("vod", item, query); }).slice(0, 8);
-    const guideMovies = programsFor("").filter(function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }).slice(0, 8);
+    const vodMovies = firstSearchMatches(items(state.app && state.app.vod && state.app.vod.items), function(item) { return contentMatchesSearch("vod", item, query); }, 8);
+    const guideMovies = firstSearchMatches(programs(), function(program) { return programLooksMovie(program) && programMatchesSearch(program, query); }, 8);
     sections.push({ id: "movies", title: "Movies", rows: vodMovies.map(function(item) {
       return {
         attrs: "data-vod-playback=\"" + escapeHTML(item.id || "") + "\"",
@@ -1926,7 +1939,7 @@ function searchResultSections(query) {
     })) });
   }
   if (include("shows")) {
-    const shows = items(state.app && state.app.series && state.app.series.items).filter(function(item) { return contentMatchesSearch("series", item, query); }).slice(0, 12);
+    const shows = firstSearchMatches(items(state.app && state.app.series && state.app.series.items), function(item) { return contentMatchesSearch("series", item, query); }, 12);
     sections.push({ id: "shows", title: "Shows", rows: shows.map(function(item) {
       return {
         attrs: "data-series-open=\"" + escapeHTML(item.id || "") + "\"",
@@ -1938,7 +1951,7 @@ function searchResultSections(query) {
     }) });
   }
   if (include("recordings") && state.recordings && state.recordings.available) {
-    const recordings = normalizeRecordings(state.recordings).filter(function(recording) { return recordingMatchesSearch(recording, query); }).slice(0, 12);
+    const recordings = firstSearchMatches(normalizeRecordings(state.recordings), function(recording) { return recordingMatchesSearch(recording, query); }, 12);
     sections.push({ id: "recordings", title: "Recordings", rows: recordings.map(function(recording) {
       const playbackURL = recordingPlaybackURL(recording);
       return {
@@ -2009,6 +2022,7 @@ function renderSearchResults(query) {
   }).join("") + "</div>";
 }
 const SEARCH_RESULTS_DELAY_MS = 180;
+const SEARCH_MIN_QUERY_LENGTH = 2;
 let searchResultsTimer = null;
 function clearSearchResultsTimer() {
   if (!searchResultsTimer) return;
@@ -2016,7 +2030,10 @@ function clearSearchResultsTimer() {
   searchResultsTimer = null;
 }
 function renderSearchPageResults() {
-  return searchNeedle() ? renderSearchResults(searchNeedle()) : renderSearchStart();
+  const query = searchNeedle();
+  if (!query) return renderSearchStart();
+  if (query.length < SEARCH_MIN_QUERY_LENGTH) return "<div class=\"search-start-empty search-query-hint\"><span>" + icon("search") + "</span><strong>Keep typing</strong><p>Enter at least two characters to search the full lineup.</p></div>";
+  return renderSearchResults(query);
 }
 function updateSearchPageResults() {
   const root = byId("search-page-results");

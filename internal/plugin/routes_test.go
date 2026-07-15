@@ -776,7 +776,7 @@ func TestPlayerSearchUsesXtreamFocusedCompactScopes(t *testing.T) {
 	t.Parallel()
 
 	script := playerAppJavaScript()
-	for _, expected := range []string{`class=\"search-commandbar\"`, `class=\"search-input-shell\"`, `class=\"search-scope-row\"`, `{ id: "guide", label: "Guide" }`, `data-search-query-clear`, `class=\"search-result-section\"`} {
+	for _, expected := range []string{`class=\"search-commandbar\"`, `class=\"search-input-shell\"`, `class=\"search-scope-row\"`, `{ id: "guide", label: "Guide" }`, `data-search-query-clear`, `class=\"search-result-section\"`, `function firstSearchMatches(`, `const SEARCH_MIN_QUERY_LENGTH = 2;`} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("expected compact search marker %q", expected)
 		}
@@ -795,8 +795,12 @@ func TestPlayerSearchUsesXtreamFocusedCompactScopes(t *testing.T) {
 	if strings.Contains(script[strings.Index(script, "function renderSearchStart()"):strings.Index(script, "function renderSearchPage()")], `class=\"search-category-grid\"`) {
 		t.Fatal("expected search start to avoid duplicating scope controls as large category tiles")
 	}
+	renderSearchPage := script[strings.Index(script, "function renderSearchPage()"):strings.Index(script, "function addKeywordPass(")]
+	if strings.Contains(strings.ToLower(renderSearchPage), ">find<") {
+		t.Fatal("expected search page title not to include the redundant Find eyebrow")
+	}
 	styles := playerStylesCSS()
-	for _, expected := range []string{`.search-commandbar {`, `.search-result-section-head {`, `.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`} {
+	for _, expected := range []string{`.search-commandbar {`, `.search-result-section-head {`, `.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`, `.shell.is-search .main { overflow-x: hidden;`, `.search-page .row-scroll {`, `@media (max-width: 1120px)`} {
 		if !strings.Contains(styles, expected) {
 			t.Fatalf("expected refined search layout marker %q", expected)
 		}
