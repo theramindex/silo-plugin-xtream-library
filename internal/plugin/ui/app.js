@@ -2003,9 +2003,9 @@ function renderSearchResultCard(row) {
 function renderSearchResults(query) {
   const sections = searchResultSections(query);
   const savePass = query && !keywordPasses().some(function(pass) { return lower(pass.keyword) === lower(query); }) ? "<button class=\"search-save-pass\" type=\"button\" data-keyword-pass-add=\"" + escapeHTML(query) + "\">Save Keyword Pass</button>" : "";
-  if (!sections.length) return "<div class=\"search-empty\">No matches found." + savePass + "</div>";
+  if (!sections.length) return "<div class=\"search-empty\"><span>" + icon("search") + "</span><strong>No matches for &ldquo;" + escapeHTML(query) + "&rdquo;</strong><p>Try a channel name, category, or program title.</p>" + savePass + "</div>";
   return (savePass ? "<div class=\"search-pass-action\">" + savePass + "</div>" : "") + "<div class=\"search-results\">" + sections.map(function(section) {
-    return sectionHeader(section.title) + "<div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div>";
+    return "<section class=\"search-result-section\"><header class=\"search-result-section-head\"><h3>" + escapeHTML(section.title) + "</h3><span>" + section.rows.length + (section.rows.length === 1 ? " result" : " results") + "</span></header><div class=\"search-result-list\">" + section.rows.map(renderSearchResultRow).join("") + "</div></section>";
   }).join("") + "</div>";
 }
 const SEARCH_RESULTS_DELAY_MS = 180;
@@ -2065,7 +2065,7 @@ function renderSearchPage() {
     return "<button class=\"search-chip" + (filter === item.id ? " active" : "") + "\" type=\"button\" data-search-type=\"" + escapeHTML(item.id) + "\">" + escapeHTML(item.label) + "</button>";
   }).join("") + "</div>";
   const clear = query ? "<button class=\"search-query-clear\" type=\"button\" data-search-query-clear=\"true\" aria-label=\"Clear search\">" + icon("x") + "</button>" : "";
-  root.innerHTML = "<div class=\"search-page\"><div class=\"search-hero\"><div class=\"search-title\"><span>Find</span><h2>Search</h2></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, movies or shows\" autocomplete=\"off\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div></div>" + filterHTML + "<div id=\"search-page-results\" class=\"search-page-results\">" + renderSearchPageResults() + "</div></div>";
+  root.innerHTML = "<div class=\"search-page\"><header class=\"search-commandbar\"><div class=\"search-commandbar-title\"><h2>Search</h2><span>Channels, groups, and guide</span></div><div class=\"search-form\"><label class=\"search-input-shell\"><span>" + icon("search") + "</span><input id=\"search-page-input\" class=\"search-field\" value=\"" + escapeHTML(query) + "\" placeholder=\"Channels, programs, movies or shows\" autocomplete=\"off\" spellcheck=\"false\">" + clear + "</label><button class=\"search-cancel\" type=\"button\" data-search-cancel=\"true\">Done</button></div>" + filterHTML + "</header><div id=\"search-page-results\" class=\"search-page-results\">" + renderSearchPageResults() + "</div></div>";
   const input = byId("search-page-input");
   if (input && document.activeElement !== input) {
     setTimeout(function() {
