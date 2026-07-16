@@ -2076,6 +2076,9 @@ function renderSearchStart() {
 }
 function renderSearchPage() {
   const root = byId("view");
+  const main = document.querySelector(".main");
+  if (main) main.scrollLeft = 0;
+  if (root) root.scrollLeft = 0;
   const query = state.searchQuery || "";
   const filter = state.searchType || "all";
   const filterHTML = "<div class=\"search-scope-row\" aria-label=\"Search scope\">" + searchFilters().map(function(item) {

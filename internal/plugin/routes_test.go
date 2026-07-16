@@ -776,7 +776,7 @@ func TestPlayerSearchUsesXtreamFocusedCompactScopes(t *testing.T) {
 	t.Parallel()
 
 	script := playerAppJavaScript()
-	for _, expected := range []string{`class=\"search-commandbar\"`, `class=\"search-input-shell\"`, `class=\"search-scope-row\"`, `{ id: "guide", label: "Guide" }`, `data-search-query-clear`, `class=\"search-result-section\"`, `function firstSearchMatches(`, `const SEARCH_MIN_QUERY_LENGTH = 2;`} {
+	for _, expected := range []string{`class=\"search-commandbar\"`, `class=\"search-input-shell\"`, `class=\"search-scope-row\"`, `{ id: "guide", label: "Guide" }`, `data-search-query-clear`, `class=\"search-result-section\"`, `function firstSearchMatches(`, `const SEARCH_MIN_QUERY_LENGTH = 2;`, `if (main) main.scrollLeft = 0;`} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("expected compact search marker %q", expected)
 		}
@@ -800,7 +800,7 @@ func TestPlayerSearchUsesXtreamFocusedCompactScopes(t *testing.T) {
 		t.Fatal("expected search page title not to include the redundant Find eyebrow")
 	}
 	styles := playerStylesCSS()
-	for _, expected := range []string{`.search-commandbar {`, `.search-result-section-head {`, `.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`, `.shell.is-search .main { overflow-x: hidden;`, `.search-page .row-scroll {`, `@media (max-width: 1120px)`} {
+	for _, expected := range []string{`.search-commandbar {`, `.search-result-section-head {`, `.search-result-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));`, `.shell.is-search .main { width: 100%; min-width: 0; max-width: 100vw; overflow-x: hidden;`, `.search-page > * { min-width: 0; max-width: 100%; }`, `.search-page .row-scroll {`, `.search-page-results { width: 100%; max-width: 100%; min-width: 0; overflow: hidden; }`, `@media (max-width: 1120px)`} {
 		if !strings.Contains(styles, expected) {
 			t.Fatalf("expected refined search layout marker %q", expected)
 		}
