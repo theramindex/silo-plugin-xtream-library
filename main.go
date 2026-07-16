@@ -73,9 +73,12 @@ func (s *runtimeServer) migrateRetiredConnection(request *pluginv1.ConfigureRequ
 			log.Printf("xtream: inspect source registry before legacy migration failed: %v", err)
 			return
 		}
-		if len(sources) > 0 {
+		if sources != nil {
 			current.SourceMode = config.SourceModeXtream
 			current.XtreamSources = sources
+			current.XtreamBaseURL = ""
+			current.XtreamUsername = ""
+			current.XtreamPassword = ""
 			return
 		}
 	}
@@ -177,9 +180,12 @@ func settingsWithRegisteredSources(current config.Settings, sourceRegistry *conf
 	if sourceRegistry == nil {
 		return current
 	}
-	if sources, loadErr := sourceRegistry.Load(); loadErr == nil && len(sources) > 0 {
+	if sources, loadErr := sourceRegistry.Load(); loadErr == nil && sources != nil {
 		current.SourceMode = config.SourceModeXtream
 		current.XtreamSources = sources
+		current.XtreamBaseURL = ""
+		current.XtreamUsername = ""
+		current.XtreamPassword = ""
 	}
 	return current
 }

@@ -138,6 +138,9 @@ func (s XtreamSource) EffectiveAlternateEPGPolicy() string {
 
 func (s Settings) EffectiveXtreamSources() []XtreamSource {
 	if len(s.XtreamSources) == 0 {
+		if strings.TrimSpace(s.XtreamBaseURL) == "" && strings.TrimSpace(s.XtreamUsername) == "" && strings.TrimSpace(s.XtreamPassword) == "" {
+			return nil
+		}
 		return []XtreamSource{{ID: "primary", Name: "Primary", BaseURL: s.XtreamBaseURL, Username: s.XtreamUsername, Password: s.XtreamPassword, LiveFormat: s.EffectiveXtreamLiveFormat(), Enabled: true}}
 	}
 	result := make([]XtreamSource, 0, len(s.XtreamSources))
@@ -202,9 +205,6 @@ func (s *Settings) Validate() error {
 		}
 	case SourceModeXtream:
 		sources := s.EffectiveXtreamSources()
-		if len(sources) == 0 {
-			return fmt.Errorf("at least one enabled xtream source is required")
-		}
 		seen := map[string]bool{}
 		for _, source := range sources {
 			if strings.TrimSpace(source.ID) == "" {

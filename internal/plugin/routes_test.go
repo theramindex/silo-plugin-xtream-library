@@ -2610,6 +2610,39 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	}
 }
 
+func TestHTTPRoutesServerAdminSourcesCanDeleteLastSourceAndReAddIt(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "sources.json")
+	registry := config.NewSourceRegistry(path)
+	legacy := config.XtreamSource{ID: "provider-example-demo", Name: "Provider", BaseURL: "https://provider.example", Username: "demo", Password: "secret", Enabled: true}
+	if err := registry.Save([]config.XtreamSource{legacy}); err != nil {
+		t.Fatalf("seed source registry: %v", err)
+	}
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{legacy}}
+	})
+	server.sourceRegistry = registry
+	headers := map[string]string{"x-silo-user-role": "admin"}
+
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodDelete, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"id":"provider-example-demo"}`)})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("delete last source: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	sources, err := server.mutableSourceRegistry()
+	if err != nil || len(sources) != 0 {
+		t.Fatalf("explicitly empty registry must not resurrect legacy settings: sources=%+v err=%v", sources, err)
+	}
+
+	response, err = server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: headers, Body: []byte(`{"name":"Provider","baseUrl":"https://provider.example","username":"demo","password":"secret","liveFormat":"m3u8","enabled":true}`)})
+	if err != nil || response.GetStatusCode() != http.StatusOK {
+		t.Fatalf("re-add deleted source: status=%d err=%v body=%s", response.GetStatusCode(), err, response.GetBody())
+	}
+	sources, err = registry.Load()
+	if err != nil || len(sources) != 1 || sources[0].ID != "provider-example-demo" {
+		t.Fatalf("expected source to be re-added once: sources=%+v err=%v", sources, err)
+	}
+}
+
 func TestHTTPRoutesServerAdminSourcesReturnsRedactedAccountPool(t *testing.T) {
 	t.Parallel()
 	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
