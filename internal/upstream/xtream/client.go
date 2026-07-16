@@ -34,8 +34,28 @@ func NewClient(baseURL, username, password string) *Client {
 }
 
 func (c *Client) TestConnection(ctx context.Context) error {
-	_, err := c.LiveCategories(ctx)
-	return err
+	var payload struct {
+		UserInfo struct {
+			Auth   json.RawMessage `json:"auth"`
+			Status string          `json:"status"`
+		} `json:"user_info"`
+	}
+	if err := c.getJSON(ctx, "", nil, &payload); err != nil {
+		return fmt.Errorf("check account authentication: %w", err)
+	}
+	if !xtreamAuthAccepted(payload.UserInfo.Auth) {
+		status := strings.TrimSpace(payload.UserInfo.Status)
+		if status != "" {
+			return fmt.Errorf("provider rejected credentials (account status %s)", status)
+		}
+		return fmt.Errorf("provider rejected credentials")
+	}
+	return nil
+}
+
+func xtreamAuthAccepted(value json.RawMessage) bool {
+	normalized := strings.ToLower(strings.TrimSpace(string(value)))
+	return normalized == "1" || normalized == `"1"` || normalized == "true" || normalized == `"true"`
 }
 
 func (c *Client) LiveCategories(ctx context.Context) ([]LiveCategory, error) {
@@ -225,7 +245,9 @@ func (c *Client) getJSON(ctx context.Context, action string, params map[string]s
 	query := endpoint.Query()
 	query.Set("username", c.username)
 	query.Set("password", c.password)
-	query.Set("action", action)
+	if action != "" {
+		query.Set("action", action)
+	}
 	for key, value := range params {
 		query.Set(key, value)
 	}
@@ -243,7 +265,7 @@ func (c *Client) getJSON(ctx context.Context, action string, params map[string]s
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status %d", response.StatusCode)
+		return fmt.Errorf("provider returned HTTP %d", response.StatusCode)
 	}
 
 	body, err := sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxJSONResponseBytes)

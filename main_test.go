@@ -145,6 +145,31 @@ func TestRuntimeConfigureDurableXtreamRegistryOverridesRetiredM3UConnection(t *t
 	}
 }
 
+func TestRuntimeConfigureExplicitlyEmptyRegistryDoesNotRemigrateRetiredSource(t *testing.T) {
+	t.Parallel()
+
+	registry := config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	if err := registry.Save(nil); err != nil {
+		t.Fatalf("save empty registry: %v", err)
+	}
+	state := &settingsState{settings: config.Settings{SourceMode: config.SourceModeXtream}}
+	server := &runtimeServer{settings: state, sourceRegistry: registry}
+	request := &pluginv1.ConfigureRequest{Config: []*pluginv1.ConfigEntry{{Key: "connection", Value: mustStruct(t, map[string]any{
+		"source_mode": "xtream",
+		"base_url":    "https://retired.example.com",
+		"username":    "retired",
+		"password":    "secret",
+	})}}}
+
+	if _, err := server.Configure(context.Background(), request); err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	sources, err := registry.Load()
+	if err != nil || sources == nil || len(sources) != 0 {
+		t.Fatalf("explicit empty registry must remain authoritative: sources=%+v err=%v", sources, err)
+	}
+}
+
 func TestRuntimeConfigureDoesNotOverwriteUnreadableRegistryDuringMigration(t *testing.T) {
 	t.Parallel()
 
@@ -188,6 +213,21 @@ func TestSettingsWithRegisteredSourcesSwitchesLegacyM3UStateToXtream(t *testing.
 	got := settingsWithRegisteredSources(legacy, registry)
 	if got.SourceMode != config.SourceModeXtream || len(got.XtreamSources) != 1 || got.XtreamSources[0].ID != "provider" {
 		t.Fatalf("durable XC Admin sources must immediately become authoritative, got %+v", got)
+	}
+}
+
+func TestSettingsWithRegisteredSourcesPreservesExplicitlyEmptyRegistry(t *testing.T) {
+	t.Parallel()
+
+	registry := config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	if err := registry.Save(nil); err != nil {
+		t.Fatalf("save empty registry: %v", err)
+	}
+	legacy := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://retired.example.com", XtreamUsername: "retired", XtreamPassword: "secret"}
+
+	got := settingsWithRegisteredSources(legacy, registry)
+	if got.XtreamSources == nil || len(got.XtreamSources) != 0 || got.XtreamBaseURL != "" || got.XtreamUsername != "" || got.XtreamPassword != "" {
+		t.Fatalf("explicit empty registry must clear retired source settings, got %+v", got)
 	}
 }
 

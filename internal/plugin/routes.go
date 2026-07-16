@@ -1059,9 +1059,6 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 			return textResponse(http.StatusNotFound, "source not found"), nil
 		}
 		sources = append(sources[:index], sources[index+1:]...)
-		if !hasEnabledXtreamSource(sources) {
-			return textResponse(http.StatusConflict, "at least one enabled source is required"), nil
-		}
 		if err := s.sourceRegistry.Save(sources); err != nil {
 			return textResponse(http.StatusBadRequest, err.Error()), nil
 		}
@@ -1160,9 +1157,6 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 	} else {
 		sources = append(sources, candidate)
 	}
-	if !hasEnabledXtreamSource(sources) {
-		return textResponse(http.StatusConflict, "at least one enabled source is required"), nil
-	}
 	if err := s.sourceRegistry.Save(sources); err != nil {
 		return textResponse(http.StatusBadRequest, err.Error()), nil
 	}
@@ -1175,7 +1169,10 @@ func (s *HTTPRoutesServer) mutableSourceRegistry() ([]config.XtreamSource, error
 	if err != nil {
 		return nil, err
 	}
-	if len(sources) > 0 {
+	// A non-nil empty slice means XC Admin intentionally saved an empty
+	// registry. Do not resurrect legacy settings after the last source is
+	// removed; nil is reserved for a registry file that does not exist yet.
+	if sources != nil {
 		return sources, nil
 	}
 	settings := s.settingsProvider()
@@ -1186,15 +1183,6 @@ func (s *HTTPRoutesServer) mutableSourceRegistry() ([]config.XtreamSource, error
 		return nil, nil
 	}
 	return settings.EffectiveXtreamSources(), nil
-}
-
-func hasEnabledXtreamSource(sources []config.XtreamSource) bool {
-	for _, source := range sources {
-		if source.Enabled {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *HTTPRoutesServer) adminSourceList(ctx context.Context) ([]adminSourcePayload, error) {

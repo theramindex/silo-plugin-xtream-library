@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -40,6 +41,38 @@ func TestClientConnectionAndCatalogFetch(t *testing.T) {
 	}
 	if !channels[0].CatchupAvailable() || channels[0].TVArchiveDurationMinutes != 60 {
 		t.Fatalf("expected provider catchup metadata, got %+v", channels[0])
+	}
+}
+
+func TestClientConnectionUsesAccountAuthenticationEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var action string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		action = r.URL.Query().Get("action")
+		_, _ = w.Write([]byte(`{"user_info":{"auth":"1","status":"Active"}}`))
+	}))
+	defer server.Close()
+
+	if err := NewClient(server.URL, "demo", "secret").TestConnection(t.Context()); err != nil {
+		t.Fatalf("expected connection success, got %v", err)
+	}
+	if action != "" {
+		t.Fatalf("connection test must not depend on a catalog action, got %q", action)
+	}
+}
+
+func TestClientConnectionRejectsProviderAuthenticationFailure(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"user_info":{"auth":0,"status":"Disabled"}}`))
+	}))
+	defer server.Close()
+
+	err := NewClient(server.URL, "demo", "wrong").TestConnection(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "rejected credentials") {
+		t.Fatalf("expected authentication failure, got %v", err)
 	}
 }
 
@@ -131,6 +164,9 @@ func newFixtureServer(t *testing.T) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/player_api.php" {
 			switch r.URL.Query().Get("action") {
+			case "":
+				_, _ = w.Write([]byte(`{"user_info":{"auth":1,"status":"Active"}}`))
+				return
 			case "get_live_categories":
 				_, _ = w.Write(liveCategories)
 				return

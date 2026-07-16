@@ -2,19 +2,27 @@ package config
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	sdkconfig "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginsdk/config"
 )
 
-func TestValidate_XtreamRequiresCredentials(t *testing.T) {
+func TestValidate_XtreamAllowsXCAdminEmptyState(t *testing.T) {
 	t.Parallel()
 
 	cfg := Settings{SourceMode: SourceModeXtream}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("XC Admin must remain available before a source is configured: %v", err)
+	}
+}
+
+func TestValidate_XtreamRejectsPartialLegacyCredentials(t *testing.T) {
+	t.Parallel()
+
+	cfg := Settings{SourceMode: SourceModeXtream, XtreamBaseURL: "https://provider.example"}
 	if err := cfg.Validate(); err == nil {
-		t.Fatal("expected validation error for missing xtream credentials")
+		t.Fatal("expected partial legacy credentials to remain invalid")
 	}
 }
 
@@ -266,11 +274,11 @@ func TestSettingsValidateAcceptsMultipleXtreamSources(t *testing.T) {
 	}
 }
 
-func TestSettingsValidateRejectsNoEnabledXtreamSources(t *testing.T) {
+func TestSettingsValidateAllowsAllXtreamSourcesDisabled(t *testing.T) {
 	t.Parallel()
 	settings := Settings{SourceMode: SourceModeXtream, XtreamSources: []XtreamSource{{ID: "off", BaseURL: "https://one.example", Username: "one", Password: "secret", Enabled: false}}}
-	if err := settings.Validate(); err == nil || !strings.Contains(err.Error(), "enabled xtream source") {
-		t.Fatalf("expected enabled source validation error, got %v", err)
+	if err := settings.Validate(); err != nil {
+		t.Fatalf("disabled sources must not prevent XC Admin recovery: %v", err)
 	}
 }
 
