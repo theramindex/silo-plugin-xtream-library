@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.70",
+  "version": "0.2.71",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -339,6 +339,20 @@
       "id": "dispatcharr-api-watch-stop",
       "method": "POST",
       "path": "/dispatcharr/api/watch/stop",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports-league-teams",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports/league-teams",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-sports-image",
+      "method": "GET",
+      "path": "/dispatcharr/api/sports/image",
       "access": "authenticated",
       "navigable": false
     }

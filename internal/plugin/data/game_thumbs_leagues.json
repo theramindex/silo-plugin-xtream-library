@@ -1,0 +1,1968 @@
+[
+  {
+    "slug": "nfl",
+    "names": [
+      "National Football League",
+      "nfl",
+      "NFL",
+      "NFL Football"
+    ]
+  },
+  {
+    "slug": "nba",
+    "names": [
+      "National Basketball Association",
+      "nba",
+      "NBA",
+      "NBA Basketball"
+    ]
+  },
+  {
+    "slug": "mlb",
+    "names": [
+      "Major League Baseball",
+      "mlb",
+      "MLB",
+      "MLB Baseball"
+    ]
+  },
+  {
+    "slug": "nhl",
+    "names": [
+      "National Hockey League",
+      "nhl",
+      "NHL",
+      "NHL Hockey"
+    ]
+  },
+  {
+    "slug": "pwhl",
+    "names": [
+      "Professional Women's Hockey League"
+    ]
+  },
+  {
+    "slug": "ushl",
+    "names": [
+      "United States Hockey League",
+      "American USHL"
+    ]
+  },
+  {
+    "slug": "wnba",
+    "names": [
+      "Women's National Basketball Association",
+      "wnba",
+      "WNBA",
+      "WNBA Basketball"
+    ]
+  },
+  {
+    "slug": "nbag",
+    "names": [
+      "NBA G League",
+      "nba g league",
+      "g league",
+      "nba development league",
+      "nba development",
+      "nba-development",
+      "G League",
+      "NBA G League Basketball"
+    ]
+  },
+  {
+    "slug": "ubl",
+    "names": [
+      "Unrivaled Basketball",
+      "unrivaled basketball league",
+      "ub",
+      "unrivaled"
+    ]
+  },
+  {
+    "slug": "nll",
+    "names": [
+      "National Lacrosse League",
+      "nll",
+      "NLL"
+    ]
+  },
+  {
+    "slug": "ufc",
+    "names": [
+      "Ultimate Fighting Championship",
+      "mma"
+    ]
+  },
+  {
+    "slug": "pfl",
+    "names": [
+      "Professional Fighters League"
+    ]
+  },
+  {
+    "slug": "bellator",
+    "names": [
+      "Bellator MMA"
+    ]
+  },
+  {
+    "slug": "boxing",
+    "names": [
+      "Boxing",
+      "box"
+    ]
+  },
+  {
+    "slug": "tennis",
+    "names": [
+      "Tennis"
+    ]
+  },
+  {
+    "slug": "atp",
+    "names": [
+      "ATP Tour"
+    ]
+  },
+  {
+    "slug": "wta",
+    "names": [
+      "WTA Tour"
+    ]
+  },
+  {
+    "slug": "ufl",
+    "names": [
+      "United Football League",
+      "ufl",
+      "UFL",
+      "UFL Football"
+    ]
+  },
+  {
+    "slug": "cfl",
+    "names": [
+      "Canadian Football League",
+      "grey cup",
+      "CFL"
+    ]
+  },
+  {
+    "slug": "uefa",
+    "names": [
+      "UEFA Champions League",
+      "champions league",
+      "ucl",
+      "uefa.champions",
+      "UCL",
+      "UEFA Champions League Soccer"
+    ]
+  },
+  {
+    "slug": "uefa.wchampions",
+    "names": [
+      "UEFA Women's Champions League",
+      "womens champions league",
+      "uefa womens champions",
+      "uefa.womens.champions",
+      "uclw",
+      "uefaw",
+      "uefa.wchampions"
+    ]
+  },
+  {
+    "slug": "europa",
+    "names": [
+      "UEFA Europa League",
+      "europa league",
+      "uel",
+      "uefa.europa",
+      "uefaeuropaleague",
+      "UEL",
+      "UEFA Europa League Soccer"
+    ]
+  },
+  {
+    "slug": "conference",
+    "names": [
+      "UEFA Europa Conference League",
+      "conference league",
+      "uecl",
+      "uefa.conference",
+      "uefa.europa.conf",
+      "uefaconferenceleague",
+      "uefaeuropaconfleague",
+      "UECL",
+      "UEFA Europa Conference League Soccer"
+    ]
+  },
+  {
+    "slug": "worldcup",
+    "names": [
+      "FIFA World Cup",
+      "world cup",
+      "fifa",
+      "fifa world cup",
+      "fifa.world",
+      "World Cup"
+    ]
+  },
+  {
+    "slug": "wcq-uefa",
+    "names": [
+      "FIFA World Cup Qualifiers - UEFA",
+      "world cup qualifiers uefa",
+      "wcq uefa",
+      "europe qualifiers",
+      "fifa.worldq.uefa"
+    ]
+  },
+  {
+    "slug": "wcq-conmebol",
+    "names": [
+      "FIFA World Cup Qualifiers - CONMEBOL",
+      "world cup qualifiers conmebol",
+      "wcq conmebol",
+      "south america qualifiers",
+      "fifa.worldq.conmebol"
+    ]
+  },
+  {
+    "slug": "wcq-concacaf",
+    "names": [
+      "FIFA World Cup Qualifiers - CONCACAF",
+      "world cup qualifiers concacaf",
+      "wcq concacaf",
+      "north america qualifiers",
+      "fifa.worldq.concacaf"
+    ]
+  },
+  {
+    "slug": "wcq-afc",
+    "names": [
+      "FIFA World Cup Qualifiers - AFC",
+      "world cup qualifiers afc",
+      "wcq afc",
+      "asia qualifiers",
+      "fifa.worldq.afc"
+    ]
+  },
+  {
+    "slug": "wcq-caf",
+    "names": [
+      "FIFA World Cup Qualifiers - CAF",
+      "world cup qualifiers caf",
+      "wcq caf",
+      "africa qualifiers",
+      "fifa.worldq.caf"
+    ]
+  },
+  {
+    "slug": "wcq-ofc",
+    "names": [
+      "FIFA World Cup Qualifiers - OFC",
+      "world cup qualifiers ofc",
+      "wcq ofc",
+      "oceania qualifiers",
+      "fifa.worldq.ofc"
+    ]
+  },
+  {
+    "slug": "euros",
+    "names": [
+      "UEFA European Championship",
+      "european championship",
+      "uefa.euro",
+      "UEFA European Championships",
+      "Euro",
+      "UEFA Euro"
+    ]
+  },
+  {
+    "slug": "euroq",
+    "names": [
+      "UEFA European Championships Qualifying",
+      "euro qualifiers",
+      "european championship qualifiers",
+      "uefa.euroq"
+    ]
+  },
+  {
+    "slug": "uefanationsleague",
+    "names": [
+      "UEFA Nations League",
+      "Euro Nations League",
+      "uefa.nations"
+    ]
+  },
+  {
+    "slug": "concacafnationsleague",
+    "names": [
+      "CONCACAF Nations League",
+      "concacaf.nations.league",
+      "CNL"
+    ]
+  },
+  {
+    "slug": "afcon",
+    "names": [
+      "Africa Cup of Nations",
+      "afcon",
+      "African Cup of Nations",
+      "caf.nations"
+    ]
+  },
+  {
+    "slug": "afconq",
+    "names": [
+      "Africa Cup of Nations Qualifying",
+      "afconq",
+      "African Cup of Nations Qualifying",
+      "caf.nations_qual"
+    ]
+  },
+  {
+    "slug": "epl",
+    "names": [
+      "English Premier League",
+      "premier league",
+      "premier",
+      "england",
+      "eng.1",
+      "EPL",
+      "Premier League Soccer"
+    ]
+  },
+  {
+    "slug": "engfa",
+    "names": [
+      "FA Cup",
+      "fa cup",
+      "english fa cup",
+      "eng.fa.cup",
+      "eng.fa",
+      "FA Cup Soccer"
+    ]
+  },
+  {
+    "slug": "engleaguecup",
+    "names": [
+      "English Carabao Cup",
+      "english league cup",
+      "english football league cup",
+      "carabao cup",
+      "eng.carabao_cup",
+      "EFL Cup",
+      "eng.league_cup",
+      "Carabao Cup",
+      "EFL Cup Soccer"
+    ]
+  },
+  {
+    "slug": "engcommunityshield",
+    "names": [
+      "English FA Community Shield",
+      "english community shield",
+      "community shield",
+      "charity shield",
+      "eng.charity",
+      "FA Community Shield"
+    ]
+  },
+  {
+    "slug": "engfatrophy",
+    "names": [
+      "English FA Trophy",
+      "fa trophy",
+      "fa challenge trophy",
+      "eng.fatrophy",
+      "FA Trophy"
+    ]
+  },
+  {
+    "slug": "laliga",
+    "names": [
+      "La Liga",
+      "esp.1",
+      "La Liga Soccer"
+    ]
+  },
+  {
+    "slug": "copadelrey",
+    "names": [
+      "Copa Del Rey",
+      "esp.copa_del_rey",
+      "Copa del Rey",
+      "Copa del Rey Soccer"
+    ]
+  },
+  {
+    "slug": "bundesliga",
+    "names": [
+      "Bundesliga",
+      "ger.1",
+      "Bundesliga Soccer"
+    ]
+  },
+  {
+    "slug": "seriea",
+    "names": [
+      "Serie A",
+      "ita.1",
+      "Serie A Soccer"
+    ]
+  },
+  {
+    "slug": "ligue1",
+    "names": [
+      "Ligue 1",
+      "fra.1",
+      "Ligue 1 Soccer"
+    ]
+  },
+  {
+    "slug": "eredivisie",
+    "names": [
+      "Eredivisie",
+      "ned.1",
+      "Dutch Eredivisie",
+      "Eredivisie Soccer"
+    ]
+  },
+  {
+    "slug": "mls",
+    "names": [
+      "Major League Soccer",
+      "major league soccer",
+      "usa.1",
+      "MLS",
+      "MLS Soccer"
+    ]
+  },
+  {
+    "slug": "usopen",
+    "names": [
+      "U.S. Open Cup",
+      "usa open cup",
+      "usa open",
+      "us open",
+      "usa.open"
+    ]
+  },
+  {
+    "slug": "usl",
+    "names": [
+      "USL Championship",
+      "usl",
+      "usl championship",
+      "usa.usl.1"
+    ]
+  },
+  {
+    "slug": "championship",
+    "names": [
+      "EFL Championship",
+      "championship",
+      "efl championship",
+      "english championship",
+      "eng.2",
+      "English Championship Soccer"
+    ]
+  },
+  {
+    "slug": "league-one",
+    "names": [
+      "EFL League One",
+      "league one",
+      "efl league one",
+      "english league one",
+      "eng.3",
+      "English League One Soccer"
+    ]
+  },
+  {
+    "slug": "league-two",
+    "names": [
+      "EFL League Two",
+      "league two",
+      "efl league two",
+      "english league two",
+      "eng.4",
+      "English League Two Soccer"
+    ]
+  },
+  {
+    "slug": "english-national-league",
+    "names": [
+      "English National League",
+      "ENL",
+      "National League",
+      "eng.5"
+    ]
+  },
+  {
+    "slug": "english-national-league-south",
+    "names": [
+      "English National League South",
+      "ENLS",
+      "National League South"
+    ]
+  },
+  {
+    "slug": "english-national-league-north",
+    "names": [
+      "English National League North",
+      "ENLN",
+      "National League North"
+    ]
+  },
+  {
+    "slug": "segunda",
+    "names": [
+      "Segunda División",
+      "segunda",
+      "segunda division",
+      "la liga 2",
+      "laliga2",
+      "esp.2"
+    ]
+  },
+  {
+    "slug": "2-bundesliga",
+    "names": [
+      "2. Bundesliga",
+      "2 bundesliga",
+      "2. bundesliga",
+      "bundesliga 2",
+      "ger.2",
+      "2. Bundesliga Soccer"
+    ]
+  },
+  {
+    "slug": "serieb",
+    "names": [
+      "Serie B",
+      "serie b",
+      "italian serie b",
+      "ita.2"
+    ]
+  },
+  {
+    "slug": "ligue2",
+    "names": [
+      "Ligue 2",
+      "ligue 2",
+      "french ligue 2",
+      "fra.2"
+    ]
+  },
+  {
+    "slug": "eerste-divisie",
+    "names": [
+      "Eerste Divisie",
+      "eredivisie 2",
+      "ned.2",
+      "Dutch Eerste Divisie"
+    ]
+  },
+  {
+    "slug": "scup",
+    "names": [
+      "Scottish Cup",
+      "scottish fa cup",
+      "scottish cup",
+      "sfa cup",
+      "sfa.cup",
+      "sco.tennents",
+      "Scottish FA Cup"
+    ]
+  },
+  {
+    "slug": "slcup",
+    "names": [
+      "Scottish League Cup",
+      "scottish League cup",
+      "sco.cis"
+    ]
+  },
+  {
+    "slug": "spfl",
+    "names": [
+      "Scottish Premiership",
+      "scottish premiership",
+      "scottish premier league",
+      "sco.1",
+      "SPFL",
+      "Scottish Premiership Soccer"
+    ]
+  },
+  {
+    "slug": "sch",
+    "names": [
+      "Scottish Championship",
+      "scottish championship",
+      "sco.2"
+    ]
+  },
+  {
+    "slug": "sl1",
+    "names": [
+      "Scottish League One",
+      "scottish league one",
+      "sco.3",
+      "Scottish League 1"
+    ]
+  },
+  {
+    "slug": "sl2",
+    "names": [
+      "Scottish League Two",
+      "scottish league two",
+      "sco.4",
+      "Scottish League 2"
+    ]
+  },
+  {
+    "slug": "ewsl",
+    "names": [
+      "English Women's Super League",
+      "english womens super league",
+      "womens super league",
+      "wsl",
+      "English Womens Super League"
+    ]
+  },
+  {
+    "slug": "ncaa",
+    "names": [
+      "NCAA"
+    ]
+  },
+  {
+    "slug": "ncaaf",
+    "names": [
+      "NCAA Football",
+      "college football",
+      "ncaa football",
+      "college-football",
+      "NCAA Division 1",
+      "NCAAF",
+      "College Football"
+    ]
+  },
+  {
+    "slug": "ncaam",
+    "names": [
+      "NCAA Men's Basketball",
+      "college basketball",
+      "mens college basketball",
+      "march madness",
+      "ncaab",
+      "mens-college-basketball",
+      "NCAAM",
+      "College Basketball"
+    ]
+  },
+  {
+    "slug": "ncaaw",
+    "names": [
+      "NCAA Women's Basketball",
+      "womens college basketball",
+      "womens basketball",
+      "womens-college-basketball",
+      "NCAAW",
+      "Women's College Basketball"
+    ]
+  },
+  {
+    "slug": "ncaabb",
+    "names": [
+      "NCAA Baseball",
+      "college baseball",
+      "mens college baseball",
+      "college-baseball",
+      "College Baseball"
+    ]
+  },
+  {
+    "slug": "ncaasbw",
+    "names": [
+      "NCAA Softball",
+      "college softball",
+      "womens college softball",
+      "college-softball",
+      "College Softball"
+    ]
+  },
+  {
+    "slug": "ncaah",
+    "names": [
+      "NCAA Ice Hockey",
+      "college ice hockey",
+      "mens college ice hockey",
+      "mens-college-hockey",
+      "NCAA Men's Ice Hockey",
+      "NCAA Hockey",
+      "College Hockey"
+    ]
+  },
+  {
+    "slug": "ncaawh",
+    "names": [
+      "NCAA Women's Ice Hockey",
+      "womens college ice hockey",
+      "womens-college-hockey",
+      "NCAA W Hockey",
+      "Women's College Hockey"
+    ]
+  },
+  {
+    "slug": "ncaas",
+    "names": [
+      "NCAA Soccer",
+      "college soccer",
+      "mens college soccer",
+      "usa.ncaa.m.1",
+      "NCAA Men's Soccer",
+      "Men's College Soccer"
+    ]
+  },
+  {
+    "slug": "ncaaws",
+    "names": [
+      "NCAA Women's Soccer",
+      "womens college soccer",
+      "usa.ncaa.w.1",
+      "NCAA W Soccer",
+      "Women's College Soccer"
+    ]
+  },
+  {
+    "slug": "ncaalax",
+    "names": [
+      "NCAA Men's Lacrosse",
+      "college lacrosse",
+      "mens college lacrosse",
+      "mens lacrosse",
+      "mens-college-lacrosse",
+      "NCAA Lacrosse"
+    ]
+  },
+  {
+    "slug": "ncaawlax",
+    "names": [
+      "NCAA Women's Lacrosse",
+      "womens college lacrosse",
+      "womens lacrosse",
+      "womens-college-lacrosse",
+      "NCAA W Lacrosse"
+    ]
+  },
+  {
+    "slug": "ncaavb",
+    "names": [
+      "NCAA Men's Volleyball",
+      "college volleyball",
+      "mens college volleyball",
+      "mens volleyball",
+      "ncaavbm",
+      "mens-college-volleyball",
+      "NCAA Volleyball",
+      "Men's College Volleyball"
+    ]
+  },
+  {
+    "slug": "ncaawvb",
+    "names": [
+      "NCAA Women's Volleyball",
+      "womens college volleyball",
+      "womens volleyball",
+      "ncaavbw",
+      "womens-college-volleyball",
+      "NCAA W Volleyball",
+      "Women's College Volleyball"
+    ]
+  },
+  {
+    "slug": "ncaawp",
+    "names": [
+      "NCAA Men's Water Polo",
+      "college water polo",
+      "mens college water polo",
+      "mens water polo",
+      "mens-college-water-polo"
+    ]
+  },
+  {
+    "slug": "ncaawwp",
+    "names": [
+      "NCAA Women's Water Polo",
+      "womens college water polo",
+      "womens water polo",
+      "womens-college-water-polo"
+    ]
+  },
+  {
+    "slug": "ncaawfh",
+    "names": [
+      "NCAA Women's Field Hockey",
+      "womens college field hockey",
+      "womens field hockey",
+      "field hockey",
+      "womens-college-field-hockey"
+    ]
+  },
+  {
+    "slug": "chl",
+    "names": [
+      "Canadian Hockey League",
+      "canadian hockey league",
+      "canadian chl"
+    ]
+  },
+  {
+    "slug": "ohl",
+    "names": [
+      "Ontario Hockey League",
+      "canadian ohl",
+      "ontario hockey",
+      "Canadian OHL"
+    ]
+  },
+  {
+    "slug": "whl",
+    "names": [
+      "Western Hockey League",
+      "canadian whl",
+      "western hockey",
+      "Canadian WHL"
+    ]
+  },
+  {
+    "slug": "qmjhl",
+    "names": [
+      "Quebec Maritimes Junior Hockey League",
+      "Quebec Major Junior Hockey League",
+      "Canadian QMJHL"
+    ]
+  },
+  {
+    "slug": "ahl",
+    "names": [
+      "American Hockey League",
+      "american ahl",
+      "american hockey league"
+    ]
+  },
+  {
+    "slug": "bchl",
+    "names": [
+      "British Columbia Hockey League"
+    ]
+  },
+  {
+    "slug": "gohl",
+    "names": [
+      "Greater Ontario Hockey League"
+    ]
+  },
+  {
+    "slug": "sjhl",
+    "names": [
+      "Saskatchewan Junior Hockey League"
+    ]
+  },
+  {
+    "slug": "ajhl",
+    "names": [
+      "Alberta Junior Hockey League"
+    ]
+  },
+  {
+    "slug": "mjhl",
+    "names": [
+      "Manitoba Junior Hockey League"
+    ]
+  },
+  {
+    "slug": "mhl",
+    "names": [
+      "Maritime Junior Hockey League"
+    ]
+  },
+  {
+    "slug": "echl",
+    "names": [
+      "East Coast Hockey League"
+    ]
+  },
+  {
+    "slug": "ojhl",
+    "names": [
+      "Ontario Junior Hockey League"
+    ]
+  },
+  {
+    "slug": "csshl",
+    "names": [
+      "Canadian Sport School Hockey League"
+    ]
+  },
+  {
+    "slug": "eihl",
+    "names": [
+      "UK Elite Ice Hockey League",
+      "uk eihl",
+      "Elite Ice Hockey League",
+      "British Elite League"
+    ]
+  },
+  {
+    "slug": "milb",
+    "names": [
+      "Minor League Baseball",
+      "minor leagues",
+      "minor league baseball"
+    ]
+  },
+  {
+    "slug": "milb-aaa",
+    "names": [
+      "Triple-A Baseball",
+      "aaa",
+      "triple-a",
+      "triple a",
+      "aaa baseball"
+    ]
+  },
+  {
+    "slug": "milb-aa",
+    "names": [
+      "Double-A Baseball",
+      "aa",
+      "double-a",
+      "double a",
+      "aa baseball"
+    ]
+  },
+  {
+    "slug": "milb-high-a",
+    "names": [
+      "High-A Baseball",
+      "high-a",
+      "high a",
+      "a-plus",
+      "high-a baseball"
+    ]
+  },
+  {
+    "slug": "milb-a",
+    "names": [
+      "Single-A Baseball",
+      "single-a",
+      "single a",
+      "a baseball",
+      "low-a"
+    ]
+  },
+  {
+    "slug": "milb-winter",
+    "names": [
+      "Winter Leagues",
+      "winter baseball",
+      "winter leagues baseball"
+    ]
+  },
+  {
+    "slug": "milb-independent",
+    "names": [
+      "Independent League Baseball",
+      "independent baseball",
+      "indie baseball"
+    ]
+  },
+  {
+    "slug": "kbo",
+    "names": [
+      "Korean Baseball Organization",
+      "korean baseball",
+      "korea baseball",
+      "kbo baseball"
+    ]
+  },
+  {
+    "slug": "cbl",
+    "names": [
+      "Canadian Baseball League",
+      "canadian baseball",
+      "canadian baseball league"
+    ]
+  },
+  {
+    "slug": "llb",
+    "names": [
+      "Little League Baseball",
+      "llb",
+      "LLB"
+    ]
+  },
+  {
+    "slug": "the100m",
+    "names": [
+      "The Hundred",
+      "the hundred",
+      "hundred cricket",
+      "100 cricket",
+      "the100",
+      "mens-hundred",
+      "hundred mens"
+    ]
+  },
+  {
+    "slug": "the100w",
+    "names": [
+      "The Hundred Women",
+      "the hundred women",
+      "hundred cricket womens",
+      "100 cricket womens",
+      "the100 womens",
+      "womens-hundred",
+      "hundred womens",
+      "womens-100"
+    ]
+  },
+  {
+    "slug": "t20blast",
+    "names": [
+      "English t20 Blast",
+      "english t20",
+      "t20 blast",
+      "english-t20 blast"
+    ]
+  },
+  {
+    "slug": "ipl",
+    "names": [
+      "Indian Premier League",
+      "indian-premier-league",
+      "ipl t20",
+      "indian premier league",
+      "IPL"
+    ]
+  },
+  {
+    "slug": "bbl",
+    "names": [
+      "Australian Big Bash League",
+      "big bash",
+      "australian-big-bash-league",
+      "bbl t20",
+      "t20 big bash league",
+      "Big Bash League",
+      "BBL"
+    ]
+  },
+  {
+    "slug": "bpl",
+    "names": [
+      "Bangladesh Premier League",
+      "bangladesh-premier-league",
+      "bangladesh premier league",
+      "bpl t20"
+    ]
+  },
+  {
+    "slug": "cpl",
+    "names": [
+      "Caribbean Premier League",
+      "caribbean-premier-league",
+      "cpl t20",
+      "caribbean premier league"
+    ]
+  },
+  {
+    "slug": "mlc",
+    "names": [
+      "Major League Cricket",
+      "major-league-cricket",
+      "MLC"
+    ]
+  },
+  {
+    "slug": "nzss",
+    "names": [
+      "New Zealand Super Smash",
+      "nz super smash",
+      "super smash",
+      "nz t20",
+      "new-zealand-super-smash"
+    ]
+  },
+  {
+    "slug": "sa20",
+    "names": [
+      "SA20",
+      "south africa t20",
+      "South Africa Twenty20"
+    ]
+  },
+  {
+    "slug": "npl",
+    "names": [
+      "Nepal Premier League",
+      "nepal-premier-league",
+      "nepal t20"
+    ]
+  },
+  {
+    "slug": "psl",
+    "names": [
+      "Pakistan Super League",
+      "pakistan-super-league",
+      "pakistan t20"
+    ]
+  },
+  {
+    "slug": "6n",
+    "names": [
+      "Six Nations",
+      "mens six nations",
+      "six nations rugby",
+      "6 nations",
+      "mens 6 nations",
+      "Six Nations Championship",
+      "180659"
+    ]
+  },
+  {
+    "slug": "6nw",
+    "names": [
+      "Six Nations Women",
+      "womens six nations",
+      "six nations rugby women",
+      "6 nations women",
+      "womens 6 nations"
+    ]
+  },
+  {
+    "slug": "prem",
+    "names": [
+      "English Prem Rugby",
+      "premiership rugby",
+      "prem rugby",
+      "Gallagher Prem",
+      "267979"
+    ]
+  },
+  {
+    "slug": "urc",
+    "names": [
+      "United Rugby Championship",
+      "united rugby champ",
+      "urc",
+      "united rugby",
+      "270557"
+    ]
+  },
+  {
+    "slug": "epcr",
+    "names": [
+      "European Rugby Challenge Cup",
+      "epcrcc",
+      "EPCR Challenge Cup",
+      "272073"
+    ]
+  },
+  {
+    "slug": "rwc",
+    "names": [
+      "Rugby World Cup",
+      "rugby union world cup",
+      "mens rugby world cup",
+      "mens rwc",
+      "164205"
+    ]
+  },
+  {
+    "slug": "wrwc",
+    "names": [
+      "Womens Rugby World Cup",
+      "womens rugby union world cup",
+      "womens rwc",
+      "289237"
+    ]
+  },
+  {
+    "slug": "erlsp",
+    "names": [
+      "English Rugby League Super League",
+      "english rugby league super league",
+      "super league"
+    ]
+  },
+  {
+    "slug": "rlwc",
+    "names": [
+      "Rugby League World Cup",
+      "mens rugby league world cup",
+      "rlwc"
+    ]
+  },
+  {
+    "slug": "mlr",
+    "names": [
+      "Major League Rugby",
+      "major league rugby",
+      "289262"
+    ]
+  },
+  {
+    "slug": "trc",
+    "names": [
+      "The Rugby Championship",
+      "rugby championship",
+      "tri nations",
+      "four nations",
+      "244293"
+    ]
+  },
+  {
+    "slug": "super-rugby",
+    "names": [
+      "Super Rugby Pacific",
+      "super rugby",
+      "super rugby pacific",
+      "242041"
+    ]
+  },
+  {
+    "slug": "top14",
+    "names": [
+      "French Top 14",
+      "top 14",
+      "top14",
+      "french rugby top 14",
+      "270559"
+    ]
+  },
+  {
+    "slug": "ercc",
+    "names": [
+      "European Rugby Champions Cup",
+      "champions cup",
+      "heineken cup",
+      "investec champions cup",
+      "epcr champions cup",
+      "271937"
+    ]
+  },
+  {
+    "slug": "cc",
+    "names": [
+      "Currie Cup",
+      "south africa currie cup",
+      "270555"
+    ]
+  },
+  {
+    "slug": "npc",
+    "names": [
+      "National Provincial Championship",
+      "new zealand npc",
+      "nz npc",
+      "270563"
+    ]
+  },
+  {
+    "slug": "urba",
+    "names": [
+      "URBA Primera A",
+      "argentina rugby",
+      "urba primera",
+      "2009"
+    ]
+  },
+  {
+    "slug": "itm",
+    "names": [
+      "International Test Match",
+      "rugby test match",
+      "international rugby test",
+      "289234"
+    ]
+  },
+  {
+    "slug": "lions",
+    "names": [
+      "British and Irish Lions Tour",
+      "british irish lions",
+      "lions tour",
+      "bi lions",
+      "268565"
+    ]
+  },
+  {
+    "slug": "nrl",
+    "names": [
+      "NRL",
+      "national rugby league",
+      "australian rugby league",
+      "3"
+    ]
+  },
+  {
+    "slug": "wbc",
+    "names": [
+      "World Baseball Classic",
+      "world-baseball-classic",
+      "WBC"
+    ]
+  },
+  {
+    "slug": "iihf",
+    "names": [
+      "International Ice Hockey Federation",
+      "world juniors",
+      "world junior championship",
+      "iihf wjc",
+      "wjc"
+    ]
+  },
+  {
+    "slug": "olympics",
+    "names": [
+      "Olympic Games",
+      "olympics",
+      "olympic games",
+      "summer olympics",
+      "winter olympics",
+      "olympic",
+      "olympics-mens-ice-hockey",
+      "olympics-womens-ice-hockey",
+      "olymh",
+      "olywh",
+      "Men's Ice Hockey - Olympics",
+      "Olympic Hockey",
+      "Women's Ice Hockey - Olympics",
+      "Olympic W Hockey"
+    ]
+  },
+  {
+    "slug": "country",
+    "names": [
+      "Country Flags",
+      "flags"
+    ]
+  },
+  {
+    "slug": "F1",
+    "names": [
+      "Formula 1"
+    ]
+  },
+  {
+    "slug": "NASCAR",
+    "names": [
+      "NASCAR",
+      "nascar cup series",
+      "nascar cup"
+    ]
+  },
+  {
+    "slug": "INDY",
+    "names": [
+      "IndyCar"
+    ]
+  },
+  {
+    "slug": "arb.1",
+    "names": [
+      "Aruban Division di Honor",
+      "ARB.1",
+      "Aruban Division di Honor"
+    ]
+  },
+  {
+    "slug": "bra.camp.acreano",
+    "names": [
+      "Brazilian Campeonato Acreano",
+      "Acreano",
+      "Brazilian Campeonato Acreano"
+    ]
+  },
+  {
+    "slug": "bra.camp.alagoano",
+    "names": [
+      "Brazilian Campeonato Alagoano",
+      "Alagoano",
+      "Brazilian Campeonato Alagoano"
+    ]
+  },
+  {
+    "slug": "bra.camp.amapaense",
+    "names": [
+      "Brazilian Campeonato Amapaense",
+      "Amapaense",
+      "Brazilian Campeonato Amapaense"
+    ]
+  },
+  {
+    "slug": "bra.camp.amazonense",
+    "names": [
+      "Brazilian Campeonato Amazonense",
+      "Amazonense",
+      "Brazilian Campeonato Amazonense"
+    ]
+  },
+  {
+    "slug": "bra.camp.baiano",
+    "names": [
+      "Brazilian Campeonato Baiano",
+      "Baiano",
+      "Brazilian Campeonato Baiano"
+    ]
+  },
+  {
+    "slug": "bra.camp.brasiliense",
+    "names": [
+      "Brazilian Campeonato Brasiliense",
+      "Brasiliense",
+      "Brazilian Campeonato Brasiliense"
+    ]
+  },
+  {
+    "slug": "bra.camp.capixaba",
+    "names": [
+      "Brazilian Campeonato Capixaba",
+      "Capixaba",
+      "Brazilian Campeonato Capixaba"
+    ]
+  },
+  {
+    "slug": "bra.camp.catarinense",
+    "names": [
+      "Brazilian Campeonato Catarinense",
+      "Catarinense",
+      "Brazilian Campeonato Catarinense"
+    ]
+  },
+  {
+    "slug": "bra.camp.cearense",
+    "names": [
+      "Brazilian Campeonato Cearense",
+      "Cearense",
+      "Brazilian Campeonato Cearense"
+    ]
+  },
+  {
+    "slug": "bra.camp.goiano",
+    "names": [
+      "Brazilian Campeonato Goiano",
+      "Goiano",
+      "Brazilian Campeonato Goiano"
+    ]
+  },
+  {
+    "slug": "bra.camp.maranhense",
+    "names": [
+      "Brazilian Campeonato Maranhense",
+      "Maranhense",
+      "Brazilian Campeonato Maranhense"
+    ]
+  },
+  {
+    "slug": "bra.camp.matogrossense",
+    "names": [
+      "Brazilian Campeonato MatoGrossense",
+      "MatoGrossense",
+      "Brazilian Campeonato MatoGrossense"
+    ]
+  },
+  {
+    "slug": "bra.camp.paraense",
+    "names": [
+      "Brazilian Campeonato Paraense",
+      "Paraense",
+      "Brazilian Campeonato Paraense"
+    ]
+  },
+  {
+    "slug": "bra.camp.paraibano",
+    "names": [
+      "Brazilian Campeonato Paraibano",
+      "Paraibano",
+      "Brazilian Campeonato Paraibano"
+    ]
+  },
+  {
+    "slug": "bra.camp.paranaense",
+    "names": [
+      "Brazilian Campeonato Paranaense",
+      "Paranaense",
+      "Brazilian Campeonato Paranaense"
+    ]
+  },
+  {
+    "slug": "bra.camp.pernambucano",
+    "names": [
+      "Brazilian Campeonato Pernambucano",
+      "Pernambucano",
+      "Brazilian Campeonato Pernambucano"
+    ]
+  },
+  {
+    "slug": "bra.camp.piauiense",
+    "names": [
+      "Brazilian Campeonato Piauiense",
+      "Piauiense",
+      "Brazilian Campeonato Piauiense"
+    ]
+  },
+  {
+    "slug": "bra.camp.potiguar",
+    "names": [
+      "Brazilian Campeonato Potiguar",
+      "Potiguar",
+      "Brazilian Campeonato Potiguar"
+    ]
+  },
+  {
+    "slug": "bra.camp.rondoniense",
+    "names": [
+      "Brazilian Campeonato Rondoniense",
+      "Rondoniense",
+      "Brazilian Campeonato Rondoniense"
+    ]
+  },
+  {
+    "slug": "bra.camp.roraimense",
+    "names": [
+      "Brazilian Campeonato Roraimense",
+      "Roraimense",
+      "Brazilian Campeonato Roraimense"
+    ]
+  },
+  {
+    "slug": "bra.camp.sergipano",
+    "names": [
+      "Brazilian Campeonato Sergipano",
+      "Sergipano",
+      "Brazilian Campeonato Sergipano"
+    ]
+  },
+  {
+    "slug": "bra.camp.sulmatogrossense",
+    "names": [
+      "Brazilian Campeonato SulMatoGrossense",
+      "SulMatoGrossense",
+      "Brazilian Campeonato SulMatoGrossense"
+    ]
+  },
+  {
+    "slug": "bra.camp.tocantinense",
+    "names": [
+      "Brazilian Campeonato Tocantinense",
+      "Tocantinense",
+      "Brazilian Campeonato Tocantinense"
+    ]
+  },
+  {
+    "slug": "can.1",
+    "names": [
+      "Canadian Premier League",
+      "CAN.1",
+      "Canadian Premier League"
+    ]
+  },
+  {
+    "slug": "fiba",
+    "names": [
+      "FIBA Basketball World Cup",
+      "FIBA",
+      "FIBA Basketball World Cup"
+    ]
+  },
+  {
+    "slug": "fiba-women",
+    "names": [
+      "FIBA Women's Basketball World Cup",
+      "FIBA W",
+      "FIBA Womens World Cup"
+    ]
+  },
+  {
+    "slug": "gam.1",
+    "names": [
+      "Gambia GFA League",
+      "GAM.1",
+      "Gambia GFA League"
+    ]
+  },
+  {
+    "slug": "ice.1",
+    "names": [
+      "Icelandic Úrvalsdeild karla",
+      "ICE.1",
+      "Icelandic Úrvalsdeild karla"
+    ]
+  },
+  {
+    "slug": "ice.2",
+    "names": [
+      "Icelandic 1 deild karla",
+      "ICE.2",
+      "Icelandic 1 deild karla"
+    ]
+  },
+  {
+    "slug": "nifl.1",
+    "names": [
+      "Northern Irish Premiership",
+      "NIFL.1",
+      "Northern Irish Premiership"
+    ]
+  },
+  {
+    "slug": "norwegian-hockey",
+    "names": [
+      "Norwegian Fjordkraft-ligaen",
+      "NORWEGIAN-HOCKEY",
+      "Norwegian Fjordkraft-ligaen"
+    ]
+  },
+  {
+    "slug": "shl",
+    "names": [
+      "Swedish Hockey League",
+      "SHL",
+      "Swedish Hockey League"
+    ]
+  },
+  {
+    "slug": "super-league",
+    "names": [
+      "English Rugby League Super League",
+      "SL",
+      "English Rugby League Super League"
+    ]
+  },
+  {
+    "slug": "svenska-cupen",
+    "names": [
+      "Svenska Cupen",
+      "SVENSKA-CUPEN",
+      "Svenska Cupen"
+    ]
+  },
+  {
+    "slug": "swe.2",
+    "names": [
+      "Swedish Superettan",
+      "SWE.2",
+      "Swedish Superettan"
+    ]
+  },
+  {
+    "slug": "swe.3.n",
+    "names": [
+      "Swedish Division 1 North",
+      "SWE.3.N",
+      "Swedish Division 1 North"
+    ]
+  },
+  {
+    "slug": "swe.3.s",
+    "names": [
+      "Swedish Division 1 South",
+      "SWE.3.S",
+      "Swedish Division 1 South"
+    ]
+  },
+  {
+    "slug": "unrivaled",
+    "names": [
+      "Unrivaled",
+      "UNRIVALED",
+      "Unrivaled Basketball"
+    ]
+  },
+  {
+    "slug": "uru.2",
+    "names": [
+      "AUF Segunda",
+      "URU.2",
+      "Uruguayan Segunda División"
+    ]
+  },
+  {
+    "slug": "ven.2",
+    "names": [
+      "Venezuelan Segunda División",
+      "VEN.2",
+      "Venezuelan Segunda Division"
+    ]
+  },
+  {
+    "slug": "wpbl",
+    "names": [
+      "WPBL",
+      "WPBL",
+      "WPBL"
+    ]
+  },
+  {
+    "slug": "nbl",
+    "names": [
+      "National Basketball League (Australia)",
+      "nbl",
+      "NBL",
+      "nbl"
+    ]
+  },
+  {
+    "slug": "usa.nwsl",
+    "names": [
+      "National Women's Soccer League",
+      "usa.nwsl",
+      "NWSL",
+      "NWSL Soccer",
+      "usa.nwsl"
+    ]
+  },
+  {
+    "slug": "ger.dfb_pokal",
+    "names": [
+      "DFB-Pokal",
+      "ger.dfb_pokal",
+      "DFB-Pokal Soccer",
+      "ger.dfb_pokal"
+    ]
+  },
+  {
+    "slug": "ita.coppa_italia",
+    "names": [
+      "Coppa Italia",
+      "ita.coppa_italia",
+      "Coppa Italia Soccer",
+      "ita.coppa_italia"
+    ]
+  },
+  {
+    "slug": "fra.coupe_de_france",
+    "names": [
+      "Coupe de France",
+      "fra.coupe_de_france",
+      "Coupe de France Soccer",
+      "fra.coupe_de_france"
+    ]
+  },
+  {
+    "slug": "ksa.1",
+    "names": [
+      "Saudi Pro League",
+      "ksa.1",
+      "SPL",
+      "Saudi Pro League Soccer",
+      "ksa.1"
+    ]
+  },
+  {
+    "slug": "por.1",
+    "names": [
+      "Primeira Liga",
+      "por.1",
+      "Primeira Liga Soccer",
+      "por.1"
+    ]
+  },
+  {
+    "slug": "bel.1",
+    "names": [
+      "Belgian Pro League",
+      "bel.1",
+      "Belgian Pro League Soccer",
+      "bel.1"
+    ]
+  },
+  {
+    "slug": "sui.1",
+    "names": [
+      "Swiss Super League",
+      "sui.1",
+      "Swiss Super League Soccer",
+      "sui.1"
+    ]
+  },
+  {
+    "slug": "tur.1",
+    "names": [
+      "Turkish Süper Lig",
+      "tur.1",
+      "Süper Lig",
+      "Turkish Süper Lig Soccer",
+      "tur.1"
+    ]
+  },
+  {
+    "slug": "gre.1",
+    "names": [
+      "Greek Super League",
+      "gre.1",
+      "Greek Super League Soccer",
+      "gre.1"
+    ]
+  },
+  {
+    "slug": "fifa.wwc",
+    "names": [
+      "FIFA Women's World Cup",
+      "fifa.wwc",
+      "WWC",
+      "FIFA Women's World Cup",
+      "fifa.wwc"
+    ]
+  },
+  {
+    "slug": "conmebol.america",
+    "names": [
+      "Copa America",
+      "conmebol.america",
+      "Copa America",
+      "conmebol.america"
+    ]
+  },
+  {
+    "slug": "concacaf.gold",
+    "names": [
+      "CONCACAF Gold Cup",
+      "concacaf.gold",
+      "Gold Cup",
+      "CONCACAF Gold Cup",
+      "concacaf.gold"
+    ]
+  },
+  {
+    "slug": "mex.1",
+    "names": [
+      "Liga MX",
+      "mex.1",
+      "Liga MX Soccer",
+      "mex.1"
+    ]
+  },
+  {
+    "slug": "arg.1",
+    "names": [
+      "Argentine Liga Profesional",
+      "arg.1",
+      "LPA",
+      "Argentine Liga Profesional Soccer",
+      "arg.1"
+    ]
+  },
+  {
+    "slug": "bra.1",
+    "names": [
+      "Brazilian Serie A",
+      "bra.1",
+      "Brasileirao",
+      "Brazilian Serie A Soccer",
+      "bra.1"
+    ]
+  },
+  {
+    "slug": "bra.camp.carioca",
+    "names": [
+      "Brazilian Campeonato Carioca",
+      "bra.camp.carioca",
+      "Carioca",
+      "bra.camp.carioca"
+    ]
+  },
+  {
+    "slug": "bra.camp.paulista",
+    "names": [
+      "Brazilian Campeonato Paulista",
+      "bra.camp.paulista",
+      "Paulista",
+      "bra.camp.paulista"
+    ]
+  },
+  {
+    "slug": "bra.camp.gaucho",
+    "names": [
+      "Brazilian Campeonato Gaucho",
+      "bra.camp.gaucho",
+      "Gaucho",
+      "bra.camp.gaucho"
+    ]
+  },
+  {
+    "slug": "bra.camp.mineiro",
+    "names": [
+      "Brazilian Campeonato Mineiro",
+      "bra.camp.mineiro",
+      "Mineiro",
+      "bra.camp.mineiro"
+    ]
+  },
+  {
+    "slug": "col.1",
+    "names": [
+      "Colombian Primera A",
+      "col.1",
+      "Colombian Primera A Soccer",
+      "col.1"
+    ]
+  },
+  {
+    "slug": "conmebol.libertadores",
+    "names": [
+      "Copa Libertadores",
+      "conmebol.libertadores",
+      "Libertadores",
+      "Copa Libertadores Soccer",
+      "conmebol.libertadores"
+    ]
+  },
+  {
+    "slug": "conmebol.sudamericana",
+    "names": [
+      "Copa Sudamericana",
+      "conmebol.sudamericana",
+      "Sudamericana",
+      "Copa Sudamericana Soccer",
+      "conmebol.sudamericana"
+    ]
+  },
+  {
+    "slug": "jpn.1",
+    "names": [
+      "J1 League",
+      "jpn.1",
+      "J-League",
+      "J1 League Soccer",
+      "jpn.1"
+    ]
+  },
+  {
+    "slug": "aus.1",
+    "names": [
+      "A-League Men",
+      "aus.1",
+      "A-League",
+      "A-League Men Soccer",
+      "aus.1"
+    ]
+  },
+  {
+    "slug": "pll",
+    "names": [
+      "Premier Lacrosse League",
+      "pll",
+      "PLL",
+      "pll"
+    ]
+  }
+]

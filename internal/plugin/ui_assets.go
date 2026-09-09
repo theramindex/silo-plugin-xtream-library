@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-//go:embed ui/page.html ui/styles.css ui/lineup.js ui/app.js
+//go:embed ui/page.html ui/styles.css ui/features.css ui/lineup.js ui/app.js
 var playerUIAssets embed.FS
 
 var playerPageHTMLTemplate string
@@ -39,5 +39,9 @@ func playerStylesCSS() string {
 	if err != nil {
 		return ""
 	}
-	return string(styles)
+	features, err := playerUIAssets.ReadFile("ui/features.css")
+	if err != nil {
+		return string(styles)
+	}
+	return string(styles) + "\n" + string(features)
 }

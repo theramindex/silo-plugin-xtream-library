@@ -283,7 +283,7 @@ func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
 		}
 	}
 	for _, route := range manifest.GetHttpRoutes() {
-		for _, retired := range []string{"recordings", "sports", "events", "timeshift"} {
+		for _, retired := range []string{"recordings", "events", "timeshift"} {
 			if strings.Contains(route.GetPath(), retired) {
 				t.Fatalf("manifest exposes retired Xtreme route %q", route.GetPath())
 			}

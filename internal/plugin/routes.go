@@ -53,6 +53,13 @@ type HTTPRoutesServer struct {
 	profileWarmLastUnix int64
 	relay               *hlsRelay
 	accountPool         *accountPool
+	sportsProvider      sportsProvider
+	sportsCache         sportsEventCache
+	sportsMu            sync.Mutex
+	sportsStats         footballStatsCache
+	sportsPrepared      sportsPreparedCache
+	sportsPreparedMu    sync.Mutex
+	sportsImages        *sportsImageCache
 }
 
 type catalogSyncer interface {
@@ -95,6 +102,8 @@ func NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store *cache.Store, 
 func newHTTPRoutesServer(store *cache.Store, settingsProvider func() config.Settings, syncer catalogSyncer) *HTTPRoutesServer {
 	server := &HTTPRoutesServer{store: store, settingsProvider: settingsProvider, sourceRegistry: config.NewSourceRegistry(""), relay: newHLSRelay(), accountPool: newAccountPool(nil)}
 	server.sourceEPGTester = testAlternateEPGSource
+	server.sportsProvider = newSportarrSportsProvider(&http.Client{Timeout: 8 * time.Second})
+	server.sportsImages = newSportsImageCache(defaultSportsImageCacheDir, secureSportsImageHTTPClient())
 	if syncer != nil {
 		server.coordinator = NewRefreshCoordinator(syncer)
 	}
@@ -231,7 +240,19 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
 	path := normalizePublicPath(request.GetPath())
+	if imagePath, _, _ := strings.Cut(path, "?"); strings.HasPrefix(imagePath, "/dispatcharr/api/sports/image/") || imagePath == "/dispatcharr/api/sports/image" {
+		if !s.sportsFeatureEnabled() {
+			return textResponse(http.StatusNotFound, "Sports is disabled"), nil
+		}
+		return s.handleSportsImage(ctx, request), nil
+	}
 	switch path {
+	case "/dispatcharr/api/sports":
+		return s.handleSports(ctx, request)
+	case "/dispatcharr/api/sports/league-teams":
+		return s.handleSportsLeagueTeams(ctx, request)
+	case "/dispatcharr/api/sports/favorites":
+		return s.handleSportsFavorite(request)
 	case "/dispatcharr", "/dispatcharr/player", "/dispatcharr/admin":
 		return htmlResponse(http.StatusOK, s.playerPageHTML(request)), nil
 	case "/dispatcharr/assets/xc-runtime-a.js", "/assets/xc-runtime-a.js",
@@ -245,7 +266,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/assets/lineup.js", "/assets/lineup.js":
 		return playerUIAssetResponse("ui/lineup.js", "application/javascript; charset=utf-8")
 	case "/dispatcharr/assets/app.css", "/assets/app.css":
-		return playerUIAssetResponse("ui/styles.css", "text/css; charset=utf-8")
+		return textAssetResponse([]byte(playerStylesCSS()), "text/css; charset=utf-8")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
 		return s.respondJSON(http.StatusOK, s.healthPayload())
 	case "/dispatcharr/api/refresh":
@@ -357,7 +378,7 @@ func isRetiredXtreamPublicRoute(path string) bool {
 	if !strings.HasPrefix(path, "/xtream/") {
 		return false
 	}
-	for _, segment := range []string{"/recordings", "/sports", "/events", "/timeshift"} {
+	for _, segment := range []string{"/recordings", "/events", "/timeshift"} {
 		if strings.Contains(path, segment) {
 			return true
 		}
@@ -1414,6 +1435,10 @@ func playerUIAssetResponse(path string, contentType string) (*pluginv1.HandleHTT
 	if err != nil {
 		return textResponse(http.StatusNotFound, "asset not found"), nil
 	}
+	return textAssetResponse(payload, contentType)
+}
+
+func textAssetResponse(payload []byte, contentType string) (*pluginv1.HandleHTTPResponse, error) {
 	return &pluginv1.HandleHTTPResponse{
 		StatusCode: http.StatusOK,
 		Headers: map[string]string{
@@ -1450,6 +1475,7 @@ func pluginAssetVersion() string {
 			path string
 		}{
 			{playerUIAssets, "ui/styles.css"},
+			{playerUIAssets, "ui/features.css"},
 			{playerUIAssets, "ui/lineup.js"},
 			{playerUIAssets, "ui/app.js"},
 			{playerAssets, "assets/hls.min.js"},

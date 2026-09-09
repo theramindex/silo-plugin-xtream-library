@@ -106,7 +106,7 @@ func TestXtreamPublicNamespaceRejectsRetiredDispatcharrFeatures(t *testing.T) {
 	server := NewHTTPRoutesServer(cache.NewStore())
 	for _, path := range []string{
 		"/xtream/api/recordings",
-		"/xtream/api/sports",
+
 		"/xtream/api/events",
 		"/xtream/api/timeshift/start",
 	} {
@@ -522,7 +522,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`const showSourceCategorySettings = !virtualCategoriesActive()`,
 		`aria-label="Live TV sections"`,
 		`<span>Guide</span>`,
-		`<span>On Later</span>`,
+		`<span>My TV</span>`,
 		`Favorites <small id="favorite-count">0</small>`,
 		`<span>Sports</span>`,
 		`<span>Events</span>`,
@@ -675,7 +675,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 	if strings.Contains(body, `id=\"custom-group-channel\"><option`) {
 		t.Fatalf("expected custom group channel picker not to render a native select")
 	}
-	if strings.Contains(body, `data-view="sports"`) || strings.Contains(body, `data-view="events"`) || strings.Contains(body, `data-view="recordings"`) {
+	if strings.Contains(body, `data-view="events"`) || strings.Contains(body, `data-view="recordings"`) {
 		t.Fatalf("expected retired features to be absent from navigation")
 	}
 	if strings.Contains(body, `<span>Multiview</span>`) || strings.Contains(body, `sports-channel-multiview`) {
@@ -787,7 +787,7 @@ func TestPlayerSearchUsesXtreamFocusedCompactScopes(t *testing.T) {
 		t.Fatal("expected search filter function")
 	}
 	filters := script[start : start+end]
-	for _, removed := range []string{`label: "Sports"`, `label: "Events"`, `label: "Recordings"`} {
+	for _, removed := range []string{`label: "Events"`, `label: "Recordings"`} {
 		if strings.Contains(filters, removed) {
 			t.Fatalf("expected Xtreme search to omit legacy search control %q", removed)
 		}
@@ -1398,6 +1398,7 @@ function makeElement() {
     querySelector: () => null,
     querySelectorAll: () => [],
     closest: () => null,
+    contains: () => false,
     addEventListener: () => {},
     play: () => Promise.resolve(),
     pause: () => {},
