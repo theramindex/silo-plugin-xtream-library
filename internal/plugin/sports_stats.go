@@ -20,9 +20,17 @@ type footballStatsCache struct {
 	mu      sync.Mutex
 	entries map[string]SportsGameStats
 	events  map[string]SportsEvent
+	// flights dedupes concurrent ESPN loads for the same game; mu is never
+	// held across the network call.
+	flights sportsFlightGroup
 	baseURL string
 	client  *http.Client
 }
+
+const (
+	sportsStatsFreshSeconds = 30
+	sportsStatsFetchTimeout = 10 * time.Second
+)
 
 type SportsGameStats struct {
 	Available     bool               `json:"available"`
@@ -132,13 +140,11 @@ func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *p
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}
 	id := queryValue(request, "game_stats")
-	for _, event := range s.preparedSportsPayload(false).Events {
-		if id != "" && (event.ID == id || event.StableID == id) {
-			if sportsStatsLeaguePath(event) == "" {
-				return s.respondJSON(http.StatusOK, SportsGameStats{Message: "Live stats are not available for this competition yet."})
-			}
-			return s.respondJSON(http.StatusOK, s.sportsStats.load(ctx, event))
+	if event, ok := s.preparedSportsEvent(id); ok {
+		if sportsStatsLeaguePath(event) == "" {
+			return s.respondJSON(http.StatusOK, SportsGameStats{Message: "Live stats are not available for this competition yet."})
 		}
+		return s.respondJSON(http.StatusOK, s.sportsStats.load(ctx, event))
 	}
 	// A broadcast may end before the game does. Keep polling a previously
 	// validated fixture, without trusting client-supplied team identities.
@@ -152,10 +158,8 @@ func (s *HTTPRoutesServer) handleSportsGameStats(ctx context.Context, request *p
 }
 
 func (cache *footballStatsCache) load(ctx context.Context, event SportsEvent) SportsGameStats {
-	cache.mu.Lock()
-	defer cache.mu.Unlock()
-	now := time.Now()
 	key := event.ID
+	cache.mu.Lock()
 	if cache.events == nil || len(cache.events) >= 256 {
 		cache.events = make(map[string]SportsEvent)
 	}
@@ -163,21 +167,32 @@ func (cache *footballStatsCache) load(ctx context.Context, event SportsEvent) Sp
 	if event.StableID != "" {
 		cache.events[event.StableID] = event
 	}
-	if value, ok := cache.entries[key]; ok && now.Unix()-value.UpdatedAtUnix < 30 {
+	if value, ok := cache.entries[key]; ok && time.Now().Unix()-value.UpdatedAtUnix < sportsStatsFreshSeconds {
+		cache.mu.Unlock()
 		return value
 	}
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	value, err := cache.fetch(ctx, event)
-	if err != nil {
-		value = SportsGameStats{Message: "Live stats are temporarily unavailable. Retrying shortly."}
-	}
-	value.UpdatedAtUnix = now.Unix()
-	if cache.entries == nil || len(cache.entries) >= 128 {
-		cache.entries = make(map[string]SportsGameStats)
-	}
-	cache.entries[key] = value
-	return value
+	cache.mu.Unlock()
+
+	// Pollers of the same game share one ESPN request. It is detached from
+	// any one caller so a closed poll does not fail the others.
+	value, _ := cache.flights.do(key, func() (any, error) {
+		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sportsStatsFetchTimeout)
+		defer cancel()
+		value, err := cache.fetch(fetchCtx, event)
+		if err != nil {
+			value = SportsGameStats{Message: "Live stats are temporarily unavailable. Retrying shortly."}
+		}
+		value.UpdatedAtUnix = time.Now().Unix()
+		cache.mu.Lock()
+		if cache.entries == nil || len(cache.entries) >= 128 {
+			cache.entries = make(map[string]SportsGameStats)
+		}
+		cache.entries[key] = value
+		cache.mu.Unlock()
+		return value, nil
+	})
+	stats, _ := value.(SportsGameStats)
+	return stats
 }
 
 func (cache *footballStatsCache) get(ctx context.Context, leaguePath, path string, result any) error {

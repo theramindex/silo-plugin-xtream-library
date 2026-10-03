@@ -19,6 +19,7 @@ type HealthPayload struct {
 	EPGLastSuccessUnix int64                `json:"epgLastSuccessUnix,omitempty"`
 	EPGLastFailureUnix int64                `json:"epgLastFailureUnix,omitempty"`
 	EPGLastError       string               `json:"epgLastError,omitempty"`
+	EPGWarning         string               `json:"epgWarning,omitempty"`
 	ProfileAccess      *model.ProfileAccess `json:"profileAccess,omitempty"`
 	Refresh            RefreshJob           `json:"refresh"`
 }
@@ -42,6 +43,7 @@ func BuildHealthPayload(snapshot cache.Snapshot) HealthPayload {
 		EPGLastSuccessUnix: snapshot.Health.EPGLastSuccessUnix,
 		EPGLastFailureUnix: snapshot.Health.EPGLastFailureUnix,
 		EPGLastError:       snapshot.Health.EPGLastError,
+		EPGWarning:         snapshot.Health.EPGWarning,
 		ProfileAccess:      snapshot.Catalog.Source.ProfileAccess,
 	}
 }

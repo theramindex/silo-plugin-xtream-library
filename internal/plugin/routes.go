@@ -60,6 +60,7 @@ type HTTPRoutesServer struct {
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
+	guideIndex          guideIndexCache
 }
 
 type catalogSyncer interface {
@@ -225,6 +226,10 @@ type AppPayload struct {
 	Channels     []PublicChannel  `json:"channels"`
 	Categories   []model.Category `json:"categories"`
 	Capabilities AppCapabilities  `json:"capabilities"`
+	// IsAdmin mirrors the host-stamped X-Silo-User-Role header so the UI can
+	// hide admin-only controls (force refresh). The server enforces those
+	// routes independently.
+	IsAdmin bool `json:"isAdmin"`
 }
 
 type watchRequest struct {
@@ -275,22 +280,22 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleChannelRefresh(ctx, request)
 	case "/dispatcharr/api/app":
 		s.ensureCatalogHydrated(ctx)
-		return s.respondJSON(http.StatusOK, s.buildAppPayload())
+		return s.respondJSON(http.StatusOK, s.buildAppPayload(request))
 	case "/dispatcharr/channels", "/dispatcharr/api/channels":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.channelsPayload())
 	case "/dispatcharr/guide", "/dispatcharr/api/guide":
 		s.ensureCatalogHydrated(ctx)
-		channelID := queryValue(request, "channel_id")
-		programs := programsForChannel(s.store.Current().Catalog.Programs, channelID)
-		sort.Slice(programs, func(i, j int) bool {
-			return programs[i].StartUnix < programs[j].StartUnix
-		})
-		return s.respondJSON(http.StatusOK, GuidePayload{Programs: programs})
+		query, err := parseGuideQuery(request)
+		if err != nil {
+			return textResponse(http.StatusBadRequest, err.Error()), nil
+		}
+		index := s.guideIndex.get(s.store.Current())
+		return s.respondJSON(http.StatusOK, GuidePayload{Programs: index.query(query.ChannelIDs, query.Window)})
 	case "/dispatcharr/api/guide/ping":
 		return s.handleGuidePing(ctx, request)
 	case "/dispatcharr/image":
-		return s.relay.resume(ctx, queryValue(request, "relay_token"), request)
+		return s.relay.resume(ctx, queryValue(request, "relay_token"), s.relayConfiguredHosts(), request)
 	case "/dispatcharr/api/categories":
 		s.ensureCatalogHydrated(ctx)
 		return s.respondJSON(http.StatusOK, s.categoriesPayload())
@@ -330,7 +335,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleWatchStop(request)
 	case "/dispatcharr/stream":
 		if relayToken := queryValue(request, "relay_token"); relayToken != "" {
-			return s.relay.resume(ctx, relayToken, request)
+			return s.relay.resume(ctx, relayToken, s.relayConfiguredHosts(), request)
 		}
 		s.ensureCatalogHydrated(ctx)
 		channelID := queryValue(request, "channel_id")
@@ -343,9 +348,9 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		}
 		streamURL = appendPlaybackQuery(streamURL, request)
 		if strings.HasPrefix(channelID, "xtream:") && publicStreamFormat(streamURL) == "hls" {
-			return s.relay.start(ctx, streamURL, request)
+			return s.relay.start(ctx, streamURL, s.relayConfiguredHosts(), request)
 		}
-		return redirectResponse(streamURL), nil
+		return s.serveProviderStream(ctx, streamURL, request)
 	case "/dispatcharr/vod/stream":
 		s.ensureCatalogHydrated(ctx)
 		itemID := queryValue(request, "item_id")
@@ -356,19 +361,19 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
-		return redirectResponse(streamURL), nil
+		return s.serveProviderStream(ctx, streamURL, request)
 	case "/dispatcharr/episode/stream":
 		streamURL, err := s.resolveEpisodeStreamURL(ctx, queryValue(request, "series_id"), queryValue(request, "episode_id"))
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
-		return redirectResponse(streamURL), nil
+		return s.serveProviderStream(ctx, streamURL, request)
 	case "/dispatcharr/catchup/stream":
 		streamURL, err := s.resolveCatchupStreamURL(request)
 		if err != nil {
 			return textResponse(http.StatusNotFound, err.Error()), nil
 		}
-		return redirectResponse(streamURL), nil
+		return s.serveProviderStream(ctx, streamURL, request)
 	default:
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
@@ -528,6 +533,10 @@ func (s *HTTPRoutesServer) handleChannelRefresh(ctx context.Context, request *pl
 	if request.GetMethod() != http.MethodPost {
 		return textResponse(http.StatusMethodNotAllowed, "channel refresh requires POST"), nil
 	}
+	// The manifest already declares this route admin-only; enforce it here too.
+	if !requestIsAdmin(request) {
+		return adminRequiredResponse("refreshing channels")
+	}
 	if s.coordinator == nil || s.settingsProvider == nil {
 		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
 	}
@@ -542,7 +551,7 @@ func (s *HTTPRoutesServer) handleChannelRefresh(ctx context.Context, request *pl
 	if !started {
 		status = http.StatusOK
 	}
-	return s.respondJSON(status, s.buildAppPayload())
+	return s.respondJSON(status, s.buildAppPayload(request))
 }
 
 func (s *HTTPRoutesServer) startBackgroundProfileWarm(snapshot cache.Snapshot, settings config.Settings) bool {
@@ -580,6 +589,9 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	if request.GetMethod() != http.MethodPost {
 		return textResponse(http.StatusMethodNotAllowed, "refresh requires POST"), nil
 	}
+	if !requestIsAdmin(request) {
+		return adminRequiredResponse("forcing a catalog refresh")
+	}
 	if s.coordinator == nil || s.settingsProvider == nil {
 		return textResponse(http.StatusServiceUnavailable, "catalog sync is not available"), nil
 	}
@@ -597,7 +609,7 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	if !started {
 		status = http.StatusOK
 	}
-	return s.respondJSON(status, s.buildAppPayload())
+	return s.respondJSON(status, s.buildAppPayload(request))
 }
 
 func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
@@ -675,10 +687,11 @@ func (s *HTTPRoutesServer) startBackgroundGuideWarm(settings config.Settings) (b
 	return true, "refreshing"
 }
 
-func (s *HTTPRoutesServer) buildAppPayload() AppPayload {
+func (s *HTTPRoutesServer) buildAppPayload(request *pluginv1.HandleHTTPRequest) AppPayload {
 	snapshot := s.store.Current()
 	streamFormat := s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)
 	return AppPayload{
+		IsAdmin:      requestIsAdmin(request),
 		Status:       s.healthPayload(),
 		Source:       snapshot.Catalog.Source,
 		Channels:     s.publicChannels(snapshot.Catalog.Channels, streamFormat),
@@ -1233,9 +1246,12 @@ func (s *HTTPRoutesServer) adminSourceList(ctx context.Context) ([]adminSourcePa
 }
 
 func testAlternateEPGSource(ctx context.Context, source config.XtreamSource, channels []model.Channel) (alternateEPGTestPayload, error) {
+	// Alternate EPG URLs can embed credentials (Xtream xmltv.php query
+	// parameters), so url.Error values are redacted before they reach the
+	// admin UI or logs.
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, source.AlternateEPGURL, nil)
 	if err != nil {
-		return alternateEPGTestPayload{}, err
+		return alternateEPGTestPayload{}, sharedhttp.RedactErrorURL(err)
 	}
 	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
 	if err != nil {
@@ -1245,13 +1261,9 @@ func testAlternateEPGSource(ctx context.Context, source config.XtreamSource, cha
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return alternateEPGTestPayload{}, fmt.Errorf("unexpected status %d", response.StatusCode)
 	}
-	data, err := sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxCatalogResponseBytes)
+	doc, err := xmltv.ParseReader(response.Body, xmltv.ParseOptions{MaxBytes: sharedhttp.MaxCatalogResponseBytes})
 	if err != nil {
-		return alternateEPGTestPayload{}, err
-	}
-	doc, err := xmltv.Parse(data)
-	if err != nil {
-		return alternateEPGTestPayload{}, fmt.Errorf("parse XMLTV: %w", err)
+		return alternateEPGTestPayload{}, fmt.Errorf("parse XMLTV: %w", sharedhttp.RedactErrorURL(err))
 	}
 	matched := matching.MatchAlternateEPGChannels(channels, doc)
 	return matched.Coverage(doc), nil
@@ -1309,7 +1321,37 @@ func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequ
 }
 
 func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
+	return requestIsAdmin(request)
+}
+
+// requestIsAdmin reports whether the Silo host identified the caller as an
+// admin. X-Silo-User-Role is trustworthy: the host's plugin HTTP proxy only
+// forwards an allowlist of client headers (accept, content-type, range, ...)
+// and stamps the X-Silo-User-* identity headers itself after authenticating
+// the session, so a browser cannot inject or override this value.
+func requestIsAdmin(request *pluginv1.HandleHTTPRequest) bool {
 	return strings.EqualFold(strings.TrimSpace(headerValue(request.GetHeaders(), "x-silo-user-role")), "admin")
+}
+
+// adminRequiredResponse is the JSON 403 returned when a non-admin calls an
+// admin-only action (force refresh, channel refresh).
+func adminRequiredResponse(action string) (*pluginv1.HandleHTTPResponse, error) {
+	body, err := json.Marshal(map[string]any{
+		"ok":      false,
+		"error":   "admin_required",
+		"message": "Only Silo admins can perform this action: " + action + ".",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pluginv1.HandleHTTPResponse{
+		StatusCode: http.StatusForbidden,
+		Headers: map[string]string{
+			"cache-control": "no-store",
+			"content-type":  "application/json",
+		},
+		Body: body,
+	}, nil
 }
 
 func headerValue(headers map[string]string, key string) string {
@@ -1787,19 +1829,15 @@ func xtreamConnectionSettings(settings config.Settings) (string, string, string)
 	return settings.XtreamBaseURL, settings.XtreamUsername, settings.XtreamPassword
 }
 
-func programsForChannel(programs []model.Program, channelID string) []model.Program {
-	filtered := make([]model.Program, 0, len(programs))
-	for _, program := range programs {
-		if strings.TrimSpace(channelID) != "" && program.ChannelID != channelID {
-			continue
-		}
-		if strings.HasPrefix(program.ChannelID, "xtream:") {
-			program.Title = xtream.DecodeEPGText(program.Title)
-			program.Summary = xtream.DecodeEPGText(program.Summary)
-		}
-		filtered = append(filtered, program)
+// decodeGuideProgramText decodes the base64 title/summary some Xtream panels
+// return from get_short_epg. Cached snapshots may still hold encoded text, so
+// the guide index applies this once per snapshot.
+func decodeGuideProgramText(program model.Program) model.Program {
+	if strings.HasPrefix(program.ChannelID, "xtream:") {
+		program.Title = xtream.DecodeEPGText(program.Title)
+		program.Summary = xtream.DecodeEPGText(program.Summary)
 	}
-	return filtered
+	return program
 }
 
 func normalizeChannelIDs(ids []string) []string {

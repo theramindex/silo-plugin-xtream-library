@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -15,11 +16,16 @@ type Snapshot struct {
 	Health                 model.SyncHealth
 	PlaybackResolvedAtUnix int64
 	ConfigKey              string
+	// Version increases on every store mutation. It is process-local (not
+	// persisted) and lets readers cache data derived from a snapshot, such as
+	// the sorted guide index.
+	Version uint64 `json:"-"`
 }
 
 type Store struct {
 	mu            sync.RWMutex
 	snapshot      Snapshot
+	version       uint64
 	adminSettings json.RawMessage
 	sessions      map[string]WatchSession
 }
@@ -63,13 +69,27 @@ func (s *Store) replace(snapshot Snapshot, preserveGuide bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if preserveGuide && shouldPreserveGuide(s.snapshot, snapshot) {
+	regressionWarning := ""
+	if !preserveGuide && len(snapshot.Catalog.Programs) > 0 && sameGuideScope(s.snapshot, snapshot) && haveProgramChannels(snapshot.Catalog.Channels, s.snapshot.Catalog.Programs) {
+		regressionWarning = guideRegressionWarning(s.snapshot.Catalog.Programs, snapshot.Catalog.Programs, snapshot.Health.LastSuccessUnix)
+	}
+	if regressionWarning != "" || (preserveGuide && shouldPreserveGuide(s.snapshot, snapshot)) {
 		snapshot.Catalog.Programs = append([]model.Program(nil), s.snapshot.Catalog.Programs...)
-		snapshot.Catalog.Health.EPGStatus = s.snapshot.Health.EPGStatus
-		snapshot.Catalog.Health.EPGProgramCount = s.snapshot.Health.EPGProgramCount
+		snapshot.Catalog.Health.EPGStatus = preservedEPGStatus(s.snapshot)
+		snapshot.Catalog.Health.EPGProgramCount = len(s.snapshot.Catalog.Programs)
 		snapshot.Catalog.Health.EPGLastSuccessUnix = s.snapshot.Health.EPGLastSuccessUnix
 		snapshot.Catalog.Health.EPGLastFailureUnix = s.snapshot.Health.EPGLastFailureUnix
 		snapshot.Catalog.Health.EPGLastError = s.snapshot.Health.EPGLastError
+		snapshot.Catalog.Health.EPGWarning = regressionWarning
+		if regressionWarning != "" {
+			// Health mirrors the preserved guide, not the rejected result.
+			snapshot.Health.EPGStatus = snapshot.Catalog.Health.EPGStatus
+			snapshot.Health.EPGProgramCount = snapshot.Catalog.Health.EPGProgramCount
+			snapshot.Health.EPGLastSuccessUnix = snapshot.Catalog.Health.EPGLastSuccessUnix
+			snapshot.Health.EPGLastFailureUnix = snapshot.Catalog.Health.EPGLastFailureUnix
+			snapshot.Health.EPGLastError = snapshot.Catalog.Health.EPGLastError
+			snapshot.Health.EPGWarning = regressionWarning
+		}
 	}
 	snapshot.Health.LastFailureUnix = 0
 	snapshot.Health.LastError = ""
@@ -87,24 +107,90 @@ func (s *Store) replace(snapshot Snapshot, preserveGuide bool) {
 		snapshot.Health.EPGLastSuccessUnix = s.snapshot.Health.EPGLastSuccessUnix
 		snapshot.Health.EPGLastFailureUnix = s.snapshot.Health.EPGLastFailureUnix
 		snapshot.Health.EPGLastError = s.snapshot.Health.EPGLastError
+		snapshot.Health.EPGWarning = s.snapshot.Health.EPGWarning
 	}
+	s.version++
+	snapshot.Version = s.version
 	s.snapshot = snapshot
 }
 
+// touchLocked marks an in-place snapshot mutation. Callers hold s.mu.
+func (s *Store) touchLocked() {
+	s.version++
+	s.snapshot.Version = s.version
+}
+
+// shouldPreserveGuide decides whether a non-exact sync keeps the current
+// guide. It deliberately ignores the transient EPG status (a refresh marks the
+// guide "loading" before running) and only looks at the data itself.
 func shouldPreserveGuide(current, next Snapshot) bool {
-	if current.ConfigKey != "" && next.ConfigKey != "" && current.ConfigKey != next.ConfigKey {
+	if !sameGuideScope(current, next) {
 		return false
 	}
-	if !sameCatalogSource(current.Catalog.Source, next.Catalog.Source) {
-		return false
-	}
-	if current.Health.EPGStatus != "ok" || len(current.Catalog.Programs) == 0 {
+	if len(current.Catalog.Programs) == 0 {
 		return false
 	}
 	if len(next.Catalog.Programs) >= len(current.Catalog.Programs) {
 		return false
 	}
 	return haveProgramChannels(next.Catalog.Channels, current.Catalog.Programs)
+}
+
+// sameGuideScope reports whether two snapshots describe the same source
+// configuration, so the older guide is still valid for the newer lineup.
+// Source mode or configuration changes always accept the new guide.
+func sameGuideScope(current, next Snapshot) bool {
+	if current.ConfigKey != "" && next.ConfigKey != "" && current.ConfigKey != next.ConfigKey {
+		return false
+	}
+	return sameCatalogSource(current.Catalog.Source, next.Catalog.Source)
+}
+
+// guideRegressionThreshold: a refresh whose program count or channel coverage
+// falls below this fraction of the previous guide is treated as an upstream
+// glitch and the last known good guide is kept.
+const guideRegressionThreshold = 0.5
+
+// guideRegressionWarning returns a non-empty warning when next drops more than
+// half of the still-relevant programs or covered channels in previous.
+// Programs that already ended before atUnix are not counted, so a stale guide
+// cannot block a legitimately smaller fresh one.
+func guideRegressionWarning(previous, next []model.Program, atUnix int64) string {
+	previousCount, previousChannels := relevantGuideCoverage(previous, atUnix)
+	if previousCount == 0 {
+		return ""
+	}
+	nextCount, nextChannels := relevantGuideCoverage(next, atUnix)
+	if float64(nextCount) >= float64(previousCount)*guideRegressionThreshold && float64(nextChannels) >= float64(previousChannels)*guideRegressionThreshold {
+		return ""
+	}
+	return fmt.Sprintf("Guide refresh returned %d programs across %d channels (previously %d across %d); kept the last known good guide.", nextCount, nextChannels, previousCount, previousChannels)
+}
+
+func relevantGuideCoverage(programs []model.Program, atUnix int64) (int, int) {
+	count := 0
+	channels := map[string]struct{}{}
+	for _, program := range programs {
+		if atUnix > 0 && program.EndUnix != 0 && program.EndUnix <= atUnix {
+			continue
+		}
+		count++
+		channels[program.ChannelID] = struct{}{}
+	}
+	return count, len(channels)
+}
+
+func preservedEPGStatus(current Snapshot) string {
+	status := current.Catalog.Health.EPGStatus
+	if status == "" || status == "loading" {
+		status = current.Health.EPGStatus
+	}
+	if status == "" || status == "loading" {
+		if len(current.Catalog.Programs) > 0 {
+			return "ok"
+		}
+	}
+	return status
 }
 
 func sameCatalogSource(current, next model.Source) bool {
@@ -212,6 +298,7 @@ func (s *Store) StopWatch(id, reason string) (WatchSession, bool) {
 func (s *Store) RecordFailure(atUnix int64, message string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer s.touchLocked()
 
 	s.snapshot.Health.LastFailureUnix = atUnix
 	s.snapshot.Health.LastError = message
@@ -223,6 +310,7 @@ func (s *Store) RecordFailure(atUnix int64, message string) {
 func (s *Store) MarkEPGLoading() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer s.touchLocked()
 
 	s.snapshot.Health.EPGStatus = "loading"
 	s.snapshot.Health.EPGLastError = ""
@@ -231,6 +319,7 @@ func (s *Store) MarkEPGLoading() {
 func (s *Store) ClearGuidePrograms(atUnix int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer s.touchLocked()
 
 	s.snapshot.Catalog.Programs = nil
 	s.snapshot.Catalog.Health.EPGStatus = "loading"
@@ -246,9 +335,24 @@ func (s *Store) ClearGuidePrograms(atUnix int64) {
 	_ = atUnix
 }
 
-func (s *Store) ReplacePrograms(programs []model.Program, atUnix int64) {
+// ReplacePrograms swaps in a refreshed guide. When the result loses more than
+// half of the current guide's programs or channel coverage, the current guide
+// is kept and a warning is recorded instead; it reports whether the new
+// programs were applied.
+func (s *Store) ReplacePrograms(programs []model.Program, atUnix int64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer s.touchLocked()
+
+	if warning := guideRegressionWarning(s.snapshot.Catalog.Programs, programs, atUnix); warning != "" {
+		status := preservedEPGStatus(s.snapshot)
+		s.snapshot.Catalog.Health.EPGStatus = status
+		s.snapshot.Catalog.Health.EPGWarning = warning
+		s.snapshot.Health.EPGStatus = status
+		s.snapshot.Health.EPGProgramCount = len(s.snapshot.Catalog.Programs)
+		s.snapshot.Health.EPGWarning = warning
+		return false
+	}
 
 	s.snapshot.Catalog.Programs = append([]model.Program(nil), programs...)
 	s.snapshot.Catalog.Health.EPGStatus = "ok"
@@ -259,11 +363,15 @@ func (s *Store) ReplacePrograms(programs []model.Program, atUnix int64) {
 	s.snapshot.Health.EPGLastSuccessUnix = atUnix
 	s.snapshot.Health.EPGLastFailureUnix = 0
 	s.snapshot.Health.EPGLastError = ""
+	s.snapshot.Catalog.Health.EPGWarning = ""
+	s.snapshot.Health.EPGWarning = ""
+	return true
 }
 
 func (s *Store) RecordEPGFailure(atUnix int64, message string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	defer s.touchLocked()
 
 	s.snapshot.Health.EPGStatus = "failed"
 	s.snapshot.Health.EPGLastFailureUnix = atUnix

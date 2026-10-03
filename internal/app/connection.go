@@ -10,7 +10,6 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/matching"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/m3u"
-	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 )
 
 func (s *Service) TestConnection(ctx context.Context, settings config.Settings) error {
@@ -29,10 +28,6 @@ func (s *Service) TestConnection(ctx context.Context, settings config.Settings) 
 		if err != nil {
 			return err
 		}
-		xmltvData, err := s.fetchURL(ctx, settings.EPGXMLURL)
-		if err != nil {
-			return err
-		}
 		entries, err := m3u.Parse(playlistData)
 		if err != nil {
 			return err
@@ -40,7 +35,7 @@ func (s *Service) TestConnection(ctx context.Context, settings config.Settings) 
 		if len(entries) == 0 {
 			return fmt.Errorf("no playlist entries available")
 		}
-		doc, err := xmltv.Parse(xmltvData)
+		doc, err := s.fetchXMLTV(ctx, settings.EPGXMLURL, "")
 		if err != nil {
 			return err
 		}

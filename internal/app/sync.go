@@ -82,12 +82,7 @@ func (s *Service) syncNow(ctx context.Context, settings config.Settings, nowUnix
 		if options.channelsOnly {
 			programs = s.preservedPrograms(settings, channels)
 		} else {
-			xmltvData, err := s.fetchURL(ctx, settings.EPGXMLURL)
-			if err != nil {
-				s.store.RecordFailure(nowUnix, err.Error())
-				return err
-			}
-			doc, err := xmltv.Parse(xmltvData)
+			doc, err := s.fetchXMLTV(ctx, settings.EPGXMLURL, "")
 			if err != nil {
 				s.store.RecordFailure(nowUnix, err.Error())
 				return err
@@ -560,15 +555,7 @@ func (s *Service) xmltvProgramsForChannels(ctx context.Context, rawURL string, c
 }
 
 func (s *Service) xmltvDocument(ctx context.Context, rawURL string) (xmltv.Document, error) {
-	data, err := s.fetchURL(ctx, rawURL)
-	if err != nil {
-		return xmltv.Document{}, fmt.Errorf("fetch custom xmltv: %w", err)
-	}
-	doc, err := xmltv.Parse(data)
-	if err != nil {
-		return xmltv.Document{}, fmt.Errorf("parse custom xmltv: %w", err)
-	}
-	return doc, nil
+	return s.fetchXMLTV(ctx, rawURL, "custom")
 }
 
 func programsFromXMLTVDocument(channels []model.Channel, doc xmltv.Document) []model.Program {
@@ -1276,13 +1263,9 @@ func (s *Service) refreshEPG(ctx context.Context, settings config.Settings, nowU
 	if err != nil {
 		return err
 	}
-	data, err := s.fetchURL(ctx, rawURL)
+	doc, err := s.fetchXMLTV(ctx, rawURL, "epg")
 	if err != nil {
-		return fmt.Errorf("fetch epg xmltv: %w", err)
-	}
-	doc, err := xmltv.Parse(data)
-	if err != nil {
-		return fmt.Errorf("parse epg xmltv: %w", err)
+		return err
 	}
 
 	snapshot := s.store.Current()

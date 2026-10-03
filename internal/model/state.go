@@ -9,6 +9,9 @@ type SyncHealth struct {
 	EPGLastSuccessUnix int64  `json:"epgLastSuccessUnix,omitempty"`
 	EPGLastFailureUnix int64  `json:"epgLastFailureUnix,omitempty"`
 	EPGLastError       string `json:"epgLastError,omitempty"`
+	// EPGWarning explains why a refresh result was not applied (for example
+	// the last known good guide was kept after a sharp drop in programs).
+	EPGWarning string `json:"epgWarning,omitempty"`
 }
 
 type CatalogState struct {
