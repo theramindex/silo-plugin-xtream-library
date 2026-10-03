@@ -632,7 +632,7 @@ func TestHTTPRoutesServerAppPageIncludesVirtualFolderDrilldown(t *testing.T) {
 		`if (!descriptionOverflows(target)) return;`,
 		`.logo-fallback`,
 		`function channelLogoFallback(channel)`,
-		`onerror=\"this.hidden = true; this.nextElementSibling.hidden = false;\"`,
+		`data-img-error=\"logo-fallback\"`,
 		`<span class=\"epg-channel-title\">`,
 		`title=\"" + escapeHTML(channelName) + "\"`,
 		`data-channel-name=\"`,
@@ -2178,7 +2178,7 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 		}
 	}, syncer)
 
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "POST", Path: "/dispatcharr/api/refresh"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "POST", Path: "/dispatcharr/api/refresh", Headers: map[string]string{"X-Silo-User-Role": "admin"}})
 	if err != nil {
 		t.Fatalf("refresh route: %v", err)
 	}
@@ -2188,6 +2188,9 @@ func TestHTTPRoutesServerRefreshRouteStartsBackgroundCatalogSync(t *testing.T) {
 	var payload AppPayload
 	if err := json.Unmarshal(response.GetBody(), &payload); err != nil {
 		t.Fatalf("unmarshal app payload: %v", err)
+	}
+	if !payload.IsAdmin {
+		t.Fatal("expected admin refresh payload to report isAdmin")
 	}
 	if len(payload.Channels) != 1 || payload.Channels[0].ID != "dispatcharr:old" {
 		t.Fatalf("expected current channel payload while sync runs, got %+v", payload.Channels)
@@ -2237,7 +2240,7 @@ func TestHTTPRoutesServerChannelRefreshRouteStartsChannelOnlySync(t *testing.T) 
 	syncer := &stubCatalogSyncer{store: store, done: done}
 	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
 
-	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/refresh-channels"})
+	response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: "/dispatcharr/api/refresh-channels", Headers: map[string]string{"x-silo-user-role": "admin"}})
 	if err != nil {
 		t.Fatalf("channel refresh route: %v", err)
 	}
@@ -3706,17 +3709,112 @@ func TestPlayerAppUsesLightweightRefreshPolling(t *testing.T) {
 	}
 }
 
-func TestProgramsForChannelDecodesCachedXtreamGuideText(t *testing.T) {
+func TestGuideIndexDecodesCachedXtreamGuideText(t *testing.T) {
 	t.Parallel()
 
-	programs := programsForChannel([]model.Program{
-		{ChannelID: "xtream:1001", Title: "Tm8gTWF0Y2ggVG9kYXk=", Summary: "VG9wIGhlYWRsaW5lcy4="},
-		{ChannelID: "xmltv:news", Title: "Tm8gTWF0Y2ggVG9kYXk="},
-	}, "")
+	programs := buildGuideIndex(cache.Snapshot{Catalog: model.CatalogState{Programs: []model.Program{
+		{ID: "1", ChannelID: "xtream:1001", Title: "Tm8gTWF0Y2ggVG9kYXk=", Summary: "VG9wIGhlYWRsaW5lcy4="},
+		{ID: "2", ChannelID: "xmltv:news", Title: "Tm8gTWF0Y2ggVG9kYXk="},
+	}}}).all
 	if programs[0].Title != "No Match Today" || programs[0].Summary != "Top headlines." {
 		t.Fatalf("expected cached Xtream guide text to be decoded, got %+v", programs[0])
 	}
 	if programs[1].Title != "Tm8gTWF0Y2ggVG9kYXk=" {
 		t.Fatalf("expected non-Xtream guide text to remain untouched, got %+v", programs[1])
+	}
+}
+
+func TestAdminOnlyRoutesRejectNonAdminCallers(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream)}})
+	syncer := &stubCatalogSyncer{store: store}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings {
+		return config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://provider.example.com", XtreamUsername: "demo", XtreamPassword: "secret", ChannelRefreshH: 24, EPGRefreshH: 24}
+	}, syncer)
+
+	for _, path := range []string{"/dispatcharr/api/refresh", "/dispatcharr/api/refresh-channels", "/xtream/api/refresh"} {
+		for _, headers := range []map[string]string{nil, {"x-silo-user-role": "user"}, {"x-silo-user-role": ""}} {
+			response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodPost, Path: path, Headers: headers})
+			if err != nil {
+				t.Fatalf("%s: %v", path, err)
+			}
+			if response.GetStatusCode() != http.StatusForbidden {
+				t.Fatalf("%s with %v: expected 403, got %d: %s", path, headers, response.GetStatusCode(), response.GetBody())
+			}
+			if !strings.Contains(response.GetHeaders()["content-type"], "application/json") {
+				t.Fatalf("%s: expected JSON 403, got headers %v", path, response.GetHeaders())
+			}
+			var body map[string]any
+			if err := json.Unmarshal(response.GetBody(), &body); err != nil || body["error"] != "admin_required" || body["ok"] != false {
+				t.Fatalf("%s: expected admin_required error body, got %s (%v)", path, response.GetBody(), err)
+			}
+		}
+	}
+	if syncer.forceCallCount() != 0 || syncer.callCount() != 0 || syncer.channelCallCount() != 0 {
+		t.Fatalf("non-admin refresh must not start a sync, got force=%d calls=%d channels=%d", syncer.forceCallCount(), syncer.callCount(), syncer.channelCallCount())
+	}
+
+	// Recordings are disabled for Xtream sources; the schedule route is not
+	// admin gated and keeps answering with its own 409 unavailability
+	// response. A server without a syncer keeps the Xtream catalog in place
+	// (the stub syncer above would swap in a Dispatcharr Direct catalog).
+	recordingsStore := cache.NewStore()
+	recordingsStore.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:1", Name: "News"}}}})
+	schedule, err := NewHTTPRoutesServer(recordingsStore).Handle(context.Background(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodPost,
+		Path:    "/dispatcharr/api/recordings",
+		Body:    []byte(`{"channelId":"x","startUnix":1900000000,"endUnix":1900003600}`),
+		Headers: map[string]string{"x-silo-user-role": "user"},
+	})
+	if err != nil {
+		t.Fatalf("schedule route: %v", err)
+	}
+	if schedule.GetStatusCode() != http.StatusConflict {
+		t.Fatalf("expected recordings to stay unavailable, got %d %s", schedule.GetStatusCode(), schedule.GetBody())
+	}
+}
+
+func TestAppPayloadReportsIsAdminFromHostRoleHeader(t *testing.T) {
+	t.Parallel()
+
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: model.LiveTVSource(model.SourceModeXtream), Channels: []model.Channel{{ID: "xtream:1", Name: "News"}}}})
+	server := NewHTTPRoutesServer(store)
+
+	for role, want := range map[string]bool{"admin": true, "Admin": true, "user": false, "": false} {
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/dispatcharr/api/app", Headers: map[string]string{"X-Silo-User-Role": role}})
+		if err != nil {
+			t.Fatalf("app route: %v", err)
+		}
+		var raw map[string]any
+		if err := json.Unmarshal(response.GetBody(), &raw); err != nil {
+			t.Fatalf("unmarshal app payload: %v", err)
+		}
+		if got, ok := raw["isAdmin"].(bool); !ok || got != want {
+			t.Fatalf("role %q: expected isAdmin=%v, got %#v", role, want, raw["isAdmin"])
+		}
+	}
+}
+
+func TestAlternateEPGSourceTestRedactsCredentialedURLErrors(t *testing.T) {
+	t.Parallel()
+
+	listener := httptest.NewServer(http.NotFoundHandler())
+	closedURL := listener.URL
+	listener.Close()
+
+	for _, target := range []string{
+		closedURL + "/xmltv.php?username=demo&password=hunter2secret",
+		"http://demo:hunter2secret@[::1/xmltv.php",
+	} {
+		_, err := testAlternateEPGSource(context.Background(), config.XtreamSource{AlternateEPGURL: target}, nil)
+		if err == nil {
+			t.Fatalf("expected error for %q", target)
+		}
+		if strings.Contains(err.Error(), "hunter2secret") {
+			t.Fatalf("error leaked credentials: %v", err)
+		}
 	}
 }

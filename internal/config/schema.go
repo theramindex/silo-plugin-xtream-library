@@ -35,6 +35,11 @@ const categorySettingsJSONSchema = `{
       "type": "boolean",
       "default": true
     },
+    "allowDirectProviderURLs": {
+      "type": "boolean",
+      "default": true,
+      "description": "TS live, VOD, series and catch-up can't be relayed through Silo, so playback sends the provider URL, including your account credentials, to the viewer's browser. Turn off to block those streams unless the provider serves HLS."
+    },
     "sportsFirstPlayerEnabled": {
       "type": "boolean",
       "default": false

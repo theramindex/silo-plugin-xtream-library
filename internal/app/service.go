@@ -1,8 +1,10 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
 	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
+	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
 )
 
@@ -46,6 +49,10 @@ type Dependencies struct {
 	XtreamFactory      func(baseURL, username, password string) XtreamClient
 	DispatcharrFactory func(settings config.Settings) DispatcharrClient
 	FetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
+	// OpenURL streams a response body. XMLTV guides use it so large feeds are
+	// decoded incrementally instead of being buffered in full. When nil and
+	// FetchURL is set, OpenURL wraps FetchURL's bytes.
+	OpenURL func(ctx context.Context, rawURL string) (io.ReadCloser, error)
 }
 
 type Service struct {
@@ -54,6 +61,7 @@ type Service struct {
 	xtreamFactory      func(baseURL, username, password string) XtreamClient
 	dispatcharrFactory func(settings config.Settings) DispatcharrClient
 	fetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
+	openURL            func(ctx context.Context, rawURL string) (io.ReadCloser, error)
 }
 
 const SourceModeResetWarning = "Changing source mode resets cached channel and guide data before rebuilding Live TV."
@@ -80,27 +88,70 @@ func NewService(deps Dependencies) *Service {
 		}
 	}
 
+	client := &http.Client{Timeout: 5 * time.Minute}
+	defaultOpen := func(ctx context.Context, rawURL string) (io.ReadCloser, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		if err != nil {
+			return nil, sharedhttp.RedactErrorURL(err)
+		}
+		response, err := client.Do(req)
+		if err != nil {
+			return nil, sharedhttp.RedactErrorURL(err)
+		}
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			_ = response.Body.Close()
+			return nil, fmt.Errorf("unexpected status %d", response.StatusCode)
+		}
+		return response.Body, nil
+	}
+
 	fetcher := deps.FetchURL
+	opener := deps.OpenURL
 	if fetcher == nil {
-		client := &http.Client{Timeout: 5 * time.Minute}
 		fetcher = func(ctx context.Context, rawURL string) ([]byte, error) {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+			body, err := defaultOpen(ctx, rawURL)
 			if err != nil {
 				return nil, err
 			}
-			response, err := client.Do(req)
+			defer body.Close()
+			return sharedhttp.ReadAllLimit(body, sharedhttp.MaxCatalogResponseBytes)
+		}
+		if opener == nil {
+			opener = defaultOpen
+		}
+	}
+	if opener == nil {
+		injected := fetcher
+		opener = func(ctx context.Context, rawURL string) (io.ReadCloser, error) {
+			data, err := injected(ctx, rawURL)
 			if err != nil {
-				return nil, sharedhttp.RedactErrorURL(err)
+				return nil, err
 			}
-			defer response.Body.Close()
-			if response.StatusCode < 200 || response.StatusCode >= 300 {
-				return nil, fmt.Errorf("unexpected status %d", response.StatusCode)
-			}
-			return sharedhttp.ReadAllLimit(response.Body, sharedhttp.MaxCatalogResponseBytes)
+			return io.NopCloser(bytes.NewReader(data)), nil
 		}
 	}
 
-	return &Service{store: store, snapshotStorage: deps.SnapshotStorage, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher}
+	return &Service{store: store, snapshotStorage: deps.SnapshotStorage, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher, openURL: opener}
+}
+
+// fetchXMLTV streams an XMLTV document from rawURL, decoding it token by token
+// under the shared 256 MiB catalog size cap so the raw body is never held in
+// memory. label prefixes errors ("fetch <label> xmltv" / "parse <label> xmltv").
+func (s *Service) fetchXMLTV(ctx context.Context, rawURL, label string) (xmltv.Document, error) {
+	prefix := "xmltv"
+	if label != "" {
+		prefix = label + " xmltv"
+	}
+	body, err := s.openURL(ctx, rawURL)
+	if err != nil {
+		return xmltv.Document{}, fmt.Errorf("fetch %s: %w", prefix, sharedhttp.RedactErrorURL(err))
+	}
+	defer body.Close()
+	doc, err := xmltv.ParseReader(body, xmltv.ParseOptions{MaxBytes: sharedhttp.MaxCatalogResponseBytes})
+	if err != nil {
+		return xmltv.Document{}, fmt.Errorf("parse %s: %w", prefix, sharedhttp.RedactErrorURL(err))
+	}
+	return doc, nil
 }
 
 func (s *Service) replaceSnapshot(snapshot cache.Snapshot) error {

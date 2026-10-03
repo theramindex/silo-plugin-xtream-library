@@ -158,3 +158,168 @@ func TestStoreDoesNotPreserveGuideAcrossCatalogConfigChanges(t *testing.T) {
 		t.Fatalf("expected old guide to be discarded across config change, got %+v", programs)
 	}
 }
+
+func regressionTestPrograms(channels, perChannel int, endUnix int64) []model.Program {
+	programs := make([]model.Program, 0, channels*perChannel)
+	for c := 0; c < channels; c++ {
+		for p := 0; p < perChannel; p++ {
+			programs = append(programs, model.Program{
+				ID:        "program:" + string(rune('a'+c)) + string(rune('a'+p)),
+				ChannelID: "channel:" + string(rune('a'+c)),
+				Title:     "Show",
+				StartUnix: endUnix - 3600,
+				EndUnix:   endUnix,
+			})
+		}
+	}
+	return programs
+}
+
+func regressionTestChannels(count int) []model.Channel {
+	channels := make([]model.Channel, 0, count)
+	for c := 0; c < count; c++ {
+		channels = append(channels, model.Channel{ID: "channel:" + string(rune('a'+c))})
+	}
+	return channels
+}
+
+func TestStoreReplaceProgramsKeepsGuideOnSharpDropEvenWhileLoading(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: regressionTestChannels(4),
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms(regressionTestPrograms(4, 5, 10_000), 200)
+	store.MarkEPGLoading()
+
+	if applied := store.ReplacePrograms(regressionTestPrograms(1, 3, 10_000), 300); applied {
+		t.Fatal("expected sharp drop to be rejected")
+	}
+	current := store.Current()
+	if len(current.Catalog.Programs) != 20 {
+		t.Fatalf("expected last known good guide, got %d programs", len(current.Catalog.Programs))
+	}
+	if current.Health.EPGStatus != "ok" || current.Health.EPGWarning == "" || current.Health.EPGLastSuccessUnix != 200 {
+		t.Fatalf("expected ok status with warning and original success time, got %+v", current.Health)
+	}
+
+	// A comparable refresh is applied and clears the warning.
+	if applied := store.ReplacePrograms(regressionTestPrograms(4, 3, 10_000), 400); !applied {
+		t.Fatal("expected comparable guide to apply")
+	}
+	current = store.Current()
+	if len(current.Catalog.Programs) != 12 || current.Health.EPGWarning != "" || current.Health.EPGLastSuccessUnix != 400 {
+		t.Fatalf("expected refreshed guide without warning, got %d programs %+v", len(current.Catalog.Programs), current.Health)
+	}
+}
+
+func TestStoreReplaceProgramsRejectsChannelCoverageCollapse(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{Catalog: model.CatalogState{Channels: regressionTestChannels(6), Health: model.SyncHealth{LastSuccessUnix: 100}}})
+	store.ReplacePrograms(regressionTestPrograms(6, 2, 10_000), 200)
+
+	// Same program count, but only 2 of 6 channels covered.
+	if store.ReplacePrograms(regressionTestPrograms(2, 6, 10_000), 300) {
+		t.Fatal("expected coverage collapse to be rejected")
+	}
+}
+
+func TestStoreReplaceProgramsIgnoresExpiredPrograms(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{Catalog: model.CatalogState{Channels: regressionTestChannels(4), Health: model.SyncHealth{LastSuccessUnix: 100}}})
+	store.ReplacePrograms(regressionTestPrograms(4, 5, 1_000), 200)
+
+	// The old guide has fully ended by t=5000, so a small fresh guide applies.
+	if !store.ReplacePrograms(regressionTestPrograms(1, 1, 9_000), 5_000) {
+		t.Fatal("expected fresh guide to replace an expired one")
+	}
+}
+
+func TestStoreReplaceExactKeepsGuideOnSharpDropUnlessSourceModeChanges(t *testing.T) {
+	t.Parallel()
+
+	base := func(mode model.SourceMode, programs []model.Program, at int64) Snapshot {
+		return Snapshot{
+			ConfigKey: "key",
+			Catalog: model.CatalogState{
+				Source:   model.LiveTVSource(mode),
+				Channels: regressionTestChannels(4),
+				Programs: programs,
+			},
+			Health: model.SyncHealth{LastSuccessUnix: at, EPGStatus: "ok", EPGProgramCount: len(programs), EPGLastSuccessUnix: at},
+		}
+	}
+
+	store := NewStore()
+	store.ReplaceExact(base(model.SourceModeDirectLogin, regressionTestPrograms(4, 5, 10_000), 100))
+	store.MarkEPGLoading()
+	store.ReplaceExact(base(model.SourceModeDirectLogin, regressionTestPrograms(1, 2, 10_000), 200))
+
+	current := store.Current()
+	if len(current.Catalog.Programs) != 20 || current.Health.EPGWarning == "" || current.Health.EPGStatus != "ok" {
+		t.Fatalf("expected preserved guide with warning, got %d programs %+v", len(current.Catalog.Programs), current.Health)
+	}
+	if current.Health.LastSuccessUnix != 200 {
+		t.Fatalf("channel sync success should still advance, got %+v", current.Health)
+	}
+
+	switched := base(model.SourceModeXtream, regressionTestPrograms(1, 2, 10_000), 300)
+	store.ReplaceExact(switched)
+	current = store.Current()
+	if len(current.Catalog.Programs) != 2 || current.Health.EPGWarning != "" {
+		t.Fatalf("source mode change must accept the new guide, got %d programs %+v", len(current.Catalog.Programs), current.Health)
+	}
+}
+
+func TestStoreReplacePreservesGuideWhileStatusIsLoading(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: regressionTestChannels(2),
+		Health:   model.SyncHealth{LastSuccessUnix: 100},
+	}})
+	store.ReplacePrograms(regressionTestPrograms(2, 2, 10_000), 200)
+	store.MarkEPGLoading()
+
+	store.Replace(Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: regressionTestChannels(2),
+		Health:   model.SyncHealth{LastSuccessUnix: 300},
+	}})
+	if got := len(store.Current().Catalog.Programs); got != 4 {
+		t.Fatalf("expected guide preserved despite loading status, got %d", got)
+	}
+}
+
+func TestStoreVersionAdvancesOnEveryMutation(t *testing.T) {
+	t.Parallel()
+
+	store := NewStore()
+	last := store.Current().Version
+	steps := []func(){
+		func() { store.Replace(Snapshot{Catalog: model.CatalogState{Channels: regressionTestChannels(1)}}) },
+		func() { store.ReplacePrograms(regressionTestPrograms(1, 1, 10_000), 1) },
+		func() { store.MarkEPGLoading() },
+		func() { store.RecordEPGFailure(2, "boom") },
+		func() { store.RecordFailure(3, "boom") },
+		func() { store.ReplaceExact(Snapshot{Catalog: model.CatalogState{Channels: regressionTestChannels(1)}}) },
+		func() { store.ClearGuidePrograms(4) },
+	}
+	for index, step := range steps {
+		step()
+		current := store.Current().Version
+		if current <= last {
+			t.Fatalf("step %d: expected version to advance past %d, got %d", index, last, current)
+		}
+		last = current
+	}
+}

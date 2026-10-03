@@ -130,6 +130,12 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	if enabled, ok := payload["allowRecordingsByDefault"].(bool); ok {
 		allowRecordingsByDefault = enabled
 	}
+	// Defaults to true so existing installs keep playing TS live, VOD, series,
+	// and catch-up, which can only be served by redirecting to the provider.
+	allowDirectProviderURLs := true
+	if enabled, ok := payload[allowDirectProviderURLsKey].(bool); ok {
+		allowDirectProviderURLs = enabled
+	}
 	sportsFirstPlayerEnabled := false
 	if enabled, ok := payload["sportsFirstPlayerEnabled"].(bool); ok {
 		sportsFirstPlayerEnabled = enabled
@@ -185,6 +191,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"ecmEnabled":                     ecmEnabled,
 		"ecmURL":                         ecmURL,
 		"allowRecordingsByDefault":       allowRecordingsByDefault,
+		allowDirectProviderURLsKey:       allowDirectProviderURLs,
 		"sportsFirstPlayerEnabled":       sportsFirstPlayerEnabled,
 		"liveRewindEnabled":              liveRewindEnabled,
 		"liveRewindCacheGB":              liveRewindCacheGB,
