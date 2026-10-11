@@ -397,19 +397,22 @@ func TestManifestDeclaresLiveTVContractRoutes(t *testing.T) {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		t.Fatalf("unmarshal manifest: %v", err)
 	}
-	want := map[string]string{
-		"livetv-v1-info":     "/silo-compat/livetv/v1/info",
-		"livetv-v1-channels": "/silo-compat/livetv/v1/channels",
-		"livetv-v1-stream":   "/silo-compat/livetv/v1/stream",
+	// info and stream are admin-only so Silo's plugin proxy never hands
+	// credentialed stream URLs or provider hosts to ordinary users; Silo calls
+	// them in-process. channels is how Silo discovers the provider.
+	want := map[string]struct{ path, access string }{
+		"livetv-v1-info":     {"/silo-compat/livetv/v1/info", "admin"},
+		"livetv-v1-channels": {"/silo-compat/livetv/v1/channels", "authenticated"},
+		"livetv-v1-stream":   {"/silo-compat/livetv/v1/stream", "admin"},
 	}
 	found := map[string]bool{}
 	for _, route := range manifest.HTTPRoutes {
-		path, ok := want[route.ID]
+		expected, ok := want[route.ID]
 		if !ok {
 			continue
 		}
 		found[route.ID] = true
-		if route.Method != http.MethodGet || route.Path != path || route.Access != "authenticated" || route.Navigable {
+		if route.Method != http.MethodGet || route.Path != expected.path || route.Access != expected.access || route.Navigable {
 			t.Fatalf("route %s declared incorrectly: %+v", route.ID, route)
 		}
 	}
