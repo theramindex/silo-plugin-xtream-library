@@ -22,4 +22,6 @@ go test ./...
 go test -race ./...
 node --check internal/plugin/ui/lineup.js
 node --check internal/plugin/ui/app.js
+node --test scripts/prefs-sync.test.mjs
+node --test scripts/prefs-profile.test.mjs
 go run . manifest >/dev/null
