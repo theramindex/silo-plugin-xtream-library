@@ -457,6 +457,13 @@ func TestManifestUserPreferenceSchemaAcceptsBrowserPayload(t *testing.T) {
 		"customGroupMemberships": map[string]any{
 			"group:news": []any{"channel:1"},
 		},
+		"profiles": map[string]any{
+			"p2": map[string]any{
+				"favorites":        map[string]any{"channel:2": true},
+				"favoriteOrder":    []any{"channel:2"},
+				"hiddenCategories": map[string]any{"7": true},
+			},
+		},
 	}
 	delete(preferences, "autoFavorites")
 	delete(preferences, "sportsFavoriteTeams")

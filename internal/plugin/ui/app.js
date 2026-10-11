@@ -691,7 +691,7 @@ async function loadPluginSettingsValues() {
 }
 async function loadUserPrefs() {
   const values = await loadPluginSettingsValues();
-  return readSiloPrefsValue(values ? values.preferences : "");
+  return viewerPrefsView(readSiloPrefsValue(values ? values.preferences : ""));
 }
 async function loadAdminCategorySettings() {
   return readAdminSettingsValue(await getJSON(adminSettingsURL()));
@@ -738,7 +738,9 @@ async function persistAdminCategorySettingsInSilo(settings) {
 const prefsSaveDebounceMs = 400;
 const prefsMapKeys = ["favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "sportsFavoriteTeamLabels", "sportsFavoriteLeagues", "sportsPreferredChannels", "sportsPreferredNetworks", "featuredEvents", "continueWatching", "customGroupMemberships", "playback", "categoryBrowse"];
 const prefsUnionListKeys = { favoriteOrder: 0, recentSearches: 12, recentChannels: 24 };
-const prefsSync = { loaded: false, baseline: null, dirty: false, quiet: true, timer: 0, retryTimer: 0, loading: null, lastRemoteCheck: 0, channel: null, tabID: Math.random().toString(36).slice(2) };
+// `profileID` is the Silo profile state.app.preferences and the baseline were
+// loaded for; a save only ever writes into that profile's section.
+const prefsSync = { loaded: false, profileID: "", baseline: null, dirty: false, quiet: true, timer: 0, retryTimer: 0, loading: null, lastRemoteCheck: 0, channel: null, tabID: Math.random().toString(36).slice(2) };
 function prefsSnapshot(value) { return JSON.parse(JSON.stringify(value == null ? {} : value)); }
 function prefsValueEqual(left, right) { return JSON.stringify(left === undefined ? null : left) === JSON.stringify(right === undefined ? null : right); }
 function prefsPlainObject(value) { return !!value && typeof value === "object" && !Array.isArray(value); }
@@ -794,15 +796,78 @@ function applyPrefsDiff(remote, baseline, local) {
   }
   return result;
 }
+// Raw stored shape: legacy top-level keys plus the per-profile `profiles` map.
+// Use viewerPrefsView/profileView for what a tab shows and diffs against.
 function remotePrefsFromValues(values) {
   return mergePrefs(readSiloPrefsValue(values && values.preferences ? values.preferences : "") || defaultPrefs());
 }
+// Favorites, their order and hidden groups are kept per Silo profile under
+// preferences.profiles[profileID]. Everything else stays top-level. A profile
+// with no section yet shows the legacy top-level values, and so does a viewer
+// with no profile id.
+const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories"];
+function activeViewerProfileID() { return coreStoredValue("profile_id") || ""; }
+function prefsProfileSection(remote, profileID) {
+  const section = profileID && remote && prefsPlainObject(remote.profiles) ? remote.profiles[profileID] : null;
+  return prefsPlainObject(section) ? section : null;
+}
+// A copy of the stored prefs as the given profile sees them. `profiles` is
+// removed so the per-profile map is never diffed or edited by the tab.
+function profileView(remote, profileID) {
+  const view = prefsSnapshot(remote);
+  delete view.profiles;
+  const section = prefsProfileSection(remote, profileID);
+  if (!section) return view;
+  profileScopedPrefKeys.forEach(function(key) {
+    if (Object.prototype.hasOwnProperty.call(section, key)) view[key] = prefsSnapshot(section[key]);
+    else delete view[key];
+  });
+  return view;
+}
+function viewerPrefsView(remote) {
+  return remote ? profileView(remote, activeViewerProfileID()) : null;
+}
+// Inverse of profileView: `merged` is the viewer's view after a save diff and
+// `remote` the raw stored prefs it was merged against. Scoped keys go into
+// profiles[profileID] (the legacy top-level ones keep the stored values), every
+// other key comes from `merged`, and the other profiles are carried over.
+function mergeProfileView(remote, merged, profileID) {
+  const result = prefsSnapshot(merged);
+  delete result.profiles;
+  if (remote && prefsPlainObject(remote.profiles)) result.profiles = prefsSnapshot(remote.profiles);
+  if (!profileID) return result;
+  const section = Object.assign({}, prefsProfileSection(remote, profileID));
+  profileScopedPrefKeys.forEach(function(key) {
+    if (remote && Object.prototype.hasOwnProperty.call(remote, key)) result[key] = prefsSnapshot(remote[key]);
+    else delete result[key];
+    if (Object.prototype.hasOwnProperty.call(merged, key)) section[key] = prefsSnapshot(merged[key]);
+    else delete section[key];
+  });
+  result.profiles = Object.assign({}, result.profiles);
+  result.profiles[profileID] = section;
+  return result;
+}
+// Silo switches profiles inside its SPA without reloading the page, so the
+// viewer can change while this tab still holds the previous profile's view.
+function prefsProfileSwitched() {
+  return prefsSync.loaded && prefsSync.profileID !== activeViewerProfileID();
+}
+// Edits pending for a profile the viewer has left must not be saved anywhere.
+function discardPendingPrefsEdits() {
+  if (prefsSync.timer) { clearTimeout(prefsSync.timer); prefsSync.timer = 0; }
+  prefsSync.dirty = false;
+  prefsSync.quiet = true;
+}
 // Called after state.app.preferences has been replaced by freshly loaded,
 // normalized remote prefs. Re-applies edits made while prefs were not loaded.
-function adoptLoadedPrefs(previousLocal) {
+// `profileID` is the profile that view was built for (default: the current one).
+function adoptLoadedPrefs(previousLocal, profileID) {
+  const nextProfileID = profileID === undefined ? activeViewerProfileID() : profileID;
+  if (prefsSync.loaded && prefsSync.profileID !== nextProfileID) discardPendingPrefsEdits();
   const previousBaseline = prefsSync.baseline;
   const hadPendingEdits = prefsSync.dirty && previousBaseline && previousLocal;
   prefsSync.loaded = true;
+  prefsSync.profileID = nextProfileID;
   prefsSync.baseline = prefsSnapshot(state.app.preferences);
   prefsSync.lastRemoteCheck = Date.now();
   if (prefsSync.retryTimer) { clearTimeout(prefsSync.retryTimer); prefsSync.retryTimer = 0; }
@@ -837,7 +902,7 @@ function dropKnownPhantomSportsFollows() {
   return dropped;
 }
 function schedulePrefsLoadRetry() {
-  if (prefsSync.loaded || prefsSync.retryTimer || !pluginInstallationID) return;
+  if ((prefsSync.loaded && !prefsProfileSwitched()) || prefsSync.retryTimer || !pluginInstallationID) return;
   prefsSync.retryTimer = setTimeout(function() {
     prefsSync.retryTimer = 0;
     reloadPrefsFromRemote({ force: true }).catch(function() { schedulePrefsLoadRetry(); });
@@ -846,20 +911,25 @@ function schedulePrefsLoadRetry() {
 async function reloadPrefsFromRemote(options) {
   options = options || {};
   if (!state.app || !pluginInstallationID || isAdminRoute) return;
-  if (!options.force && Date.now() - prefsSync.lastRemoteCheck < 5000) return;
+  if (!options.force && !prefsProfileSwitched() && Date.now() - prefsSync.lastRemoteCheck < 5000) return;
   if (prefsSync.loading) return prefsSync.loading;
   prefsSync.loading = (async function() {
     const values = await loadPluginSettingsValues();
+    const profileID = activeViewerProfileID();
+    const switched = prefsProfileSwitched();
     const before = prefsSnapshot(state.app.preferences);
     const local = state.app.preferences;
-    if (prefsSync.loaded && prefsSync.dirty) {
+    if (switched) {
+      // The pending edits belong to the previous profile; show the new one's view.
+      discardPendingPrefsEdits();
+    } else if (prefsSync.loaded && prefsSync.dirty) {
       // A save is pending; it re-reads and merges remote state itself.
       prefsSync.lastRemoteCheck = Date.now();
       return;
     }
-    state.app.preferences = remotePrefsFromValues(values);
+    state.app.preferences = profileView(remotePrefsFromValues(values), profileID);
     normalizePreferences();
-    adoptLoadedPrefs(local);
+    adoptLoadedPrefs(switched ? null : local, profileID);
     state.recentSearches = readRecentSearches();
     if (!prefsValueEqual(before, state.app.preferences)) renderAfterPrefsSync();
   })().finally(function() { prefsSync.loading = null; });
@@ -915,21 +985,33 @@ function flushPrefsSave() {
   if (prefsSync.timer) { clearTimeout(prefsSync.timer); prefsSync.timer = 0; }
   return queuePluginSettingsWrite(runPrefsSave);
 }
+const profileSwitchedDuringSave = new Error("viewer profile changed during save");
+function dropEditsForSwitchedProfile() {
+  discardPendingPrefsEdits();
+  return reloadPrefsFromRemote({ force: true }).catch(function() { schedulePrefsLoadRetry(); });
+}
 async function runPrefsSave() {
   if (!state.app || !prefsSync.dirty || !prefsSync.loaded) return;
+  if (prefsProfileSwitched()) return dropEditsForSwitchedProfile();
   const quiet = prefsSync.quiet;
   prefsSync.dirty = false;
   prefsSync.quiet = true;
   const local = prefsSnapshot(state.app.preferences);
   const baseline = prefsSync.baseline;
+  // Always the profile the edits were made for, never whoever is viewing now.
+  const profileID = prefsSync.profileID;
   let merged = null;
   try {
     await writePluginSettingsValues(function(values) {
-      merged = applyPrefsDiff(remotePrefsFromValues(values), baseline, local);
-      values.preferences = JSON.stringify(merged);
+      // The profile may have switched while the settings were being read.
+      if (activeViewerProfileID() !== profileID) throw profileSwitchedDuringSave;
+      const remoteRaw = remotePrefsFromValues(values);
+      merged = applyPrefsDiff(profileView(remoteRaw, profileID), baseline, local);
+      values.preferences = JSON.stringify(mergeProfileView(remoteRaw, merged, profileID));
       return values;
     });
   } catch (error) {
+    if (error === profileSwitchedDuringSave) return dropEditsForSwitchedProfile();
     prefsSync.dirty = true;
     state.profileSaveStatus = "error";
     state.profileSaveMessage = "Could not save to your Silo profile.";
@@ -1718,6 +1800,7 @@ async function hydrateApp(payload, options) {
   state.app = payload;
   const previousPrefs = previousApp.preferences || null;
   let prefsJustLoaded = false;
+  let loadedProfileID;
   if (options.localCache) {
     state.app.preferences = previousPrefs || defaultPrefs();
     state.adminCategorySettings = defaultAdminCategorySettings();
@@ -1733,8 +1816,9 @@ async function hydrateApp(payload, options) {
       // Keep whatever this tab already has; saves stay pending until a load succeeds.
       state.app.preferences = previousPrefs || mergePrefs(state.app.preferences);
     } else {
-      const siloPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
-      state.app.preferences = mergePrefs(siloPrefs || state.app.preferences);
+      loadedProfileID = activeViewerProfileID();
+      const rawPrefs = readSiloPrefsValue(values && values.preferences ? values.preferences : "");
+      state.app.preferences = mergePrefs((rawPrefs && profileView(rawPrefs, loadedProfileID)) || state.app.preferences);
       prefsJustLoaded = true;
     }
     state.adminCategorySettings = await loadAdminCategorySettings().catch(function() { return defaultAdminCategorySettings(); });
@@ -1743,7 +1827,7 @@ async function hydrateApp(payload, options) {
   state.app.programs = items(state.app.programs);
   rebuildProgramIndex();
   normalizePreferences();
-  if (prefsJustLoaded) adoptLoadedPrefs(previousPrefs);
+  if (prefsJustLoaded) adoptLoadedPrefs(previousPrefs, loadedProfileID);
   else if (!prefsSync.baseline) prefsSync.baseline = prefsSnapshot(state.app.preferences);
   if (!prefsSync.loaded && !options.localCache && !options.reuseSettings) schedulePrefsLoadRetry();
   state.recentSearches = readRecentSearches();
