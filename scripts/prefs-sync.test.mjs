@@ -31,6 +31,7 @@ function setup(remoteValues, options = {}) {
     normalizeKeywordPasses: value => Array.isArray(value) ? value : [],
     normalizePreferences() {},
     readRecentSearches: () => [],
+    coreStoredValue: () => '',
     showAppToast(message) { ctx.toasts.push(message); },
     renderSettings() {}, render() { ctx.renders += 1; },
     document: { hidden: false, addEventListener() {} },
