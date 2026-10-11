@@ -307,6 +307,12 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.respondJSON(http.StatusOK, s.seriesPayload())
 	case "/dispatcharr/api/series/info":
 		return s.handleSeriesInfo(ctx, request)
+	case "/silo-compat/livetv/v1/info":
+		return s.handleLiveTVInfo(ctx), nil
+	case "/silo-compat/livetv/v1/channels":
+		return s.handleLiveTVChannels(ctx), nil
+	case "/silo-compat/livetv/v1/stream":
+		return s.handleLiveTVStream(ctx, request), nil
 	case "/dispatcharr/api/recordings/capability":
 		return s.handleRecordingCapability(ctx)
 	case "/dispatcharr/api/recordings":
@@ -1564,6 +1570,17 @@ func sanitizeThemeSlug(value string) string {
 }
 
 func (s *HTTPRoutesServer) resolveStreamURL(channelID, sessionID string) (string, error) {
+	return s.resolveChannelStreamURL(channelID, sessionID, "")
+}
+
+// resolveStreamURLWithFormat resolves a channel with an explicit live
+// extension ("ts" or "m3u8"; empty keeps the source's own format). It uses the
+// source's catalog account and never leases from the account pool.
+func (s *HTTPRoutesServer) resolveStreamURLWithFormat(channelID, ext string) (string, error) {
+	return s.resolveChannelStreamURL(channelID, "", ext)
+}
+
+func (s *HTTPRoutesServer) resolveChannelStreamURL(channelID, sessionID, ext string) (string, error) {
 	snapshot := s.store.Current()
 	for _, channel := range snapshot.Catalog.Channels {
 		if channel.ID != channelID {
@@ -1589,8 +1606,11 @@ func (s *HTTPRoutesServer) resolveStreamURL(channelID, sessionID string) (string
 					return "", err
 				}
 			}
+			if ext == "" {
+				ext = source.EffectiveLiveFormat()
+			}
 			client := xtream.NewClient(source.BaseURL, account.Username, account.Password)
-			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, source.EffectiveLiveFormat())
+			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, ext)
 			if strings.TrimSpace(streamURL) == "" {
 				return "", fmt.Errorf("unable to resolve stream url")
 			}

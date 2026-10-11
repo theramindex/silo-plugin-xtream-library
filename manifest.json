@@ -355,6 +355,27 @@
       "path": "/dispatcharr/api/sports/image",
       "access": "authenticated",
       "navigable": false
+    },
+    {
+      "id": "livetv-v1-info",
+      "method": "GET",
+      "path": "/silo-compat/livetv/v1/info",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "livetv-v1-channels",
+      "method": "GET",
+      "path": "/silo-compat/livetv/v1/channels",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "livetv-v1-stream",
+      "method": "GET",
+      "path": "/silo-compat/livetv/v1/stream",
+      "access": "authenticated",
+      "navigable": false
     }
   ],
   "metadata": {
