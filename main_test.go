@@ -295,6 +295,11 @@ func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
 		"/xtream/assets/app.js",
 		"/xtream/assets/xc-runtime-a.js",
 		"/xtream/assets/xc-runtime-b.js",
+		// The livetv/v1 contract paths have no /dispatcharr prefix, so the
+		// rewrite must leave them exactly as Silo's Jellyfin bridge calls them.
+		"/silo-compat/livetv/v1/info",
+		"/silo-compat/livetv/v1/channels",
+		"/silo-compat/livetv/v1/stream",
 	} {
 		found := false
 		for _, route := range manifest.GetHttpRoutes() {
