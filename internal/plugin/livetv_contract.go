@@ -28,12 +28,13 @@ type livetvInfo struct {
 }
 
 type livetvChannel struct {
-	ID      string `json:"id"`
-	Number  string `json:"number"`
-	Name    string `json:"name"`
-	LogoURL string `json:"logoUrl"`
-	GroupID string `json:"groupId"`
-	Group   string `json:"group"`
+	ID      string   `json:"id"`
+	Number  string   `json:"number"`
+	Name    string   `json:"name"`
+	LogoURL string   `json:"logoUrl"`
+	GroupID string   `json:"groupId"`
+	Group   string   `json:"group"`
+	Folders []string `json:"folders,omitempty"`
 }
 
 type livetvStream struct {
@@ -57,7 +58,9 @@ func (s *HTTPRoutesServer) handleLiveTVInfo(ctx context.Context) *pluginv1.Handl
 
 func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.HandleHTTPResponse {
 	s.ensureCatalogHydrated(ctx)
-	channels := s.store.Current().Catalog.Channels
+	snapshot := s.store.Current()
+	channels := snapshot.Catalog.Channels
+	folders := livetvChannelFolders(s.livetvFolderSettings(snapshot.Catalog.Source, liveCategories(snapshot)), channels)
 	lineup := make([]livetvChannel, 0, len(channels))
 	for _, channel := range channels {
 		lineup = append(lineup, livetvChannel{
@@ -67,6 +70,7 @@ func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.H
 			LogoURL: livetvLogoURL(channel.LogoURL),
 			GroupID: channel.CategoryID,
 			Group:   channel.CategoryName,
+			Folders: folders[channel.ID],
 		})
 	}
 	return jsonHTTPResponse(http.StatusOK, lineup)

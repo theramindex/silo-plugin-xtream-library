@@ -2,18 +2,24 @@ package plugin
 
 import "encoding/json"
 
-func (s *HTTPRoutesServer) adminFlag(key string, fallback bool) bool {
+// adminSettingsPayload returns the saved admin settings, loading them from the
+// settings file the first time.
+func (s *HTTPRoutesServer) adminSettingsPayload() map[string]any {
+	settings := map[string]any{}
 	if s == nil || s.store == nil {
-		return fallback
+		return settings
 	}
 	if !s.store.HasAdminSettings() && s.adminStorage != nil {
 		if saved, ok, err := s.adminStorage.Load(); err == nil && ok {
 			s.store.SetAdminSettings(saved)
 		}
 	}
-	settings := map[string]any{}
 	_ = json.Unmarshal(s.store.AdminSettings(), &settings)
-	if value, ok := settings[key].(bool); ok {
+	return settings
+}
+
+func (s *HTTPRoutesServer) adminFlag(key string, fallback bool) bool {
+	if value, ok := s.adminSettingsPayload()[key].(bool); ok {
 		return value
 	}
 	return fallback
