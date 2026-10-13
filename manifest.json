@@ -371,6 +371,13 @@
       "navigable": false
     },
     {
+      "id": "livetv-v1-programs",
+      "method": "GET",
+      "path": "/silo-compat/livetv/v1/programs",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "livetv-v1-stream",
       "method": "GET",
       "path": "/silo-compat/livetv/v1/stream",

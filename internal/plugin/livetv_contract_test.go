@@ -403,6 +403,7 @@ func TestManifestDeclaresLiveTVContractRoutes(t *testing.T) {
 	want := map[string]struct{ path, access string }{
 		"livetv-v1-info":     {"/silo-compat/livetv/v1/info", "admin"},
 		"livetv-v1-channels": {"/silo-compat/livetv/v1/channels", "authenticated"},
+		"livetv-v1-programs": {"/silo-compat/livetv/v1/programs", "authenticated"},
 		"livetv-v1-stream":   {"/silo-compat/livetv/v1/stream", "admin"},
 	}
 	found := map[string]bool{}

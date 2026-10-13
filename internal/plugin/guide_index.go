@@ -24,6 +24,10 @@ type guideIndex struct {
 	// before a window start an overlapping program can begin.
 	allMaxDuration int64
 	byChannel      map[string]channelGuide
+	// lineup is the snapshot's channel list and lineupPosition maps a channel
+	// ID to its first index in it, so lineup ordering never searches.
+	lineup         []model.Channel
+	lineupPosition map[string]int
 }
 
 type channelGuide struct {
@@ -63,6 +67,14 @@ func buildGuideIndex(snapshot cache.Snapshot) *guideIndex {
 		version:   snapshot.Version,
 		all:       programs,
 		byChannel: map[string]channelGuide{},
+
+		lineup:         snapshot.Catalog.Channels,
+		lineupPosition: make(map[string]int, len(snapshot.Catalog.Channels)),
+	}
+	for position, channel := range snapshot.Catalog.Channels {
+		if _, exists := index.lineupPosition[channel.ID]; !exists {
+			index.lineupPosition[channel.ID] = position
+		}
 	}
 	for _, program := range programs {
 		duration := programDuration(program)
