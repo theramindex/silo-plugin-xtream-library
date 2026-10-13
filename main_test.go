@@ -299,6 +299,7 @@ func TestManifestExposesOnlyXtreamPublicRoutes(t *testing.T) {
 		// rewrite must leave them exactly as Silo's Jellyfin bridge calls them.
 		"/silo-compat/livetv/v1/info",
 		"/silo-compat/livetv/v1/channels",
+		"/silo-compat/livetv/v1/programs",
 		"/silo-compat/livetv/v1/stream",
 	} {
 		found := false

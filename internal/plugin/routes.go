@@ -61,6 +61,7 @@ type HTTPRoutesServer struct {
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
 	guideIndex          guideIndexCache
+	livetvGuideFill     livetvGuideFill
 }
 
 type catalogSyncer interface {
@@ -313,6 +314,8 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleLiveTVChannels(ctx), nil
 	case "/silo-compat/livetv/v1/stream":
 		return s.handleLiveTVStream(ctx, request), nil
+	case "/silo-compat/livetv/v1/programs":
+		return s.handleLiveTVPrograms(ctx, request), nil
 	case "/dispatcharr/api/recordings/capability":
 		return s.handleRecordingCapability(ctx)
 	case "/dispatcharr/api/recordings":
