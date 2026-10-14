@@ -376,18 +376,31 @@ type livetvCandidate struct {
 	position int
 	flags    livetvFlags
 	slot     *livetvSportsSlot
+	// placeholder marks a program titled with a channel's name.
+	placeholder bool
 }
 
 func livetvSelectPrograms(index *guideIndex, query livetvProgramsQuery, sports map[string][]livetvSportsSlot) []livetvProgram {
 	classifier := newLivetvClassifier()
-	classify := func(candidate *livetvCandidate) {
-		channel := index.lineup[candidate.position]
-		candidate.slot = livetvMatchSportsSlot(sports[candidate.program.ChannelID], candidate.program)
-		candidate.flags = classifier.flags(candidate.program, channel, candidate.slot != nil)
-		if candidate.slot == nil && livetvFillerTitle(candidate.program.Title) {
-			// Filler such as "NO EVENT" stays in the grid but in no row.
-			candidate.flags = livetvFlags{}
+	// matchSlot finds the game a program carries. Filler such as "NO EVENT"
+	// and advertising airtime carry none, even during a game's slot, and stay
+	// in the grid but in no row.
+	matchSlot := func(candidate *livetvCandidate) bool {
+		if livetvUnclassedProgram(candidate.program) {
+			candidate.slot = nil
+			return false
 		}
+		candidate.slot = livetvMatchSportsSlot(sports[candidate.program.ChannelID], candidate.program)
+		candidate.placeholder = livetvPlaceholderTitle(candidate.program.Title, index.lineup[candidate.position])
+		return true
+	}
+	classify := func(candidate *livetvCandidate) {
+		if !matchSlot(candidate) {
+			candidate.flags = livetvFlags{}
+			return
+		}
+		channel := index.lineup[candidate.position]
+		candidate.flags = classifier.flags(candidate.program, channel, candidate.slot != nil)
 		if candidate.slot != nil && candidate.slot.Live {
 			candidate.flags.IsLive = true
 		}
@@ -419,11 +432,11 @@ func livetvSelectPrograms(index *guideIndex, query livetvProgramsQuery, sports m
 	}
 
 	// Whole lineup: the windowed slice is a fresh copy ordered by start then
-	// ID, so a stable sort on (featured first, lineup position) gives the
-	// contract order. With a class filter every windowed program is
-	// classified up front; without one only the programs that survive the
-	// limit are, though every one is matched against the sports guide, which
-	// is a map lookup.
+	// ID, so a stable sort on (tier, lineup position) gives the contract
+	// order. With a class filter, a row, every windowed program is classified
+	// up front and ranked by livetvRowTier; without one only the programs that
+	// survive the limit are, though every one is matched against the sports
+	// guide, which is a map lookup, and featured programs come first.
 	windowed := windowPrograms(index.all, index.allMaxDuration, query.Window)
 	candidates = make([]livetvCandidate, 0, len(windowed))
 	for _, program := range windowed {
@@ -438,22 +451,34 @@ func livetvSelectPrograms(index *guideIndex, query livetvProgramsQuery, sports m
 				continue
 			}
 		} else {
-			candidate.slot = livetvMatchSportsSlot(sports[program.ChannelID], program)
+			matchSlot(&candidate)
 		}
 		candidates = append(candidates, candidate)
+	}
+	var repeated map[string]bool
+	if query.Class != "" {
+		repeated = livetvRepeatedTitles(candidates)
 	}
 	// Sort small references rather than whole candidates.
 	type ref struct {
 		index, position int32
-		featured        bool
+		tier            int8
 	}
 	refs := make([]ref, len(candidates))
-	for i := range candidates {
-		refs[i] = ref{index: int32(i), position: int32(candidates[i].position), featured: candidates[i].slot != nil}
+	for i, candidate := range candidates {
+		tier := livetvTierNormal
+		switch {
+		case query.Class != "":
+			channel := index.lineup[candidate.position]
+			tier = livetvRowTier(candidate, channel, repeated[strings.Join(livetvWords(candidate.program.Title), " ")])
+		case candidate.slot != nil:
+			tier = livetvTierFeatured
+		}
+		refs[i] = ref{index: int32(i), position: int32(candidate.position), tier: int8(tier)}
 	}
 	sort.SliceStable(refs, func(i, j int) bool {
-		if refs[i].featured != refs[j].featured {
-			return refs[i].featured
+		if refs[i].tier != refs[j].tier {
+			return refs[i].tier < refs[j].tier
 		}
 		return refs[i].position < refs[j].position
 	})
@@ -492,7 +517,7 @@ func livetvBuildPrograms(candidates []livetvCandidate) []livetvProgram {
 		}
 		if slot := candidate.slot; slot != nil {
 			item.Featured = true
-			if slot.Name != "" && livetvGenericSportsTitle(item.Title, slot.LeagueName) {
+			if slot.Name != "" && (candidate.placeholder || livetvGenericSportsTitle(item.Title, slot.LeagueName)) {
 				item.Title = slot.Name
 			}
 			if slot.ImageURL != "" {
@@ -681,7 +706,7 @@ func livetvFillerTitle(title string) bool {
 		return true
 	}
 	normalized := " " + strings.Join(words, " ") + " "
-	for _, phrase := range []string{" no event ", " no events ", " no live event ", " no live events ", " no game ", " no games ", " off air ", " event not started ", " stream offline "} {
+	for _, phrase := range []string{" no event ", " no events ", " no live event ", " no live events ", " no game ", " no games ", " off air ", " off the air ", " signing off ", " sign off ", " event not started ", " stream offline "} {
 		if strings.Contains(normalized, phrase) {
 			return true
 		}
