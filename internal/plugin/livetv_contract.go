@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,6 +37,9 @@ type livetvChannel struct {
 	GroupID string   `json:"groupId"`
 	Group   string   `json:"group"`
 	Folders []string `json:"folders,omitempty"`
+	// PipeFolders are the channel's folders for a user who groups categories
+	// by "|", when they differ from Folders.
+	PipeFolders []string `json:"pipeFolders,omitempty"`
 }
 
 type livetvStream struct {
@@ -62,10 +66,17 @@ func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.H
 	s.ensureCatalogHydrated(ctx)
 	snapshot := s.store.Current()
 	channels := snapshot.Catalog.Channels
-	folders := livetvChannelFolders(s.livetvFolderSettings(snapshot.Catalog.Source, liveCategories(snapshot)), channels)
+	settings := s.livetvFolderSettings(snapshot.Catalog.Source, liveCategories(snapshot))
+	folders := livetvChannelFolders(settings, channels)
+	// The groupCategoriesByPipe preference turns on "|" parsing for one user.
+	pipeFolders := folders
+	if !settings.delimiter {
+		settings.delimiter = true
+		pipeFolders = livetvChannelFolders(settings, channels)
+	}
 	lineup := make([]livetvChannel, 0, len(channels))
 	for _, channel := range channels {
-		lineup = append(lineup, livetvChannel{
+		entry := livetvChannel{
 			ID:      channel.ID,
 			Number:  channel.Number,
 			Name:    channel.Name,
@@ -73,7 +84,11 @@ func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.H
 			GroupID: channel.CategoryID,
 			Group:   channel.CategoryName,
 			Folders: folders[channel.ID],
-		})
+		}
+		if pipe := pipeFolders[channel.ID]; !slices.Equal(pipe, entry.Folders) {
+			entry.PipeFolders = pipe
+		}
+		lineup = append(lineup, entry)
 	}
 	return jsonHTTPResponse(http.StatusOK, lineup)
 }

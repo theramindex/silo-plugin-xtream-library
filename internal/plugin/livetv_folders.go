@@ -10,9 +10,9 @@ import (
 // livetv/v1 channel folders: a Go port of the web app's virtual folder paths
 // (virtualPathsForChannel and its helpers in ui/app.js, ui/prefs.js and
 // ui/lineup.js), so Silo's Jellyfin bridge browses the same tree the web app
-// shows. Keep the two in step. Per-user settings (profile selection and the
-// groupCategoriesByPipe preference) are not applied: the contract lineup is the
-// same for every caller.
+// shows. Keep the two in step. The contract lineup is the same for every
+// caller, so the groupCategoriesByPipe preference is served as a second set of
+// folders (pipeFolders) that Silo picks for a user who turned it on.
 
 const livetvFolderSeparator = " / "
 
