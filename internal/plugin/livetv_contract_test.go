@@ -279,8 +279,8 @@ func TestLiveTVContractXtreamStreamUsesCatalogAccount(t *testing.T) {
 	}}}
 	server := liveTVContractServer(model.SourceModeXtream, []model.Channel{{ID: "xtream:frost:101", Name: "News"}}, settings)
 
-	// M1 takes no pool lease, so every request resolves with the catalog
-	// account instead of rotating through the playback accounts.
+	// Without a session_id nothing is leased, so every request resolves with
+	// the catalog account instead of rotating through the playback accounts.
 	for i := 0; i < 3; i++ {
 		stream := decodeLiveTVStream(t, liveTVContractGet(t, server, "/silo-compat/livetv/v1/stream", map[string]any{"channel_id": "xtream:frost:101"}))
 		if stream.URL != "https://frost.example/live/first-user/first-secret/101.ts" || stream.Mode != "server" {
@@ -400,11 +400,13 @@ func TestManifestDeclaresLiveTVContractRoutes(t *testing.T) {
 	// info and stream are admin-only so Silo's plugin proxy never hands
 	// credentialed stream URLs or provider hosts to ordinary users; Silo calls
 	// them in-process. channels is how Silo discovers the provider.
-	want := map[string]struct{ path, access string }{
-		"livetv-v1-info":     {"/silo-compat/livetv/v1/info", "admin"},
-		"livetv-v1-channels": {"/silo-compat/livetv/v1/channels", "authenticated"},
-		"livetv-v1-programs": {"/silo-compat/livetv/v1/programs", "authenticated"},
-		"livetv-v1-stream":   {"/silo-compat/livetv/v1/stream", "admin"},
+	want := map[string]struct{ method, path, access string }{
+		"livetv-v1-info":              {http.MethodGet, "/silo-compat/livetv/v1/info", "admin"},
+		"livetv-v1-channels":          {http.MethodGet, "/silo-compat/livetv/v1/channels", "authenticated"},
+		"livetv-v1-programs":          {http.MethodGet, "/silo-compat/livetv/v1/programs", "authenticated"},
+		"livetv-v1-stream":            {http.MethodGet, "/silo-compat/livetv/v1/stream", "admin"},
+		"livetv-v1-session-heartbeat": {http.MethodPost, "/silo-compat/livetv/v1/session/heartbeat", "admin"},
+		"livetv-v1-session-stop":      {http.MethodPost, "/silo-compat/livetv/v1/session/stop", "admin"},
 	}
 	found := map[string]bool{}
 	for _, route := range manifest.HTTPRoutes {
@@ -413,7 +415,7 @@ func TestManifestDeclaresLiveTVContractRoutes(t *testing.T) {
 			continue
 		}
 		found[route.ID] = true
-		if route.Method != http.MethodGet || route.Path != expected.path || route.Access != expected.access || route.Navigable {
+		if route.Method != expected.method || route.Path != expected.path || route.Access != expected.access || route.Navigable {
 			t.Fatalf("route %s declared incorrectly: %+v", route.ID, route)
 		}
 	}

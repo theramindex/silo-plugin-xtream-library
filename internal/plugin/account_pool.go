@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,6 +10,9 @@ import (
 )
 
 const accountLeaseTTL = 90 * time.Second
+
+// errAccountPoolFull means every playback account is at its connection limit.
+var errAccountPoolFull = errors.New("all playback accounts are at their connection limit")
 
 type accountLease struct {
 	sourceID  string
@@ -63,20 +67,25 @@ func (p *accountPool) Lease(sessionID string, source config.XtreamSource) (confi
 		}
 	}
 	if selected < 0 {
-		return config.XtreamAccount{}, fmt.Errorf("all playback accounts for %q are at their connection limit", source.Name)
+		return config.XtreamAccount{}, fmt.Errorf("provider %q: %w", source.Name, errAccountPoolFull)
 	}
 	account := accounts[selected]
 	p.leases[sessionID] = accountLease{sourceID: source.ID, accountID: account.ID, seenAt: now}
 	return account, nil
 }
 
-func (p *accountPool) Touch(sessionID string) {
+// Touch renews a lease and reports whether the session still holds one.
+func (p *accountPool) Touch(sessionID string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if lease, ok := p.leases[sessionID]; ok {
-		lease.seenAt = p.now()
+	now := p.now()
+	p.prune(now)
+	lease, ok := p.leases[sessionID]
+	if ok {
+		lease.seenAt = now
 		p.leases[sessionID] = lease
 	}
+	return ok
 }
 
 func (p *accountPool) Release(sessionID string) {

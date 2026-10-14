@@ -383,6 +383,20 @@
       "path": "/silo-compat/livetv/v1/stream",
       "access": "admin",
       "navigable": false
+    },
+    {
+      "id": "livetv-v1-session-heartbeat",
+      "method": "POST",
+      "path": "/silo-compat/livetv/v1/session/heartbeat",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "livetv-v1-session-stop",
+      "method": "POST",
+      "path": "/silo-compat/livetv/v1/session/stop",
+      "access": "admin",
+      "navigable": false
     }
   ],
   "metadata": {
