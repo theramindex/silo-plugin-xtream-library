@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"sort"
@@ -41,6 +42,7 @@ type livetvStream struct {
 	URL       string `json:"url"`
 	Container string `json:"container"`
 	Mode      string `json:"mode"`
+	Leased    bool   `json:"leased,omitempty"`
 }
 
 type livetvError struct {
@@ -96,8 +98,22 @@ func (s *HTTPRoutesServer) handleLiveTVStream(ctx context.Context, request *plug
 		return textResponse(http.StatusBadRequest, "format must be ts, hls or any")
 	}
 
+	sessionID := strings.TrimSpace(queryValue(request, "session_id"))
+	if len(sessionID) > livetvMaxSessionIDLength {
+		return textResponse(http.StatusBadRequest, "session_id is too long")
+	}
+	// Only Xtream channels use pool accounts; other channels hold nothing.
+	leased := sessionID != "" && strings.HasPrefix(channelID, "xtream:")
+	poolSessionID := ""
+	if leased {
+		poolSessionID = livetvPoolSessionID(sessionID)
+	}
+
 	s.ensureCatalogHydrated(ctx)
-	streamURL, err := s.resolveStreamURLWithFormat(channelID, ext)
+	streamURL, err := s.resolveChannelStreamURL(channelID, poolSessionID, ext)
+	if errors.Is(err, errAccountPoolFull) {
+		return jsonHTTPResponse(http.StatusConflict, livetvError{Code: "connection_limit"})
+	}
 	if err != nil {
 		return jsonHTTPResponse(http.StatusNotFound, livetvError{Code: "channel_not_found"})
 	}
@@ -108,6 +124,9 @@ func (s *HTTPRoutesServer) handleLiveTVStream(ctx context.Context, request *plug
 		container = "hls"
 	}
 	if format != "any" && format != container {
+		if leased {
+			s.accountPool.Release(poolSessionID)
+		}
 		return jsonHTTPResponse(http.StatusUnprocessableEntity, livetvError{Code: "format_unavailable"})
 	}
 
@@ -115,7 +134,35 @@ func (s *HTTPRoutesServer) handleLiveTVStream(ctx context.Context, request *plug
 	if streamURLExposesSecrets(streamURL, s.liveTVSettings()) {
 		mode = "server"
 	}
-	return jsonHTTPResponse(http.StatusOK, livetvStream{URL: streamURL, Container: container, Mode: mode})
+	return jsonHTTPResponse(http.StatusOK, livetvStream{URL: streamURL, Container: container, Mode: mode, Leased: leased})
+}
+
+// livetvMaxSessionIDLength bounds a contract session_id.
+const livetvMaxSessionIDLength = 128
+
+// livetvPoolSessionID keeps Silo's play sessions apart from the web app's
+// watch sessions in the shared account pool.
+func livetvPoolSessionID(sessionID string) string {
+	return "silo-livetv:" + sessionID
+}
+
+// handleLiveTVSession serves the contract's session heartbeat and stop routes.
+// A heartbeat renews the session's account lease; stop frees it.
+func (s *HTTPRoutesServer) handleLiveTVSession(request *pluginv1.HandleHTTPRequest, stop bool) *pluginv1.HandleHTTPResponse {
+	if request.GetMethod() != http.MethodPost {
+		return textResponse(http.StatusMethodNotAllowed, "method not allowed")
+	}
+	sessionID := strings.TrimSpace(queryValue(request, "session_id"))
+	if sessionID == "" || len(sessionID) > livetvMaxSessionIDLength {
+		return textResponse(http.StatusBadRequest, "missing or invalid session_id")
+	}
+	poolSessionID := livetvPoolSessionID(sessionID)
+	if stop {
+		s.accountPool.Release(poolSessionID)
+	} else if !s.accountPool.Touch(poolSessionID) {
+		return jsonHTTPResponse(http.StatusNotFound, livetvError{Code: "session_not_found"})
+	}
+	return jsonHTTPResponse(http.StatusOK, map[string]any{})
 }
 
 func (s *HTTPRoutesServer) liveTVSettings() config.Settings {

@@ -314,6 +314,10 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handleLiveTVChannels(ctx), nil
 	case "/silo-compat/livetv/v1/stream":
 		return s.handleLiveTVStream(ctx, request), nil
+	case "/silo-compat/livetv/v1/session/heartbeat":
+		return s.handleLiveTVSession(request, false), nil
+	case "/silo-compat/livetv/v1/session/stop":
+		return s.handleLiveTVSession(request, true), nil
 	case "/silo-compat/livetv/v1/programs":
 		return s.handleLiveTVPrograms(ctx, request), nil
 	case "/dispatcharr/api/recordings/capability":
@@ -1576,13 +1580,10 @@ func (s *HTTPRoutesServer) resolveStreamURL(channelID, sessionID string) (string
 	return s.resolveChannelStreamURL(channelID, sessionID, "")
 }
 
-// resolveStreamURLWithFormat resolves a channel with an explicit live
-// extension ("ts" or "m3u8"; empty keeps the source's own format). It uses the
-// source's catalog account and never leases from the account pool.
-func (s *HTTPRoutesServer) resolveStreamURLWithFormat(channelID, ext string) (string, error) {
-	return s.resolveChannelStreamURL(channelID, "", ext)
-}
-
+// resolveChannelStreamURL resolves a channel with an explicit live extension
+// ("ts" or "m3u8"; empty keeps the source's own format). Without a sessionID it
+// uses the source's catalog account; with one it leases a playback account
+// from the pool for that session.
 func (s *HTTPRoutesServer) resolveChannelStreamURL(channelID, sessionID, ext string) (string, error) {
 	snapshot := s.store.Current()
 	for _, channel := range snapshot.Catalog.Channels {
