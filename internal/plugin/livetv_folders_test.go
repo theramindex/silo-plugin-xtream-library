@@ -101,3 +101,25 @@ func TestLiveTVChannelFoldersFromChannelNames(t *testing.T) {
 		t.Fatalf("folders = %v, want %v", got, want)
 	}
 }
+
+// A user who groups categories by "|" gets the split folders as pipeFolders;
+// channels whose folders do not change carry none.
+func TestLiveTVChannelPipeFolders(t *testing.T) {
+	t.Parallel()
+
+	server := liveTVFolderServer(t, `{}`, model.LiveTVSource(model.SourceModeXtream), []model.Channel{
+		{ID: "flo", Name: "Flo Sports 1", CategoryID: "3", CategoryName: "USA | Flo Sports"},
+		{ID: "news", Name: "News", CategoryID: "4", CategoryName: "News"},
+	})
+	response := liveTVContractGet(t, server, "/silo-compat/livetv/v1/channels", nil)
+	var lineup []livetvChannel
+	if err := json.Unmarshal(response.GetBody(), &lineup); err != nil {
+		t.Fatal(err)
+	}
+	if got := lineup[0]; !reflect.DeepEqual(got.Folders, []string{"USA | Flo Sports"}) || !reflect.DeepEqual(got.PipeFolders, []string{"USA / Flo Sports"}) {
+		t.Fatalf("flo = %+v", got)
+	}
+	if got := lineup[1]; !reflect.DeepEqual(got.Folders, []string{"News"}) || got.PipeFolders != nil {
+		t.Fatalf("news = %+v", got)
+	}
+}
