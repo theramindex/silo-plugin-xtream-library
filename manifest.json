@@ -322,6 +322,34 @@
       "navigable": false
     },
     {
+      "id": "dispatcharr-api-my-sources",
+      "method": "GET",
+      "path": "/dispatcharr/api/my-sources",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-my-sources-update",
+      "method": "POST",
+      "path": "/dispatcharr/api/my-sources",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-my-sources-delete",
+      "method": "DELETE",
+      "path": "/dispatcharr/api/my-sources",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "dispatcharr-api-my-refresh",
+      "method": "POST",
+      "path": "/dispatcharr/api/my-refresh",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
       "id": "dispatcharr-api-watch-start",
       "method": "POST",
       "path": "/dispatcharr/api/watch/start",

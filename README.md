@@ -110,8 +110,38 @@ trusts `X-Silo-User-Role` for authorization.
 - XC Admin settings and source management already require the admin role.
 - `GET /dispatcharr/api/app` includes `"isAdmin": true|false` so the UI can
   hide admin-only controls.
-- The plugin does not key server-side state by `X-Silo-User-Id`; per-user
-  preferences remain browser-managed through Silo's user config API.
+- Outside per-user providers (below), the plugin does not key server-side
+  state by `X-Silo-User-Id`; per-user preferences remain browser-managed
+  through Silo's user config API.
+
+## Per-user providers
+
+XC Admin → Organization → **Users add their own providers** switches XC from
+one shared source registry to a private registry per Silo user. It is off by
+default.
+
+- Each user adds their own Xtream Codes server and credentials under
+  Settings → My providers (`/dispatcharr/api/my-sources`, `my-refresh`) and
+  gets their own catalog, guide, snapshot, and refresh jobs. A user without a
+  provider gets no channels; the admin's sources are never a fallback.
+- Requests are routed by the host-stamped `X-Silo-User-Id`. XC Admin and its
+  APIs stay on the shared server, which never opens a user's registry, so an
+  admin cannot list or use anyone's provider. An admin's own Live TV is a
+  separate user like any other.
+- Passwords are write-only: responses carry `passwordConfigured` only. Each
+  registry is stored AES-256-GCM sealed at `users/<id>/sources.sealed` under
+  the plugin state directory, with the key in `users/.sources.key` (0600).
+  This keeps credentials out of anything XC serves or logs; it cannot hide
+  them from someone with root on the host, because XC must decrypt them to
+  open a stream.
+- Every request made for a user's provider (catalog, XMLTV, connection tests,
+  HLS relay, images) uses a restricted HTTP client that refuses loopback,
+  private, link-local, and multicast addresses after DNS resolution, so a user
+  cannot reach the server's LAN through XC.
+- `livetv/v1/info` reports `"perUserLineup": true`, telling Silo's Jellyfin
+  bridge not to share cached lineups or guides between users.
+- Scheduled refreshes run once per user with saved providers; one user's
+  failing provider does not stop the others.
 
 ## Guide API
 

@@ -957,3 +957,6 @@
   .player-live-window { gap: 0.48rem; font-size: 0.72rem; }
   .player-live-window span:first-child, .player-live-window span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+.my-providers-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; flex-shrink: 0; }
+.my-providers-actions button { border: 1px solid var(--line); border-radius: 0.5rem; padding: 0.45rem 0.8rem; font: inherit; font-size: 0.84rem; cursor: pointer; }
+.my-providers-card { margin-bottom: 0; }

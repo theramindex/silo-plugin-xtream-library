@@ -167,11 +167,16 @@ func main() {
 	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
+	shared := pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settingsProvider, coordinator, "")
+	// Per-user tenants start from the admin's runtime settings but never see
+	// the admin's source registry.
+	router := pluginimpl.NewTenantRouter(shared, settings.Get, "")
+
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{
 			Runtime:       &runtimeServer{manifest: manifest, settings: settings, sourceRegistry: sourceRegistry},
-			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider),
-			HttpRoutes:    pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settingsProvider, coordinator, ""),
+			ScheduledTask: pluginimpl.NewScheduledTaskServerWithCoordinator(coordinator, settingsProvider).WithTenantRouter(router),
+			HttpRoutes:    router,
 		},
 	})
 }

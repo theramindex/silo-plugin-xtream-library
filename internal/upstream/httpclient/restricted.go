@@ -59,6 +59,15 @@ func NewRestricted(allowedHosts ...string) *http.Client {
 	}
 }
 
+// NewUntrusted is NewRestricted with no allowed hosts and a catalog-sized
+// timeout, for providers a non-admin user configured: every address they
+// name must be public.
+func NewUntrusted(timeout time.Duration) *http.Client {
+	client := NewRestricted()
+	client.Timeout = timeout
+	return client
+}
+
 // CheckScheme reports whether scheme may be fetched by a restricted client.
 func CheckScheme(scheme string) error {
 	switch strings.ToLower(scheme) {

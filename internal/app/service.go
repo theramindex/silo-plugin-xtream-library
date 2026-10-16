@@ -53,6 +53,9 @@ type Dependencies struct {
 	// decoded incrementally instead of being buffered in full. When nil and
 	// FetchURL is set, OpenURL wraps FetchURL's bytes.
 	OpenURL func(ctx context.Context, rawURL string) (io.ReadCloser, error)
+	// HTTPClient, when set, replaces the default client for provider and
+	// XMLTV requests. Per-user providers set a restricted one.
+	HTTPClient *http.Client
 }
 
 type Service struct {
@@ -75,7 +78,7 @@ func NewService(deps Dependencies) *Service {
 	factory := deps.XtreamFactory
 	if factory == nil {
 		factory = func(baseURL, username, password string) XtreamClient {
-			return xtream.NewClient(baseURL, username, password)
+			return xtream.NewClientWithHTTP(baseURL, username, password, deps.HTTPClient)
 		}
 	}
 	dispatcharrFactory := deps.DispatcharrFactory
@@ -89,6 +92,9 @@ func NewService(deps Dependencies) *Service {
 	}
 
 	client := &http.Client{Timeout: 5 * time.Minute}
+	if deps.HTTPClient != nil {
+		client = deps.HTTPClient
+	}
 	defaultOpen := func(ctx context.Context, rawURL string) (io.ReadCloser, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 		if err != nil {

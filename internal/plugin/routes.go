@@ -62,6 +62,15 @@ type HTTPRoutesServer struct {
 	sportsImages        *sportsImageCache
 	guideIndex          guideIndexCache
 	livetvGuideFill     livetvGuideFill
+	// tenantUserID is set on a per-user tenant server (see TenantRouter); it
+	// is the only Silo user whose requests ever reach that server.
+	tenantUserID string
+	// upstreamClient, when set, is used for every request to a provider or
+	// XMLTV URL. Tenants set a restricted client: their URLs come from users.
+	upstreamClient *http.Client
+	// adminSettingsFrom, on a tenant, is the shared server that owns the
+	// admin's settings.
+	adminSettingsFrom *HTTPRoutesServer
 }
 
 type catalogSyncer interface {
@@ -231,6 +240,10 @@ type AppPayload struct {
 	// hide admin-only controls (force refresh). The server enforces those
 	// routes independently.
 	IsAdmin bool `json:"isAdmin"`
+	// UserSources is true when each user brings their own providers;
+	// SourcesConfigured then says whether this user has added any.
+	UserSources       bool `json:"userSources"`
+	SourcesConfigured bool `json:"sourcesConfigured"`
 }
 
 type watchRequest struct {
@@ -332,6 +345,16 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		return s.handlePreferences(request)
 	case "/dispatcharr/api/admin-settings":
 		return s.handleAdminSettings(ctx, request)
+	case "/dispatcharr/api/my-sources":
+		if s.tenantUserID == "" {
+			return textResponse(http.StatusNotFound, "per-user providers are turned off"), nil
+		}
+		return s.handleAdminSources(ctx, request)
+	case "/dispatcharr/api/my-refresh":
+		if s.tenantUserID == "" {
+			return textResponse(http.StatusNotFound, "per-user providers are turned off"), nil
+		}
+		return s.handleRefresh(ctx, request)
 	case "/dispatcharr/api/admin-sources":
 		return s.handleAdminSources(ctx, request)
 	case "/dispatcharr/api/favorites":
@@ -444,7 +467,7 @@ func (s *HTTPRoutesServer) resolveCatchupStreamURL(request *pluginv1.HandleHTTPR
 	if !ok {
 		return "", fmt.Errorf("xtream source is unavailable")
 	}
-	target := xtream.NewClient(source.BaseURL, source.Username, source.Password).ResolveCatchupStreamURL(streamID, duration, time.Unix(startUnix, 0).UTC().Format("2006-01-02:15-04"))
+	target := s.xtreamClient(source.BaseURL, source.Username, source.Password).ResolveCatchupStreamURL(streamID, duration, time.Unix(startUnix, 0).UTC().Format("2006-01-02:15-04"))
 	if target == "" {
 		return "", fmt.Errorf("unable to resolve catchup stream")
 	}
@@ -467,7 +490,7 @@ func (s *HTTPRoutesServer) handleSeriesInfo(ctx context.Context, request *plugin
 	if !ok {
 		return s.respondJSON(http.StatusNotFound, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "xtream source is unavailable"})
 	}
-	info, err := xtream.NewClient(source.BaseURL, source.Username, source.Password).SeriesInfo(ctx, seriesID)
+	info, err := s.xtreamClient(source.BaseURL, source.Username, source.Password).SeriesInfo(ctx, seriesID)
 	if err != nil {
 		return s.respondJSON(http.StatusBadGateway, SeriesInfoPayload{Episodes: []EpisodePayload{}, Reason: "series information is unavailable"})
 	}
@@ -547,7 +570,7 @@ func (s *HTTPRoutesServer) handleChannelRefresh(ctx context.Context, request *pl
 		return textResponse(http.StatusMethodNotAllowed, "channel refresh requires POST"), nil
 	}
 	// The manifest already declares this route admin-only; enforce it here too.
-	if !requestIsAdmin(request) {
+	if !s.canManageCatalog(request) {
 		return adminRequiredResponse("refreshing channels")
 	}
 	if s.coordinator == nil || s.settingsProvider == nil {
@@ -602,7 +625,7 @@ func (s *HTTPRoutesServer) handleRefresh(ctx context.Context, request *pluginv1.
 	if request.GetMethod() != http.MethodPost {
 		return textResponse(http.StatusMethodNotAllowed, "refresh requires POST"), nil
 	}
-	if !requestIsAdmin(request) {
+	if !s.canManageCatalog(request) {
 		return adminRequiredResponse("forcing a catalog refresh")
 	}
 	if s.coordinator == nil || s.settingsProvider == nil {
@@ -704,13 +727,23 @@ func (s *HTTPRoutesServer) buildAppPayload(request *pluginv1.HandleHTTPRequest) 
 	snapshot := s.store.Current()
 	streamFormat := s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)
 	return AppPayload{
-		IsAdmin:      requestIsAdmin(request),
-		Status:       s.healthPayload(),
-		Source:       snapshot.Catalog.Source,
-		Channels:     s.publicChannels(snapshot.Catalog.Channels, streamFormat),
-		Categories:   liveCategories(snapshot),
-		Capabilities: appCapabilities(snapshot.Catalog.Source.Mode),
+		IsAdmin:           requestIsAdmin(request),
+		Status:            s.healthPayload(),
+		Source:            snapshot.Catalog.Source,
+		Channels:          s.publicChannels(snapshot.Catalog.Channels, streamFormat),
+		Categories:        liveCategories(snapshot),
+		Capabilities:      appCapabilities(snapshot.Catalog.Source.Mode),
+		UserSources:       s.tenantUserID != "",
+		SourcesConfigured: s.tenantUserID == "" || s.tenantHasSources(),
 	}
+}
+
+func (s *HTTPRoutesServer) tenantHasSources() bool {
+	if s.sourceRegistry == nil {
+		return false
+	}
+	sources, err := s.sourceRegistry.Load()
+	return err == nil && len(sources) > 0
 }
 
 func (s *HTTPRoutesServer) healthPayload() HealthPayload {
@@ -1070,7 +1103,7 @@ type adminAccountPayload struct {
 type alternateEPGTestPayload = matching.AlternateEPGCoverage
 
 func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
-	if !s.adminSettingsAuthorized(request) {
+	if !s.canManageCatalog(request) {
 		return textResponse(http.StatusForbidden, "Silo admin role required"), nil
 	}
 	if s.sourceRegistry == nil || s.settingsProvider == nil {
@@ -1155,7 +1188,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 	if payload.Action == "test" {
 		testCtx, cancel := context.WithTimeout(ctx, adminSourceConnectionTestTimeout)
 		defer cancel()
-		if err := xtream.NewClient(candidate.BaseURL, candidate.Username, candidate.Password).TestConnection(testCtx); err != nil {
+		if err := s.xtreamClient(candidate.BaseURL, candidate.Username, candidate.Password).TestConnection(testCtx); err != nil {
 			return textResponse(http.StatusBadGateway, "connection test failed: "+err.Error()), nil
 		}
 		return s.respondJSON(http.StatusOK, map[string]any{"connected": true})
@@ -1176,7 +1209,7 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 		}
 		testCtx, cancel := context.WithTimeout(ctx, adminSourceConnectionTestTimeout)
 		defer cancel()
-		if err := xtream.NewClient(candidate.BaseURL, account.Username, account.Password).TestConnection(testCtx); err != nil {
+		if err := s.xtreamClient(candidate.BaseURL, account.Username, account.Password).TestConnection(testCtx); err != nil {
 			return textResponse(http.StatusBadGateway, "account test failed: "+err.Error()), nil
 		}
 		return s.respondJSON(http.StatusOK, map[string]any{"connected": true, "compatible": true, "accountId": account.ID})
@@ -1258,7 +1291,15 @@ func (s *HTTPRoutesServer) adminSourceList(ctx context.Context) ([]adminSourcePa
 	return result, nil
 }
 
+func (s *HTTPRoutesServer) xtreamClient(baseURL, username, password string) *xtream.Client {
+	return xtream.NewClientWithHTTP(baseURL, username, password, s.upstreamClient)
+}
+
 func testAlternateEPGSource(ctx context.Context, source config.XtreamSource, channels []model.Channel) (alternateEPGTestPayload, error) {
+	return testAlternateEPGSourceWith(ctx, &http.Client{Timeout: 30 * time.Second}, source, channels)
+}
+
+func testAlternateEPGSourceWith(ctx context.Context, client *http.Client, source config.XtreamSource, channels []model.Channel) (alternateEPGTestPayload, error) {
 	// Alternate EPG URLs can embed credentials (Xtream xmltv.php query
 	// parameters), so url.Error values are redacted before they reach the
 	// admin UI or logs.
@@ -1266,7 +1307,7 @@ func testAlternateEPGSource(ctx context.Context, source config.XtreamSource, cha
 	if err != nil {
 		return alternateEPGTestPayload{}, sharedhttp.RedactErrorURL(err)
 	}
-	response, err := (&http.Client{Timeout: 30 * time.Second}).Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return alternateEPGTestPayload{}, sharedhttp.RedactErrorURL(err)
 	}
@@ -1334,6 +1375,16 @@ func (s *HTTPRoutesServer) respondAdminSettings(request *pluginv1.HandleHTTPRequ
 }
 
 func (s *HTTPRoutesServer) adminSettingsAuthorized(request *pluginv1.HandleHTTPRequest) bool {
+	return requestIsAdmin(request)
+}
+
+// canManageCatalog reports whether the caller may change this server's sources
+// and force its refreshes: an admin on the shared server, or the owner on a
+// per-user tenant (the router only sends a tenant its own user's requests).
+func (s *HTTPRoutesServer) canManageCatalog(request *pluginv1.HandleHTTPRequest) bool {
+	if s.tenantUserID != "" {
+		return true
+	}
 	return requestIsAdmin(request)
 }
 
@@ -1613,7 +1664,7 @@ func (s *HTTPRoutesServer) resolveChannelStreamURL(channelID, sessionID, ext str
 			if ext == "" {
 				ext = source.EffectiveLiveFormat()
 			}
-			client := xtream.NewClient(source.BaseURL, account.Username, account.Password)
+			client := s.xtreamClient(source.BaseURL, account.Username, account.Password)
 			streamURL := client.ResolveLiveStreamURLWithExtension(streamID, ext)
 			if strings.TrimSpace(streamURL) == "" {
 				return "", fmt.Errorf("unable to resolve stream url")
@@ -1664,7 +1715,7 @@ func (s *HTTPRoutesServer) resolveVODStreamURL(_ context.Context, itemID string)
 		if !ok {
 			return "", fmt.Errorf("xtream source is unavailable")
 		}
-		client := xtream.NewClient(source.BaseURL, source.Username, source.Password)
+		client := s.xtreamClient(source.BaseURL, source.Username, source.Password)
 		streamURL := client.ResolveVODStreamURL(streamID, item.Container)
 		if strings.TrimSpace(streamURL) == "" {
 			return "", fmt.Errorf("unable to resolve vod stream url")
@@ -1694,7 +1745,7 @@ func (s *HTTPRoutesServer) resolveEpisodeStreamURL(ctx context.Context, seriesID
 	if !ok {
 		return "", fmt.Errorf("xtream source is unavailable")
 	}
-	client := xtream.NewClient(source.BaseURL, source.Username, source.Password)
+	client := s.xtreamClient(source.BaseURL, source.Username, source.Password)
 	info, err := client.SeriesInfo(ctx, seriesID)
 	if err != nil {
 		return "", fmt.Errorf("series information is unavailable")

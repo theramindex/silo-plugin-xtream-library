@@ -183,6 +183,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 	}
 
 	return map[string]any{
+		userSourcesEnabledKey:            payload[userSourcesEnabledKey] == true,
 		"sportsEnabled":                  payload["sportsEnabled"] == true,
 		"mode":                           mode,
 		"delimiter":                      delimiter,

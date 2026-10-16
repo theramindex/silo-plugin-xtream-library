@@ -25,11 +25,20 @@ type Client struct {
 }
 
 func NewClient(baseURL, username, password string) *Client {
+	return NewClientWithHTTP(baseURL, username, password, nil)
+}
+
+// NewClientWithHTTP uses httpClient for every request; nil means the default
+// client. Per-user providers pass a restricted client (see TenantRouter).
+func NewClientWithHTTP(baseURL, username, password string, httpClient *http.Client) *Client {
+	if httpClient == nil {
+		httpClient = sharedhttp.New()
+	}
 	return &Client{
 		baseURL:  strings.TrimRight(baseURL, "/"),
 		username: username,
 		password: password,
-		http:     sharedhttp.New(),
+		http:     httpClient,
 	}
 }
 

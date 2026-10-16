@@ -5,6 +5,9 @@ import "encoding/json"
 // adminSettingsPayload returns the saved admin settings, loading them from the
 // settings file the first time.
 func (s *HTTPRoutesServer) adminSettingsPayload() map[string]any {
+	if s != nil && s.adminSettingsFrom != nil {
+		return s.adminSettingsFrom.adminSettingsPayload()
+	}
 	settings := map[string]any{}
 	if s == nil || s.store == nil {
 		return settings
