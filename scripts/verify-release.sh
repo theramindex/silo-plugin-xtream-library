@@ -20,8 +20,12 @@ fi
 go vet ./...
 go test ./...
 go test -race ./...
-node --check internal/plugin/ui/lineup.js
-node --check internal/plugin/ui/app.js
+for script in internal/plugin/ui/*.js; do
+  node --check "${script}"
+done
+node --test scripts/review-fixes.test.mjs
+node --test scripts/watch-session.test.mjs
+node scripts/test-features.cjs
 node --test scripts/prefs-sync.test.mjs
 node --test scripts/prefs-profile.test.mjs
 go run . manifest >/dev/null
