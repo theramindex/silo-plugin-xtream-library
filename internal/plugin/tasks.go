@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"log"
 	"strings"
 	"time"
 
@@ -23,6 +24,16 @@ type ScheduledTaskServer struct {
 	pluginv1.UnimplementedScheduledTaskServer
 	coordinator      *RefreshCoordinator
 	settingsProvider func() config.Settings
+	// router, when set, sends refreshes to every user's own providers while
+	// per-user providers are on.
+	router *TenantRouter
+}
+
+// WithTenantRouter makes scheduled refreshes follow the admin's per-user
+// provider setting.
+func (s *ScheduledTaskServer) WithTenantRouter(router *TenantRouter) *ScheduledTaskServer {
+	s.router = router
+	return s
 }
 
 func NewScheduledTaskServer(service *app.Service, settings config.Settings) *ScheduledTaskServer {
@@ -56,6 +67,9 @@ func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunSche
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if s.router != nil && s.router.UserSourcesEnabled() {
+		return s.runTenants(ctx, taskKind, operation)
+	}
 	settings := s.settingsProvider()
 	if err := settings.Validate(); err != nil {
 		return nil, err
@@ -79,4 +93,40 @@ func (s *ScheduledTaskServer) Run(ctx context.Context, request *pluginv1.RunSche
 
 func isTaskKey(taskKey string, capabilityID string) bool {
 	return taskKey == capabilityID || strings.HasSuffix(taskKey, ":"+capabilityID)
+}
+
+// runTenants refreshes each user's own providers in turn. One user's broken
+// provider does not stop the others; the task fails only if every user did.
+func (s *ScheduledTaskServer) runTenants(ctx context.Context, taskKind string, operation RefreshOperation) (*pluginv1.RunScheduledTaskResponse, error) {
+	refreshed, failed := 0, 0
+	for _, tenant := range s.router.persistedTenants() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		settings := tenant.settings()
+		if len(settings.XtreamSources) == 0 || settings.Validate() != nil {
+			continue
+		}
+		if err := tenant.coordinator.Run(ctx, operation, settings, time.Now().Unix()); err != nil {
+			// Logged by user id only: never the provider URL or account.
+			log.Printf("xtream: scheduled %s refresh failed for user %s", taskKind, tenant.userID)
+			failed++
+			continue
+		}
+		refreshed++
+	}
+	if failed > 0 && refreshed == 0 {
+		return nil, status.Errorf(codes.Internal, "%s refresh failed for %d users", taskKind, failed)
+	}
+	output, err := structpb.NewStruct(map[string]any{
+		"status":    "completed",
+		"task":      taskKind,
+		"operation": string(operation),
+		"users":     float64(refreshed),
+		"failed":    float64(failed),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &pluginv1.RunScheduledTaskResponse{Output: output}, nil
 }

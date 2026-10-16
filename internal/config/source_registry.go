@@ -18,6 +18,8 @@ var sourceIDPattern = regexp.MustCompile(`[^a-z0-9]+`)
 type SourceRegistry struct {
 	mu   sync.RWMutex
 	path string
+	// box, when set, seals the file at rest (per-user registries).
+	box *SecretBox
 }
 
 func NewSourceRegistry(path string) *SourceRegistry {
@@ -25,6 +27,11 @@ func NewSourceRegistry(path string) *SourceRegistry {
 		path = DefaultSourceRegistryFile
 	}
 	return &SourceRegistry{path: path}
+}
+
+// NewSealedSourceRegistry stores the registry encrypted with box.
+func NewSealedSourceRegistry(path string, box *SecretBox) *SourceRegistry {
+	return &SourceRegistry{path: path, box: box}
 }
 
 func NormalizeSourceID(value string) string {
@@ -176,6 +183,11 @@ func (r *SourceRegistry) Load() ([]XtreamSource, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read source registry: %w", err)
 	}
+	if r.box != nil {
+		if data, err = r.box.Open(data); err != nil {
+			return nil, fmt.Errorf("open source registry: %w", err)
+		}
+	}
 	var sources []XtreamSource
 	if err := json.Unmarshal(data, &sources); err != nil {
 		return nil, fmt.Errorf("decode source registry: %w", err)
@@ -202,6 +214,11 @@ func (r *SourceRegistry) Save(sources []XtreamSource) error {
 	data, err := json.MarshalIndent(normalized, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode source registry: %w", err)
+	}
+	if r.box != nil {
+		if data, err = r.box.Seal(data); err != nil {
+			return fmt.Errorf("seal source registry: %w", err)
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(r.path), 0o700); err != nil {
 		return fmt.Errorf("create source registry directory: %w", err)

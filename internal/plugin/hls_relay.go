@@ -360,7 +360,8 @@ func relayConfiguredHosts(settings config.Settings) []string {
 }
 
 func (s *HTTPRoutesServer) relayConfiguredHosts() []string {
-	if s.settingsProvider == nil {
+	// A user's own providers get no exemption from the public-address check.
+	if s.settingsProvider == nil || s.tenantUserID != "" {
 		return nil
 	}
 	return relayConfiguredHosts(s.settingsProvider())

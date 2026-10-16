@@ -291,7 +291,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { sportsEnabled: false, mode: "normal", delimiter: "pipe", virtualGroupLabel: "Categories", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, allowDirectProviderURLs: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { userSourcesEnabled: false, sportsEnabled: false, mode: "normal", delimiter: "pipe", virtualGroupLabel: "Categories", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, allowDirectProviderURLs: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -2242,6 +2242,7 @@ function emptyStateHTML(title, detail) {
   return "<div class=\"empty\"><strong>" + escapeHTML(title) + "</strong>" + (detail ? "<div class=\"muted\">" + escapeHTML(detail) + "</div>" : "") + "</div>";
 }
 function catalogEmptyDetail() {
+  if (userSourcesMissing()) return "Add your Xtream Codes provider in Settings to build your Live TV.";
   if (!state.app || !state.app.status) return "Check your connection in Live TV Admin or press Refresh.";
   const status = state.app.status;
   if (status.status === "error" && status.lastError) return status.lastError;
@@ -4854,10 +4855,47 @@ function renderCategorySettings() {
       return "<section class=\"category-settings-group" + (expanded ? " is-open" : "") + "\"><div class=\"category-settings-group-head\"><button type=\"button\" data-category-section=\"" + bucket.id + "\" aria-expanded=\"" + (expanded ? "true" : "false") + "\"><span class=\"category-settings-chevron\">" + icon("chevron-down") + "</span><span><strong>" + escapeHTML(bucket.name) + "</strong><small>" + escapeHTML(bucket.description) + "</small></span><em>" + hiddenCount + " hidden · " + bucket.categories.length + " total</em></button><label title=\"Hide every group in " + escapeHTML(bucket.name) + "\"><span>Hide all</span><input type=\"checkbox\" data-hide-bucket=\"" + bucket.id + "\"" + (hiddenCount === bucket.categories.length ? " checked" : "") + "></label></div><div class=\"category-settings-rows\">" + rows + "</div></section>";
     }).join("") || "<div class=\"empty\">No matching channel groups.</div>";
 }
+// Per-user providers: the admin's source editor also serves each user's own
+// providers (/api/my-sources). The server keeps them private to that user and
+// never returns a saved password.
+function userSourcesActive() {
+  return !isAdminRoute && !!(state.app && state.app.userSources);
+}
+function userSourcesMissing() {
+  return userSourcesActive() && state.app.sourcesConfigured === false;
+}
+function sourceManagerEndpoint() {
+  return userSourcesActive() ? "/dispatcharr/api/my-sources" : "/dispatcharr/api/admin-sources";
+}
+function sourceRefreshEndpoint() {
+  return userSourcesActive() ? "/dispatcharr/api/my-refresh" : "/dispatcharr/api/refresh-channels";
+}
+function rerenderSourceManager() {
+  if (isAdminRoute) renderAdminPage();
+  else if (state.view === "settings") renderSettings();
+}
+function renderMyProvidersCard() {
+  if (!userSourcesActive()) return "";
+  if (state.adminSources === undefined) {
+    state.adminSources = null;
+    getJSON(sourceManagerEndpoint()).then(function(payload) {
+      state.adminSources = items(payload && payload.sources);
+      rerenderSourceManager();
+    }).catch(function(error) {
+      state.adminSources = [];
+      state.adminSourceMessage = "Could not load your providers: " + readableError(error);
+      rerenderSourceManager();
+    });
+  }
+  const actions = "<div class=\"my-providers-actions\"><button class=\"admin-outline-action\" type=\"button\" data-source-action=\"refresh\">" + icon("loader") + "<span>Refresh</span></button><button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add provider</span></button></div>";
+  return "<div class=\"settings-card my-providers-card\"><div class=\"settings-card-head\"><div><h2>My providers</h2><p>Your own Xtream Codes accounts. Only you can use them; passwords are never shown again after saving, including to Silo admins.</p></div>" + actions + "</div></div>"
+    + (state.adminSources === null ? "<div class=\"settings-card\"><div class=\"empty\">Loading your providers…</div></div>" : renderAdminSourcesTab());
+}
 function renderSettings() {
   ensureSelectedCustomGroup();
   const showSourceCategorySettings = !virtualCategoriesActive();
   byId("view").innerHTML = "<div class=\"settings-stack\">"
+    + renderMyProvidersCard()
     + (isDispatcharrDirectSource() ? "<div class=\"settings-card profile-settings-card\"><div class=\"settings-card-head\"><div><h2>Live TV profiles</h2><p>Choose which Dispatcharr profile lineups appear in your Live TV experience.</p></div><span id=\"profile-selection-summary\" class=\"profile-selection-summary\"></span></div><div id=\"profile-settings\"></div></div>" : "")
     + "<div class=\"settings-card custom-groups-card\"><h2>Custom groups</h2><div id=\"custom-group-settings\"></div></div>"
     + "<div class=\"settings-card\"><h2>Category organization</h2><label class=\"settings-row\"><span><strong>Group categories by <code>|</code></strong><small>Turn provider paths such as USA | Sports into browsable folders.</small></span><input type=\"checkbox\" data-category-grouping=\"pipe\"" + (prefs().groupCategoriesByPipe ? " checked" : "") + "></label></div>"
@@ -5034,7 +5072,8 @@ function renderAdminSourcesTab() {
   }).join("");
   const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
   const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Pool</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
-  return "<div class=\"settings-card source-manager-card\">" + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
+  const perUserNote = isAdminRoute && adminSettings().userSourcesEnabled === true ? "<div class=\"settings-note settings-warning\">Users add their own providers (Organization tab). These shared sources are not used for anyone&#39;s channels or playback while that is on.</div>" : "";
+  return "<div class=\"settings-card source-manager-card\">" + perUserNote + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
 }
 function renderAdminSourceEditor() {
   const source = state.adminSourceEditor;
@@ -5101,9 +5140,9 @@ function sourceEditorPayload(action) {
   return { action: action || "save", id: source.id || "", name: source.name || "", baseUrl: source.baseUrl || "", username: source.username || "", password: source.password || "", liveFormat: source.liveFormat || "m3u8", hlsBufferSeconds: boundedHLSBufferSeconds(source.hlsBufferSeconds), enabled: source.enabled !== false, alternateEpgEnabled: !!source.alternateEpgEnabled, alternateEpgUrl: source.alternateEpgUrl || "", alternateEpgPolicy: source.alternateEpgPolicy || "fill_missing", catalogAccountId: source.catalogAccountId || (catalog && catalog.id) || "", accounts: accounts };
 }
 async function refreshAdminSources() {
-  const payload = await getJSON("/dispatcharr/api/admin-sources");
+  const payload = await getJSON(sourceManagerEndpoint());
   state.adminSources = items(payload && payload.sources);
-  if (state.view === "admin") renderAdminPage();
+  rerenderSourceManager();
 }
 async function submitAdminSource(payload, successMessage) {
   const requestID = ++state.adminSourceRequestID;
@@ -5111,10 +5150,10 @@ async function submitAdminSource(payload, successMessage) {
   if (payload.action === "test_epg") {
     state.adminSourceEPGResult = null;
     state.adminSourceEPGError = "";
-    renderAdminPage();
+    rerenderSourceManager();
   }
   try {
-    const result = await postJSON("/dispatcharr/api/admin-sources", payload);
+    const result = await postJSON(sourceManagerEndpoint(), payload);
     if (requestID !== state.adminSourceRequestID) return;
     if (result && result.sources) state.adminSources = items(result.sources);
     if (payload.action === "test_epg" && result && result.coverage) {
@@ -5128,6 +5167,7 @@ async function submitAdminSource(payload, successMessage) {
       state.adminSourceMessage = "Playback account verified.";
     }
     if (payload.action !== "test" && payload.action !== "test_epg" && payload.action !== "test_account") state.adminSourceEditor = null;
+    if (userSourcesActive() && payload.action !== "test" && payload.action !== "test_epg" && payload.action !== "test_account") state.app.sourcesConfigured = items(state.adminSources).length > 0;
   } catch (error) {
     if (requestID !== state.adminSourceRequestID) return;
     const errorPrefix = payload.action === "test" ? "Connection test failed: " : (payload.action === "test_account" ? "Playback account test failed: " : (payload.action === "test_epg" ? "Alternate EPG test failed: " : "Could not save source: "));
@@ -5137,7 +5177,7 @@ async function submitAdminSource(payload, successMessage) {
       state.adminSourceEPGError = readableError(error);
     }
   }
-  renderAdminPage();
+  rerenderSourceManager();
 }
 function handleSourceAccountAction(action, index) {
   const source = state.adminSourceEditor;
@@ -5145,14 +5185,14 @@ function handleSourceAccountAction(action, index) {
   source.accounts = items(source.accounts);
   if (action === "add") {
     source.accounts.push({ id: "", name: "", username: "", password: "", enabled: true, compatible: false, connectionLimit: 0 });
-    renderAdminPage();
+    rerenderSourceManager();
     return;
   }
   const account = source.accounts[index];
   if (!account) return;
   if (action === "remove") {
     source.accounts.splice(index, 1);
-    renderAdminPage();
+    rerenderSourceManager();
     return;
   }
   if (action === "test") {
@@ -5166,23 +5206,23 @@ function handleAdminSourceAction(action, sourceID) {
   const source = adminSourceByID(sourceID);
   if (action === "refresh") {
     state.adminSourceMessage = "Catalog refresh queued.";
-    postJSON("/dispatcharr/api/refresh-channels", {}).then(function() { refreshAdminSources(); }).catch(function(error) {
+    postJSON(sourceRefreshEndpoint(), {}).then(function() { refreshAdminSources(); }).catch(function(error) {
       state.adminSourceMessage = "Could not refresh catalog: " + readableError(error);
-      renderAdminPage();
+      rerenderSourceManager();
     });
-    renderAdminPage();
+    rerenderSourceManager();
     return;
   }
   if (action === "refresh-source" && source) {
     state.adminSourceMessage = "Refreshing " + (source.name || source.id) + "…";
-    postJSON("/dispatcharr/api/refresh-channels", {}).then(function() {
+    postJSON(sourceRefreshEndpoint(), {}).then(function() {
       state.adminSourceMessage = (source.name || source.id) + " catalog refreshed.";
       return refreshAdminSources();
     }).catch(function(error) {
       state.adminSourceMessage = "Could not refresh " + (source.name || source.id) + ": " + readableError(error);
-      renderAdminPage();
+      rerenderSourceManager();
     });
-    renderAdminPage();
+    rerenderSourceManager();
     return;
   }
   if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", hlsBufferSeconds: 12, alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing", accounts: [] }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
@@ -5194,10 +5234,11 @@ function handleAdminSourceAction(action, sourceID) {
   if (action === "test" && source) return submitAdminSource(Object.assign({}, source, { action: "test", password: "" }), "Connection successful.");
   if (action === "toggle" && source) return submitAdminSource(Object.assign({}, source, { action: "save", enabled: !source.enabled, password: "" }), source.enabled ? "Source disabled." : "Source enabled. Catalog refresh queued.");
   if (action === "delete" && source) return submitAdminSource({ action: "delete", id: source.id }, "Source deleted. Catalog refresh queued.");
-  renderAdminPage();
+  rerenderSourceManager();
 }
 function renderAdminSettingsTab() {
   return ""
+    + '<div class="settings-card"><div class="settings-card-head"><div><h2>Provider accounts</h2><p>Choose whether everyone shares the sources on the Sources tab, or each user brings their own.</p></div></div><label class="settings-row"><span><strong>Users add their own providers</strong><small>Each user enters their own Xtream Codes server and credentials in Settings and gets their own channels and guide. Users without a provider see nothing; shared sources are not used. Admins cannot view or use anyone&#39;s credentials.</small></span><input type="checkbox" data-admin-category-field="userSourcesEnabled"' + (adminSettings().userSourcesEnabled === true ? ' checked' : '') + '></label></div>'
     + '<div class="settings-card"><div class="settings-card-head"><div><h2>Playback privacy</h2><p>Choose whether streams that cannot be relayed may expose provider credentials.</p></div></div><label class="settings-row"><span><strong>Allow direct provider URLs</strong><small>TS live, VOD, series and catch-up can&#39;t be relayed through Silo, so playback sends the provider URL, including your account credentials, to the viewer&#39;s browser. Turn off to block those streams unless the provider serves HLS.</small></span><input type="checkbox" data-admin-category-field="allowDirectProviderURLs"' + (adminSettings().allowDirectProviderURLs !== false ? ' checked' : '') + '></label></div>'
     + '<div class="settings-card"><div class="settings-card-head"><div><h2>Sports</h2><p>Live scores and matched coverage. Replays come only from provider REPLAY channels.</p></div></div><label class="settings-row"><span><strong>Enable Sports</strong><small>Show Sports browsing and team follows.</small></span><input type="checkbox" data-admin-category-field="sportsEnabled"' + (sportsEnabled() ? ' checked' : '') + '></label></div>'
     + "<div class=\"settings-card organization-card\"><div class=\"settings-card-head\"><div><h2>Category organization</h2><p>Choose how provider categories become folders in XC for Silo.</p></div></div><section class=\"organization-section\"><div id=\"admin-category-settings\" class=\"settings-list\"></div></section><section class=\"organization-section organization-alias-section\"><div class=\"organization-section-head\"><div><h3>Alternate paths</h3><p>Show a provider category in another location without changing the source.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></section></div>"
@@ -6520,14 +6561,14 @@ document.addEventListener("click", function(event) {
   if (sourceStep) {
     event.preventDefault();
     state.adminSourceEditorStep = sourceStep.getAttribute("data-source-step") || "general";
-    renderAdminPage();
+    rerenderSourceManager();
     return;
   }
   const sourceFormat = event.target.closest("[data-source-format]");
   if (sourceFormat && state.adminSourceEditor) {
     event.preventDefault();
     state.adminSourceEditor.liveFormat = sourceFormat.getAttribute("data-source-format") === "ts" ? "ts" : "m3u8";
-    renderAdminPage();
+    rerenderSourceManager();
     return;
   }
   const adminTab = event.target.closest("[data-admin-tab]");

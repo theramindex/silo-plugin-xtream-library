@@ -27,6 +27,9 @@ type livetvInfo struct {
 	ContractVersion int      `json:"contractVersion"`
 	Name            string   `json:"name"`
 	StreamHosts     []string `json:"streamHosts"`
+	// PerUserLineup tells Silo's bridge that channels and programs differ by
+	// user, so it must not share cached lineups or guides between users.
+	PerUserLineup bool `json:"perUserLineup,omitempty"`
 }
 
 type livetvChannel struct {
@@ -59,6 +62,7 @@ func (s *HTTPRoutesServer) handleLiveTVInfo(ctx context.Context) *pluginv1.Handl
 		ContractVersion: livetvContractVersion,
 		Name:            "XC for Silo",
 		StreamHosts:     livetvStreamHosts(s.liveTVSettings(), s.store.Current().Catalog.Channels),
+		PerUserLineup:   s.tenantUserID != "",
 	})
 }
 
