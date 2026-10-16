@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import appSourceModule from './app-source.cjs';
+const { appSource } = appSourceModule;
 
-const app = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+const app = appSource();
 
 function fn(source, name) {
   const start = source.indexOf('function ' + name + '(');

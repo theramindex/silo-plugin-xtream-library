@@ -1577,11 +1577,10 @@ func pluginAssetVersion() string {
 	assetVersionOnce.Do(func() {
 		hash := sha256.New()
 		for _, asset := range []struct {
-			fs   embed.FS
+			fs   interface{ ReadFile(string) ([]byte, error) }
 			path string
 		}{
 			{playerUIAssets, "ui/styles.css"},
-			{playerUIAssets, "ui/features.css"},
 			{playerUIAssets, "ui/lineup.js"},
 			{playerUIAssets, "ui/app.js"},
 			{playerAssets, "assets/hls.min.js"},
