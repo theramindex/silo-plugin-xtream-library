@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import appSourceModule from './app-source.cjs';
+const { appSource } = appSourceModule;
 
 // The preference sync engine lives in app.js; load it the way prefs-sync.test.mjs does.
-const source = fs.readFileSync(new URL('../internal/plugin/ui/app.js', import.meta.url), 'utf8');
+const source = appSource();
 const fixture = JSON.parse(fs.readFileSync(new URL('../testdata/livetv-v1/fixtures/preferences_v1.json', import.meta.url), 'utf8'));
 
 function slice(startMarker, endMarker) {

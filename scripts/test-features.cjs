@@ -14,7 +14,7 @@ const sandbox = {
   fetch(){return new Promise(()=>{});},console
 };
 vm.createContext(sandbox);
-vm.runInContext(fs.readFileSync(path.join(ui,'lineup.js'),'utf8')+'\n'+fs.readFileSync(path.join(ui,'app.js'),'utf8'),sandbox);
+vm.runInContext(fs.readFileSync(path.join(ui,'lineup.js'),'utf8')+'\n'+require('./app-source.cjs').appSource(),sandbox);
 const run = code => vm.runInContext(code,sandbox);
 run(`
 savePrefs = function() { return Promise.resolve(); };

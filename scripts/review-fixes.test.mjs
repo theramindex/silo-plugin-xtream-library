@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import appSourceModule from './app-source.cjs';
+const { appSource, topLevelFunction } = appSourceModule;
 
 // Browser-UI fixes ported from the Dispatcharr plugin review: CSP-safe image
 // handlers, guide windowing, sports follow identity, admin gating.
 const read = name => fs.readFileSync(new URL('../internal/plugin/ui/' + name, import.meta.url), 'utf8');
-const app = read('app.js');
+const app = appSource();
 const page = read('page.html');
 const lineup = read('lineup.js');
 // Objects built inside the vm context have that realm's prototypes.
@@ -88,7 +90,12 @@ function guideContext(responder) {
     refreshVisibleGuideBlock() {}, updateSearchPageResults() {}, updateMyTVSearchSurface() {},
     async getJSON(url) { requests.push(url); return responder(url); }
   });
-  vm.runInContext(slice('const guideLookbehindSeconds', 'async function refreshSupplementalData('), ctx);
+  // The guide constants live in app.js and the window functions in guide.js.
+  const guideUnit = ['guideLookbehindSeconds', 'guideInitialLookaheadSeconds', 'guideSearchLookaheadSeconds', 'guideCoverage']
+    .map(name => (app.match(new RegExp('^const ' + name + ' = .*$', 'm')) || [])[0]).join('\n') + '\n'
+    + ['guideProgramKey', 'programOverlapsWindow', 'mergeGuideWindowPrograms', 'guideWindowIgnoredByBackend', 'fetchGuideWindow', 'ensureGuideCoverage', 'ensureGuideCoverageForView']
+      .map(name => topLevelFunction(app, name)).join('');
+  vm.runInContext(guideUnit, ctx);
   return { ctx, requests };
 }
 
