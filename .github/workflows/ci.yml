@@ -96,3 +96,14 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
           files: release-dist/*
+
+  catalog:
+    needs: release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    uses: theramindex/silo-plugins/.github/workflows/publish-plugin.yml@main
+    with:
+      plugin-id: silo.ramindex.xtream
+      display-name: XC for Silo
+      asset-prefix: xtream-{version}-
+      replace-old: false
+    secrets: inherit
