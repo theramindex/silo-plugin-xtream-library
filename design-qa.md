@@ -1,7 +1,7 @@
 # Category Display Options Design QA
 
 - Source visual truth: `/var/folders/62/h76dg1dn1w54yvjml62vxw480000gn/T/codex-clipboard-0464f072-0ab4-4bee-a2e0-632b0579a7e6.png`
-- Implementation target: `https://silo.example.com/api/v1/plugins/18/xtream?theme=midnight-cinema`
+- Implementation target: `/api/v1/plugins/<installation-id>/xtream?theme=midnight-cinema` on a Silo server
 - Implementation screenshot: unavailable because the deployed group view did not render
 - Viewport: current Codex in-app browser desktop viewport
 - State: deployed `v0.1.9`; Live TV shell loaded, catalog request returned `502`, and the page displayed its unable-to-load state

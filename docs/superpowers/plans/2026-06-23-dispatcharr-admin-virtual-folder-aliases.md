@@ -264,86 +264,35 @@ git commit -m "Keep source paths with admin aliases"
 
 ### Task 4: Release And Deploy
 
-**Files:**
-- Modify: `manifest.json`
-- Modify catalog repo files:
-  - `silo-plugins/manifest.json`
-  - `silo-plugins/checksums.txt`
+**Files:** none by hand; the Release workflow bumps `manifest.json`.
 
-- [ ] **Step 1: Bump plugin version**
-
-Update `manifest.json` from the current version to the next patch version.
-
-- [ ] **Step 2: Verify locally**
+- [ ] **Step 1: Verify locally**
 
 Run:
 
 ```bash
 go test ./...
-go run . manifest >/tmp/dispatcharr-manifest.json
+go run . manifest >/dev/null
 ```
 
-Expected: tests pass and manifest reports the bumped version.
+Expected: tests pass and the manifest builds.
 
-- [ ] **Step 3: Commit version bump**
+- [ ] **Step 2: Push to `main`**
 
-```bash
-git add manifest.json
-git commit -m "Release Dispatcharr admin alias folders"
-```
+Push the `feat`/`fix` commits above. The repo's Release workflow picks the next version from them, tags it, publishes the GitHub release and updates the plugin catalog. See `RELEASING.md` in `theramindex/silo-plugins`.
 
-- [ ] **Step 4: Push and tag**
-
-```bash
-git push origin clean-main:main
-git tag vX.Y.Z
-git push origin vX.Y.Z
-```
-
-- [ ] **Step 5: Wait for GitHub release**
-
-Run:
+- [ ] **Step 3: Wait for the release**
 
 ```bash
 gh run list --repo theramindex/silo-plugin-dispatcharr --limit 5
 gh run watch <tag-run-id> --repo theramindex/silo-plugin-dispatcharr --exit-status
 ```
 
-Expected: release succeeds.
+Expected: the tag build succeeds and the catalog lists the new version.
 
-- [ ] **Step 6: Update catalog**
+- [ ] **Step 4: Update a Silo server**
 
-Download checksums:
-
-```bash
-gh release download vX.Y.Z --repo theramindex/silo-plugin-dispatcharr --pattern checksums.txt --dir /tmp/dispatcharr-X.Y.Z-release
-```
-
-Patch catalog `manifest.json` and `checksums.txt` with version, URLs, and checksums.
-
-- [ ] **Step 7: Validate and push catalog**
-
-```bash
-cd silo-plugins
-node scripts/validate-catalog.mjs
-git add manifest.json checksums.txt
-git commit -m "Update Dispatcharr plugin to X.Y.Z"
-git push origin main
-```
-
-- [ ] **Step 8: Deploy to a Silo server**
-
-Download linux/amd64 binary and manifest, verify SHA256, copy to the Silo server, update plugin installation `14`, and restart `continuum`.
-
-- [ ] **Step 9: Verify deployment**
-
-Check:
-
-```bash
-ssh <user>@<silo-host> 'sudo docker exec postgres psql -U continuum -d continuum -x -c "select id, plugin_id, version, install_path, enabled, updated_at from plugin_installations where id = 14;"'
-```
-
-Expected: install `14` reports the new version and enabled `t`.
+Update the plugin from the catalog in Silo's plugin admin page, then confirm the installation reports the new version and is enabled.
 
 ---
 
