@@ -287,7 +287,7 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 	case "/dispatcharr/assets/app.css", "/assets/app.css":
 		return textAssetResponse([]byte(playerStylesCSS()), "text/css; charset=utf-8")
 	case "/dispatcharr/status", "/dispatcharr/api/status":
-		return s.respondJSON(http.StatusOK, s.healthPayload())
+		return s.respondJSON(http.StatusOK, s.healthPayload(request))
 	case "/dispatcharr/api/refresh":
 		return s.handleRefresh(ctx, request)
 	case "/dispatcharr/api/refresh-channels":
@@ -681,7 +681,7 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 	s.store.MarkEPGLoading()
 	if err := s.coordinator.RunGuideChannels(ctx, settings, channelIDs, time.Now().Unix()); err != nil {
 		s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
-		return textResponse(http.StatusBadGateway, "guide refresh failed: "+err.Error()), nil
+		return textResponse(http.StatusBadGateway, "guide refresh failed"), nil
 	}
 	currentPrograms = currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
 	return s.respondJSON(http.StatusOK, GuidePingPayload{
@@ -726,10 +726,14 @@ func (s *HTTPRoutesServer) startBackgroundGuideWarm(settings config.Settings) (b
 func (s *HTTPRoutesServer) buildAppPayload(request *pluginv1.HandleHTTPRequest) AppPayload {
 	snapshot := s.store.Current()
 	streamFormat := s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)
+	source := snapshot.Catalog.Source
+	if !s.canViewDetailedDiagnostics(request) {
+		source = sourceWithoutDiagnosticMessage(source)
+	}
 	return AppPayload{
 		IsAdmin:           requestIsAdmin(request),
-		Status:            s.healthPayload(),
-		Source:            snapshot.Catalog.Source,
+		Status:            s.healthPayload(request),
+		Source:            source,
 		Channels:          s.publicChannels(snapshot.Catalog.Channels, streamFormat),
 		Categories:        liveCategories(snapshot),
 		Capabilities:      appCapabilities(snapshot.Catalog.Source.Mode),
@@ -746,14 +750,38 @@ func (s *HTTPRoutesServer) tenantHasSources() bool {
 	return err == nil && len(sources) > 0
 }
 
-func (s *HTTPRoutesServer) healthPayload() HealthPayload {
+func (s *HTTPRoutesServer) healthPayload(request *pluginv1.HandleHTTPRequest) HealthPayload {
 	payload := BuildHealthPayload(s.store.Current())
 	if s.coordinator != nil {
 		payload.Refresh = s.coordinator.Status()
 	} else {
 		payload.Refresh = RefreshJob{State: RefreshIdle}
 	}
+	if !s.canViewDetailedDiagnostics(request) {
+		payload.LastError = ""
+		payload.EPGLastError = ""
+		payload.Refresh.Error = ""
+		if payload.ProfileAccess != nil {
+			access := *payload.ProfileAccess
+			access.Message = ""
+			payload.ProfileAccess = &access
+		}
+	}
 	return payload
+}
+
+func (s *HTTPRoutesServer) canViewDetailedDiagnostics(request *pluginv1.HandleHTTPRequest) bool {
+	return s.tenantUserID != "" || requestIsAdmin(request)
+}
+
+func sourceWithoutDiagnosticMessage(source model.Source) model.Source {
+	if source.ProfileAccess == nil {
+		return source
+	}
+	access := *source.ProfileAccess
+	access.Message = ""
+	source.ProfileAccess = &access
+	return source
 }
 
 func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {

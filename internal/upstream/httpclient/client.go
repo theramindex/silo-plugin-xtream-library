@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -25,9 +26,38 @@ func RedactErrorURL(err error) error {
 	}
 	var urlError *url.Error
 	if errors.As(err, &urlError) {
-		return fmt.Errorf("%s request failed: %w", urlError.Op, urlError.Err)
+		if urlError.Err != nil && !errorTextMayContainURL(urlError.Err.Error()) {
+			return fmt.Errorf("%s request failed: %w", urlError.Op, urlError.Err)
+		}
+		return &redactedRequestError{op: urlError.Op, cause: urlError.Err}
 	}
 	return err
+}
+
+func errorTextMayContainURL(message string) bool {
+	message = strings.ToLower(message)
+	for _, marker := range []string{"://", "//", "@", "username=", "password=", "token=", "api_key=", "apikey="} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+type redactedRequestError struct {
+	op    string
+	cause error
+}
+
+func (e *redactedRequestError) Error() string {
+	if e.op == "" {
+		return "request failed"
+	}
+	return e.op + " request failed"
+}
+
+func (e *redactedRequestError) Unwrap() error {
+	return e.cause
 }
 
 func ReadAllLimit(reader io.Reader, limit int64) ([]byte, error) {

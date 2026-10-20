@@ -59,6 +59,91 @@ func TestHTTPRoutesServerStatusRoute(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerRedactsSharedDiagnosticsForNonAdmins(t *testing.T) {
+	t.Parallel()
+
+	const secret = "dummy-secret"
+	store := cache.NewStore()
+	settings := config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}
+	source := model.LiveTVSource(model.SourceModeDirectLogin)
+	source.ProfileAccess = &model.ProfileAccess{Status: "unavailable", Message: "profile provider URL contains " + secret}
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{Source: source}, ConfigKey: config.CatalogCacheKey(settings)})
+	store.RecordFailure(100, "parse provider URL http://owner:"+secret+"@[::1")
+	store.RecordEPGFailure(101, "guide provider URL http://owner:"+secret+"@[::1")
+	syncer := &stubCatalogSyncer{store: store, err: errors.New("refresh provider URL contains " + secret)}
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, syncer)
+	if _, started := server.coordinator.Start(RefreshForce, settings); !started {
+		t.Fatal("expected refresh to start")
+	}
+	if err := server.coordinator.Wait(t.Context()); err == nil {
+		t.Fatal("expected refresh failure")
+	}
+
+	userResponse, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/status"})
+	if err != nil {
+		t.Fatalf("user status: %v", err)
+	}
+	if strings.Contains(string(userResponse.GetBody()), secret) {
+		t.Fatalf("user status exposed shared diagnostic secret: %s", userResponse.GetBody())
+	}
+	var userPayload HealthPayload
+	if err := json.Unmarshal(userResponse.GetBody(), &userPayload); err != nil {
+		t.Fatalf("unmarshal user status: %v", err)
+	}
+	if userPayload.LastError != "" || userPayload.EPGLastError != "" || userPayload.Refresh.Error != "" {
+		t.Fatalf("user status included privileged diagnostics: %+v", userPayload)
+	}
+	if userPayload.ProfileAccess == nil || userPayload.ProfileAccess.Message != "" {
+		t.Fatalf("user status included profile diagnostic: %+v", userPayload.ProfileAccess)
+	}
+	userApp, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/app"})
+	if err != nil {
+		t.Fatalf("user app: %v", err)
+	}
+	if strings.Contains(string(userApp.GetBody()), secret) {
+		t.Fatalf("user app exposed shared diagnostic secret: %s", userApp.GetBody())
+	}
+
+	adminResponse, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodGet,
+		Path:    "/xtream/api/status",
+		Headers: map[string]string{"x-silo-user-role": "admin"},
+	})
+	if err != nil {
+		t.Fatalf("admin status: %v", err)
+	}
+	if !strings.Contains(string(adminResponse.GetBody()), secret) {
+		t.Fatalf("admin status lost detailed diagnostics: %s", adminResponse.GetBody())
+	}
+	adminApp, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{
+		Method:  http.MethodGet,
+		Path:    "/xtream/api/app",
+		Headers: map[string]string{"x-silo-user-role": "admin"},
+	})
+	if err != nil {
+		t.Fatalf("admin app: %v", err)
+	}
+	if !strings.Contains(string(adminApp.GetBody()), secret) {
+		t.Fatalf("admin app lost detailed diagnostics: %s", adminApp.GetBody())
+	}
+
+	server.tenantUserID = "7"
+	tenantResponse, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Path: "/xtream/api/status"})
+	if err != nil {
+		t.Fatalf("tenant status: %v", err)
+	}
+	if !strings.Contains(string(tenantResponse.GetBody()), secret) {
+		t.Fatalf("tenant owner lost isolated diagnostics: %s", tenantResponse.GetBody())
+	}
+}
+
 func TestHTTPRoutesServerSupportsXtreamPublicNamespace(t *testing.T) {
 	t.Parallel()
 
@@ -2352,6 +2437,44 @@ func TestHTTPRoutesServerGuidePingCapsOversizedCategoryWarmup(t *testing.T) {
 	}
 }
 
+func TestHTTPRoutesServerGuidePingDoesNotExposeRefreshErrors(t *testing.T) {
+	t.Parallel()
+
+	const secret = "dummy-secret"
+	store := cache.NewStore()
+	settings := config.Settings{
+		SourceMode:      config.SourceModeDirectLogin,
+		DispatcharrURL:  "https://dispatcharr.example.com",
+		DispatcharrUser: "demo",
+		DispatcharrPass: "secret",
+		ChannelRefreshH: 24,
+		EPGRefreshH:     24,
+	}
+	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeDirectLogin),
+		Channels: []model.Channel{{ID: "dispatcharr:news", Name: "News HD"}},
+	}, ConfigKey: config.CatalogCacheKey(settings)})
+	server := NewHTTPRoutesServerWithSyncer(store, func() config.Settings { return settings }, &stubCatalogSyncer{
+		store: store,
+		err:   errors.New("parse provider URL http://owner:" + secret + "@[::1"),
+	})
+
+	response, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{
+		Method: http.MethodPost,
+		Path:   "/xtream/api/guide/ping",
+		Body:   []byte(`{"channelIds":["dispatcharr:news"]}`),
+	})
+	if err != nil {
+		t.Fatalf("guide ping: %v", err)
+	}
+	if response.GetStatusCode() != http.StatusBadGateway {
+		t.Fatalf("expected failed guide refresh, got %d", response.GetStatusCode())
+	}
+	if got := string(response.GetBody()); got != "guide refresh failed" || strings.Contains(got, secret) {
+		t.Fatalf("guide ping exposed refresh error: %q", got)
+	}
+}
+
 func TestHTTPRoutesServerLegacyFavoriteRouteRejectsProcessGlobalState(t *testing.T) {
 	t.Parallel()
 
@@ -2371,6 +2494,7 @@ func TestHTTPRoutesServerLegacyFavoriteRouteRejectsProcessGlobalState(t *testing
 
 type stubCatalogSyncer struct {
 	store        *cache.Store
+	err          error
 	calls        int
 	forceCalls   int
 	channelCalls int
@@ -2418,6 +2542,9 @@ func (s *stubCatalogSyncer) SyncNow(_ context.Context, settings config.Settings,
 	s.mu.Lock()
 	s.calls++
 	s.mu.Unlock()
+	if s.err != nil {
+		return s.err
+	}
 	source := model.LiveTVSource(model.SourceModeDirectLogin)
 	source.ProfileAccess = &model.ProfileAccess{Status: "available", ProfileCount: 1}
 	s.store.Replace(cache.Snapshot{

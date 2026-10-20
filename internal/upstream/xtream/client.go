@@ -247,7 +247,7 @@ func (c *Client) resolveMediaURL(kind string, streamID int64, extension string) 
 func (c *Client) getJSON(ctx context.Context, action string, params map[string]string, target any) error {
 	endpoint, err := url.Parse(c.baseURL)
 	if err != nil {
-		return fmt.Errorf("parse base url: %w", err)
+		return fmt.Errorf("parse base url: %w", sharedhttp.RedactErrorURL(err))
 	}
 	endpoint.Path = path.Join(endpoint.Path, "player_api.php")
 

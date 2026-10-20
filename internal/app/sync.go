@@ -17,6 +17,7 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/matching"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
+	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/m3u"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
@@ -1238,7 +1239,7 @@ func epgURL(settings config.Settings) (string, error) {
 func providerXMLTVURL(baseURL string, username string, password string) (string, error) {
 	endpoint, err := url.Parse(strings.TrimSpace(baseURL))
 	if err != nil {
-		return "", err
+		return "", sharedhttp.RedactErrorURL(err)
 	}
 	endpoint.Path = "/xmltv.php"
 	query := endpoint.Query()

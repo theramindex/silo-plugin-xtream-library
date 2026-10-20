@@ -76,6 +76,19 @@ func TestClientConnectionRejectsProviderAuthenticationFailure(t *testing.T) {
 	}
 }
 
+func TestClientConnectionRedactsMalformedBaseURL(t *testing.T) {
+	t.Parallel()
+
+	const secret = "dummy-secret"
+	err := NewClient("http://owner:"+secret+"@[::1", "demo", "account-secret").TestConnection(t.Context())
+	if err == nil {
+		t.Fatal("expected malformed base URL to fail")
+	}
+	if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "[::1") {
+		t.Fatalf("connection error exposed provider URL: %v", err)
+	}
+}
+
 func TestClientShortEPGAndPlaybackResolution(t *testing.T) {
 	t.Parallel()
 

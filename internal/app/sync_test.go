@@ -51,6 +51,19 @@ func TestAlternateEPGMergePolicies(t *testing.T) {
 	}
 }
 
+func TestProviderXMLTVURLRedactsMalformedBaseURL(t *testing.T) {
+	t.Parallel()
+
+	const secret = "dummy-secret"
+	_, err := providerXMLTVURL("http://owner:"+secret+"@[::1", "demo", "account-secret")
+	if err == nil {
+		t.Fatal("expected malformed base URL to fail")
+	}
+	if strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "[::1") {
+		t.Fatalf("XMLTV URL error exposed provider URL: %v", err)
+	}
+}
+
 func TestSyncXtreamAppliesAlternateEPGWithoutChangingChannels(t *testing.T) {
 	t.Parallel()
 	store := cache.NewStore()
