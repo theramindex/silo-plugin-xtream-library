@@ -3,6 +3,7 @@ package plugin
 import (
 	"embed"
 	"fmt"
+	mediaweb "github.com/theramindex/silo-plugins/pkg/livemedia/web"
 	"strings"
 )
 
@@ -41,13 +42,18 @@ func (assets composedUIAssets) ReadFile(name string) ([]byte, error) {
 	if name != "ui/app.js" {
 		return assets.files.ReadFile(name)
 	}
-	parts := make([]string, 0, len(playerAppScriptParts))
+	// Keep the shared client in the authenticated app asset. A dynamic script
+	// element cannot supply Silo authorization headers.
+	parts := make([]string, 0, len(playerAppScriptParts)+1)
 	for _, part := range playerAppScriptParts {
 		payload, err := assets.files.ReadFile(part)
 		if err != nil {
 			return nil, fmt.Errorf("read app script part %s: %w", part, err)
 		}
 		parts = append(parts, strings.TrimRight(string(payload), "\n"))
+		if part == "ui/core.js" {
+			parts = append(parts, string(mediaweb.ClientScript))
+		}
 	}
 	return []byte(strings.Join(parts, "\n") + "\n"), nil
 }
