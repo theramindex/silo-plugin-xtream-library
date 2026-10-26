@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/Silo-Server/silo-plugin-sdk v0.30.0
-	github.com/theramindex/silo-plugins v0.1.16-0.20261026153848-9454cee37cd0
+	github.com/theramindex/silo-plugins v0.1.16-0.20261026154504-67a0b78d2f62
 	golang.org/x/text v0.41.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11

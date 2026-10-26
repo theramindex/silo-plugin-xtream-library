@@ -8,6 +8,7 @@ function attachSharedVideoSource(video, url, options) {
     const manager = new SiloLiveMedia({base:route("/dispatcharr"),root:base,video:video,fetch:coreFetch,reservationId:parsed.searchParams.get("session_id")||((video.id==="player"&&state.currentSession)?state.currentSession.id:""),
       headers:function(){return typeof coreMediaRequestHeaders === "function" ? coreMediaRequestHeaders(route("/dispatcharr/api/media/start")) : playerRequestHeaders();},
       loadLibraries:function(){return ensurePlayerLibraries("");},
+      hlsOptions:liveHLSOptions(options&&options.hlsBufferSeconds),
       onStatus:function(message){if(video.id==="player"&&message)showPlayerToast(message);},
       onError:function(message){if(options&&options.onFatal)options.onFatal({message:message});else if(video.id==="player"){if(typeof showPlayerError==="function")showPlayerError(message);else showPlayerToast(message);}},
       onAttached:function(source){attachment.hls=source.hls;attachment.tsPlayer=source.ts;if(video.id==="player"){
