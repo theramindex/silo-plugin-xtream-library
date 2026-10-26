@@ -1217,8 +1217,16 @@ func TestSportsRouteReturnsGuideFallbackWhileProviderBuildRuns(t *testing.T) {
 	server.sportsProvider = provider
 
 	payload := fetchSportsPayloadOnce(t, server, false)
+	if !payload.Refreshing {
+		t.Fatal("cold request did not return a refreshing response")
+	}
+	deadline := time.Now().Add(time.Second)
+	for len(payload.Events) == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		payload = fetchSportsPayloadOnce(t, server, false)
+	}
 	if !payload.Refreshing || payload.Source != "EPG fallback" || len(payload.Events) != 1 {
-		t.Fatalf("expected immediate EPG fallback while provider builds, got %+v", payload)
+		t.Fatalf("background guide fallback was not published before provider completed: %+v", payload)
 	}
 	if len(payload.Events[0].Channels) != 1 || payload.Events[0].Channels[0].ID != "channel:wnba" {
 		t.Fatalf("expected guide channel match in fallback, got %+v", payload.Events[0].Channels)
@@ -2320,4 +2328,9 @@ func TestSportsWeakTeamAliasRejectsGenericNames(t *testing.T) {
 	if got := sportsWeakTeamAlias("Portland Timbers"); got != "timbers" {
 		t.Fatalf("specific alias = %q, want timbers", got)
 	}
+}
+
+func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent {
+	events, _ := sportsEventsFromGuideWithScoreHints(snapshot, now)
+	return events
 }

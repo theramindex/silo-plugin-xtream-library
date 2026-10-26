@@ -16,7 +16,7 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
-	upstreamhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
+	upstreamhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
 )
 
 // userSourcesEnabledKey is the admin setting that switches XC from one shared

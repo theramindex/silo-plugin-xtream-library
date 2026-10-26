@@ -34,11 +34,6 @@ func guideSportsTitleIsLive(title string) bool {
 	return strings.Contains(title, "ᴸᶦᵛᵉ") || containsMatchTerm(normalizeMatchText(title), "live")
 }
 
-func sportsEventsFromGuide(snapshot cache.Snapshot, now time.Time) []SportsEvent {
-	events, _ := sportsEventsFromGuideWithScoreHints(snapshot, now)
-	return events
-}
-
 func sportsEventsFromGuideWithScoreHints(snapshot cache.Snapshot, now time.Time) ([]SportsEvent, bool) {
 	categoryNames := map[string]string{}
 	for _, category := range liveCategories(snapshot) {

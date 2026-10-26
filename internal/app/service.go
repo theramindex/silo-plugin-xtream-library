@@ -12,9 +12,9 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
-	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
 )
 
 type XtreamClient interface {

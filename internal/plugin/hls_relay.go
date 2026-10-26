@@ -19,7 +19,7 @@ import (
 
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
-	upstreamhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
+	upstreamhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
 )
 
 const (

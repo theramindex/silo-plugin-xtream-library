@@ -175,7 +175,7 @@ func (cache *footballStatsCache) load(ctx context.Context, event SportsEvent) Sp
 
 	// Pollers of the same game share one ESPN request. It is detached from
 	// any one caller so a closed poll does not fail the others.
-	value, _ := cache.flights.do(key, func() (any, error) {
+	value, _ := cache.flights.do(ctx, key, func() (any, error) {
 		fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sportsStatsFetchTimeout)
 		defer cancel()
 		value, err := cache.fetch(fetchCtx, event)

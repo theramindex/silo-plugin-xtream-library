@@ -1,3 +1,29 @@
+function attachSharedVideoSource(video, url, options) {
+  const parsed = new URL(url, window.location.href);
+  const channel = parsed.searchParams.get("channel_id");
+  const mode = parsed.searchParams.get("media_mode") || "direct";
+  const attachment = {hls:null,tsPlayer:null,cancelled:false,manager:null,destroy:function(){attachment.cancelled=true;if(attachment.manager)attachment.manager.stop();}};
+  Promise.all([loadPlayerLibrary("media.js","SiloLiveMedia"),ensurePlayerLibraries("")]).then(function(){
+    if(attachment.cancelled)return;
+    const manager = new SiloLiveMedia({base:route("/dispatcharr"),root:base,video:video,fetch:coreFetch,reservationId:parsed.searchParams.get("session_id")||((video.id==="player"&&state.currentSession)?state.currentSession.id:""),
+      headers:function(){return typeof coreMediaRequestHeaders === "function" ? coreMediaRequestHeaders(route("/dispatcharr/api/media/start")) : playerRequestHeaders();},
+      loadLibraries:function(){return ensurePlayerLibraries("");},
+      onStatus:function(message){if(video.id==="player"&&message)showPlayerToast(message);},
+      onError:function(message){if(options&&options.onFatal)options.onFatal({message:message});else if(video.id==="player"){if(typeof showPlayerError==="function")showPlayerError(message);else showPlayerToast(message);}},
+      onAttached:function(source){attachment.hls=source.hls;attachment.tsPlayer=source.ts;if(video.id==="player"){
+        state.hls=source.hls;state.tsPlayer=source.ts;
+        if(source.mode==="rewind"||source.rewind){state.timeShiftSession={ready:true,shared:true};video.controls=true;clearInterval(state.timeShiftTimelineTimer);state.timeShiftTimelineTimer=setInterval(updateTimeShiftUI,1000);}
+        updateAudioMenu();updateSubtitlesButton();
+      }}
+    });attachment.manager=manager;manager.play(channel,mode);
+  }).catch(function(error){if(!attachment.cancelled&&options&&options.onFatal)options.onFatal(error);});
+  return attachment;
+}
+function sharedPlaybackMode(mode) {
+  if(!state.currentChannel)return;
+  stopTimeShiftSession();
+  setVideoSource(browserStreamURL(state.currentChannel)+"&media_mode="+encodeURIComponent(mode),{format:state.currentChannel.streamFormat});
+}
 // Player: playback, controls, tracks, Live Rewind, and watch sessions.
 function playerRequestHeaders() {
   const headers = {};
@@ -205,6 +231,7 @@ function applyAspectMode() {
   if (video) video.style.objectFit = state.aspectMode === "fit" ? "contain" : "cover";
 }
 function attachVideoSource(video, url, options) {
+ if (/\/(dispatcharr|xtream)\/stream\?/.test(url)&&new URL(url,window.location.href).searchParams.has("channel_id"))return attachSharedVideoSource(video,url,options);
   const rewindable = !!(options && options.rewindable);
   const managedTimeShift = !!(options && options.managedTimeShift);
   const attachment = {
@@ -278,6 +305,7 @@ function renderPlayerMoreMenu() {
   menu.innerHTML = "<div class=\"player-more-kicker\">Playback</div>"
     + "<button data-player-action=\"aspect\">" + menuIcon("aspect") + "<span>Aspect ratio<small>" + (state.aspectMode === "fit" ? "Fit to screen" : "Fill screen") + "</small></span></button>"
     + "<button data-player-action=\"fullscreen\">" + menuIcon(document.fullscreenElement ? "fullscreen-exit" : "fullscreen") + "<span>Fullscreen<small>" + (document.fullscreenElement ? "Exit player fullscreen" : "Fill the display") + "</small></span></button>"
+    + "<button data-player-action=\"compatible-playback\">"+menuIcon("play")+"<span>Compatible playback</span></button><button data-player-action=\"live-rewind\">"+menuIcon("rewind")+"<span>Live Rewind</span></button>"
     + "<button data-player-action=\"pip\">" + menuIcon("pip") + "<span>Picture in Picture</span></button>"
     + "<button data-player-action=\"guide\">" + menuIcon("guide") + "<span>Channel guide</span></button>"
     + sportsControl
@@ -386,6 +414,8 @@ function showPlayerToast(message, durationMs) {
 // {"code":"stream_requires_hls"}. Media elements cannot read that body, so
 // probe the gateway first; redirect: "manual" never follows to the provider.
 async function streamBlockedMessage(url, format) {
+  // Live channels use the authenticated continuous relay, including TS.
+  if (/\/(dispatcharr|xtream)\/stream\?/.test(url) && new URL(url, window.location.href).searchParams.has("channel_id")) return "";
   if (format === "hls" || adminSettings().allowDirectProviderURLs !== false) return "";
   try {
     const response = await coreFetch(url, { redirect: "manual", headers: { accept: "application/json" } });
@@ -486,9 +516,11 @@ function setVideoSource(url, options) {
     video.textTracks.addEventListener("removetrack", updateSubtitlesButton, listen());
     video.textTracks.addEventListener("change", updateSubtitlesButton, listen());
   }
+  if(state.videoAttachment){state.videoAttachment.destroy();state.videoAttachment=null;state.hls=null;state.tsPlayer=null;}
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
   const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: options && options.managedTimeShift, format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal });
+  state.videoAttachment=attachment;
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
   setTimeout(updateAudioMenu, 500);
@@ -527,6 +559,7 @@ function startWatch(channel) {
 function handlePlayerAction(action, button) {
   const video = byId("player");
   wakePlayerChrome();
+  if(action === "compatible-playback"||action === "live-rewind"){state.moreMenuOpen=false;renderPlayerMoreMenu();sharedPlaybackMode(action==="live-rewind"?"rewind":"compatible");return;}
   if (action === "back") {
     returnFromPlayer();
     return;

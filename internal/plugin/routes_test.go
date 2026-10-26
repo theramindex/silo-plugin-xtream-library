@@ -174,7 +174,6 @@ func TestXtreamAppScriptConfiguresImmediateStartHLSResilienceBuffer(t *testing.T
 		`liveSyncDuration: bufferSeconds`,
 		`startFragPrefetch: true`,
 		`const hlsOptions = managedTimeShift ?`,
-		`managedTimeShift: true`,
 		`hlsBufferSeconds: channel.hlsBufferSeconds`,
 		`source-hls-buffer-seconds`,
 		`Playback still starts immediately`,

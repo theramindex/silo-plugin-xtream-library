@@ -1,6 +1,6 @@
 {
   "plugin_id": "silo.ramindex.xtream",
-  "version": "0.2.78",
+  "version": "0.3.0",
   "checksum": "__CHECKSUM__",
   "silo_api_version": "v1",
   "supported_platforms": [
@@ -423,6 +423,76 @@
       "id": "livetv-v1-session-stop",
       "method": "POST",
       "path": "/silo-compat/livetv/v1/session/stop",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-api-media-start",
+      "path": "/xtream/api/media/start",
+      "method": "POST",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-api-media-status",
+      "path": "/xtream/api/media/status",
+      "method": "GET",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-api-media-stop",
+      "path": "/xtream/api/media/stop",
+      "method": "POST",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-relay-media",
+      "path": "/xtream/relay/media",
+      "method": "GET",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-converted-media",
+      "path": "/xtream/converted/media",
+      "method": "GET",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-rewind-manifest",
+      "path": "/xtream/rewind/manifest",
+      "method": "GET",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-rewind-segment",
+      "path": "/xtream/rewind/segment",
+      "method": "GET",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-media-assets-media-js",
+      "path": "/xtream/assets/media.js",
+      "method": "GET",
+      "access": "authenticated",
+      "navigable": false
+    },
+    {
+      "id": "shared-api-media-admin-status",
+      "path": "/xtream/api/media/admin-status",
+      "method": "GET",
+      "access": "admin",
+      "navigable": false
+    },
+    {
+      "id": "shared-api-media-clear",
+      "path": "/xtream/api/media/clear",
+      "method": "POST",
       "access": "admin",
       "navigable": false
     }

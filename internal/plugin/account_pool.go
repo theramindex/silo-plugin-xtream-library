@@ -21,9 +21,10 @@ type accountLease struct {
 }
 
 type accountPool struct {
-	mu     sync.Mutex
-	now    func() time.Time
-	leases map[string]accountLease
+	mu       sync.Mutex
+	now      func() time.Time
+	leases   map[string]accountLease
+	cooldown map[string]time.Time
 }
 
 func newAccountPool(now func() time.Time) *accountPool {
@@ -59,6 +60,9 @@ func (p *accountPool) Lease(sessionID string, source config.XtreamSource) (confi
 	}
 	selected := -1
 	for index, account := range accounts {
+		if now.Before(p.cooldown[source.ID+"/"+account.ID]) {
+			continue
+		}
 		if account.ConnectionLimit > 0 && usage[account.ID] >= account.ConnectionLimit {
 			continue
 		}
@@ -108,9 +112,26 @@ func (p *accountPool) Usage(sourceID string) map[string]int {
 }
 
 func (p *accountPool) prune(now time.Time) {
+	for id, until := range p.cooldown {
+		if !now.Before(until) {
+			delete(p.cooldown, id)
+		}
+	}
 	for sessionID, lease := range p.leases {
 		if now.Sub(lease.seenAt) > accountLeaseTTL {
 			delete(p.leases, sessionID)
 		}
+	}
+}
+
+func (p *accountPool) Reject(session string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if lease, ok := p.leases[session]; ok {
+		if p.cooldown == nil {
+			p.cooldown = map[string]time.Time{}
+		}
+		p.cooldown[lease.sourceID+"/"+lease.accountID] = p.now().Add(15 * time.Second)
+		delete(p.leases, session)
 	}
 }

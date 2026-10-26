@@ -108,7 +108,7 @@ func TestSportsFlightGroupSharesOneCall(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			value, err := group.do("key", func() (any, error) {
+			value, err := group.do(context.Background(), "key", func() (any, error) {
 				calls.Add(1)
 				time.Sleep(20 * time.Millisecond)
 				return "value", nil
@@ -123,7 +123,7 @@ func TestSportsFlightGroupSharesOneCall(t *testing.T) {
 	if calls.Load() > 2 {
 		t.Fatalf("concurrent callers should share a call, got %d", calls.Load())
 	}
-	if _, err := group.do("key", func() (any, error) { calls.Add(1); return nil, nil }); err != nil || len(group.calls) != 0 {
+	if _, err := group.do(context.Background(), "key", func() (any, error) { calls.Add(1); return nil, nil }); err != nil || len(group.calls) != 0 {
 		t.Fatal("finished flights must be forgotten")
 	}
 }

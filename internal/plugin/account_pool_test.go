@@ -56,3 +56,27 @@ func TestAccountPoolExpiresAbandonedSessionLeases(t *testing.T) {
 		t.Fatalf("expired lease should release capacity: account=%+v err=%v", account, err)
 	}
 }
+
+func TestRejectedAccountCoolsDownWithoutLeakingReservation(t *testing.T) {
+	now := time.Now()
+	pool := newAccountPool(func() time.Time { return now })
+	source := config.XtreamSource{ID: "provider", Accounts: []config.XtreamAccount{{ID: "a", Enabled: true, Compatible: true, Username: "one", Password: "one", ConnectionLimit: 1}, {ID: "b", Enabled: true, Compatible: true, Username: "two", Password: "two", ConnectionLimit: 1}}}
+	first, err := pool.Lease("session", source)
+	if err != nil || first.ID != "a" {
+		t.Fatal("first account", err)
+	}
+	pool.Reject("session")
+	next, err := pool.Lease("session", source)
+	if err != nil || next.ID != "b" {
+		t.Fatal("rejected account was selected again", err)
+	}
+	if usage := pool.Usage(source.ID); usage["a"] != 0 || usage["b"] != 1 {
+		t.Fatalf("rejection leaked capacity: %v", usage)
+	}
+	pool.Release("session")
+	now = now.Add(16 * time.Second)
+	next, err = pool.Lease("new", source)
+	if err != nil || next.ID != "a" {
+		t.Fatal("recovered account remained unavailable", err)
+	}
+}

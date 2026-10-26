@@ -363,17 +363,20 @@ function renderAdminPlayerSettings() {
   if (!root) return;
   const settings = adminSettings();
   root.innerHTML = "<label class=\"settings-row compact-row\"><span><strong>Sports-first player</strong><small>Add a live score and matched-channel drawer to the video player.</small></span><input type=\"checkbox\" data-admin-player-field=\"sports\"" + (settings.sportsFirstPlayerEnabled ? " checked" : "") + "></label>";
+  const stations=document.createElement("div");stations.className="station-mappings";root.append(stations);
+  loadPlayerLibrary("media.js","SiloLiveMedia").then(function(){if(stations.isConnected===false)return;SiloLiveMedia.stationEditor(stations,settings,items(state.app&&state.app.channels),function(rows){state.adminCategorySettings.stationMappings=rows;markAdminSettingsDraft();renderAdminTopbarActions();});}).catch(function(){stations.textContent="Station mapping controls could not be loaded. Reload to try again.";});
+
 }
 function renderAdminTimeShiftSettings() {
   const root = byId("admin-timeshift-settings");
   if (!root) return;
   const settings = adminSettings();
   const status = state.timeShiftAdminStatus || {};
-  const direct = isDispatcharrDirectSource();
+  const direct = true;
   const usage = state.timeShiftAdminLoading ? "Loading cache usage..." : (status.unavailable ? "Cache status is unavailable." : (state.timeShiftAdminStatus ? byteSizeLabel(status.bytes) + " of " + byteSizeLabel(status.maxBytes) + " · " + String(status.activeBuffers || 0) + " buffered channels · " + String(status.activeLeases || 0) + " viewers" : "Usage has not been checked yet."));
   const windows = [15, 30, 60, 90, 120].map(function(minutes) { return "<option value=\"" + minutes + "\"" + (Number(settings.liveRewindWindowMinutes) === minutes ? " selected" : "") + ">" + minutes + " minutes</option>"; }).join("");
   root.innerHTML = adminSaveStatusHTML()
-    + "<label class=\"settings-row compact-row\"><span><strong>Enable Live Rewind</strong><small>Dispatcharr Direct MPEG-TS only. Unsupported channels fall back to normal playback.</small></span><input type=\"checkbox\" data-admin-timeshift-field=\"enabled\"" + (settings.liveRewindEnabled ? " checked" : "") + (direct ? "" : " disabled") + "></label>"
+    + "<label class=\"settings-row compact-row\"><span><strong>Enable Live Rewind</strong><small>Buffer live channels for pause and rewind. Unsupported codecs use GPU conversion when available.</small></span><input type=\"checkbox\" data-admin-timeshift-field=\"enabled\"" + (settings.liveRewindEnabled ? " checked" : "") + (direct ? "" : " disabled") + "></label>"
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Total cache budget</strong><small>Shared across every user and buffered channel.</small></span><div class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"500\" step=\"1\" data-admin-timeshift-field=\"cache\" value=\"" + escapeHTML(String(settings.liveRewindCacheGB)) + "\"><span>GB</span></div></div>"
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Maximum rewind window</strong><small>Oldest segments are removed first.</small></span><select data-admin-timeshift-field=\"window\">" + windows + "</select></div>"
     + "<div class=\"settings-row settings-form-row\"><span class=\"settings-field-copy\"><strong>Minimum free disk space</strong><small>Eviction starts before the server reaches this reserve.</small></span><div class=\"settings-number-unit\"><input type=\"number\" min=\"1\" max=\"100\" step=\"1\" data-admin-timeshift-field=\"free\" value=\"" + escapeHTML(String(settings.liveRewindMinFreeGB)) + "\"><span>GB</span></div></div>"
@@ -386,7 +389,7 @@ async function refreshAdminTimeShiftStatus(quiet) {
   state.timeShiftAdminLoading = true;
   if (!quiet) renderAdminPage();
   try {
-    state.timeShiftAdminStatus = await getJSON("/dispatcharr/api/timeshift/admin-status");
+    state.timeShiftAdminStatus = await getJSON("/dispatcharr/api/media/admin-status");
   } catch (_) {
     state.timeShiftAdminStatus = { unavailable: true };
     if (!quiet) showAppToast("Live Rewind cache status is unavailable.");
@@ -397,7 +400,7 @@ async function refreshAdminTimeShiftStatus(quiet) {
 }
 async function clearAdminTimeShiftCache() {
   try {
-    await postJSON("/dispatcharr/api/timeshift/clear", {});
+    await postJSON("/dispatcharr/api/media/clear", {});
     state.timeShiftAdminStatus = null;
     showAppToast("Live Rewind cache cleared.");
     refreshAdminTimeShiftStatus(true);

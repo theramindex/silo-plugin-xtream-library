@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	mediaweb "github.com/theramindex/silo-plugins/pkg/livemedia/web"
 	"os"
 	"path/filepath"
 	"strings"
@@ -202,6 +203,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 		"collapseDuplicateVirtualGroups": collapseDuplicateVirtualGroups,
 		"inferChannelNameGroups":         inferChannelNameGroups,
 		"categoryRenames":                categoryRenames,
+		"stationMappings":                mediaweb.NormalizeStations(payload["stationMappings"]),
 		"categoryAliases":                categoryAliases,
 		"eventKeywords":                  eventKeywords,
 	}

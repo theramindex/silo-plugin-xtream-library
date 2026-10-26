@@ -323,7 +323,7 @@ function isDispatcharrDirectSource() {
   return mode === "direct_login" || mode === "api_key";
 }
 function liveRewindEnabled() {
-  return !!(isDispatcharrDirectSource() && adminSettings().liveRewindEnabled === true);
+  return !!(adminSettings().liveRewindEnabled === true);
 }
 function sportsFirstPlayerEnabled() { return sportsEnabled(); }
 function dvrEnabled() {

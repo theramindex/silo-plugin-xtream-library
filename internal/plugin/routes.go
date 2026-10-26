@@ -23,9 +23,10 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/matching"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/dispatcharr"
-	sharedhttp "github.com/theramindex/silo-plugin-xtream-library/internal/upstream/httpclient"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xmltv"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/upstream/xtream"
+	sharedhttp "github.com/theramindex/silo-plugins/pkg/livemedia/httpclient"
+	mediaweb "github.com/theramindex/silo-plugins/pkg/livemedia/web"
 )
 
 //go:embed assets/hls.min.js assets/mpegts.min.js
@@ -39,6 +40,13 @@ var (
 const adminSourceConnectionTestTimeout = 8 * time.Second
 
 type HTTPRoutesServer struct {
+	mediaBackoff  mediaweb.SourceBackoff
+	watchOwnerMu  sync.Mutex
+	watchOwners   map[string]string
+	watchSeen     map[string]time.Time
+	watchBindings map[string]string
+	mediaOnce     sync.Once
+	media         *mediaweb.Controller
 	pluginv1.UnimplementedHttpRoutesServer
 	store               *cache.Store
 	settingsProvider    func() config.Settings
@@ -57,6 +65,7 @@ type HTTPRoutesServer struct {
 	sportsCache         sportsEventCache
 	sportsMu            sync.Mutex
 	sportsStats         footballStatsCache
+	sportsGuide         sportsGuideCache
 	sportsPrepared      sportsPreparedCache
 	sportsPreparedMu    sync.Mutex
 	sportsImages        *sportsImageCache
@@ -255,6 +264,9 @@ type watchRequest struct {
 }
 
 func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleHTTPRequest) (*pluginv1.HandleHTTPResponse, error) {
+	if mediaweb.Handles("/xtream", request.GetPath()) {
+		return s.mediaController().Handle(ctx, request), nil
+	}
 	if isRetiredXtreamPublicRoute(request.GetPath()) {
 		return textResponse(http.StatusNotFound, "route not found"), nil
 	}
@@ -264,6 +276,11 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 			return textResponse(http.StatusNotFound, "Sports is disabled"), nil
 		}
 		return s.handleSportsImage(ctx, request), nil
+	}
+	if strings.HasPrefix(path, "/dispatcharr/api/sports") {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, 7*time.Second)
+		defer cancel()
 	}
 	switch path {
 	case "/dispatcharr/api/sports":
@@ -1493,12 +1510,28 @@ func (s *HTTPRoutesServer) handleWatchStart(request *pluginv1.HandleHTTPRequest)
 		payload.ItemKind = "channel"
 	}
 	session := s.store.StartWatch(payload.ItemKind, payload.ItemID, payload.ItemName)
-	if source, ok := s.xtreamSourceForItem(payload.ItemID); ok {
-		if _, err := s.accountPool.Lease(session.ID, source); err != nil {
-			_, _ = s.store.StopWatch(session.ID, "account_pool_full")
-			return textResponse(http.StatusConflict, err.Error()), nil
+	if err := s.reserveMappedWatch(payload.ItemID, session.ID); err != nil {
+		_, _ = s.store.StopWatch(session.ID, "account_pool_full")
+		return textResponse(http.StatusConflict, err.Error()), nil
+	}
+
+	s.watchOwnerMu.Lock()
+	if s.watchOwners == nil {
+		s.watchOwners = map[string]string{}
+	}
+	if s.watchSeen == nil {
+		s.watchSeen = map[string]time.Time{}
+	}
+	for id, seen := range s.watchSeen {
+		if time.Since(seen) > 2*time.Minute {
+			delete(s.watchSeen, id)
+			delete(s.watchOwners, id)
+			delete(s.watchBindings, id)
 		}
 	}
+	s.watchOwners[session.ID] = mediaweb.Owner(request)
+	s.watchSeen[session.ID] = time.Now()
+	s.watchOwnerMu.Unlock()
 	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }
 
@@ -1510,6 +1543,17 @@ func (s *HTTPRoutesServer) handleWatchHeartbeat(request *pluginv1.HandleHTTPRequ
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid watch payload"), nil
 	}
+	s.watchOwnerMu.Lock()
+	current, known := s.watchOwners[payload.SessionID]
+	if known && current != mediaweb.Owner(request) {
+		s.watchOwnerMu.Unlock()
+		return textResponse(403, "watch session belongs to another viewer"), nil
+	}
+	if known {
+		s.watchSeen[payload.SessionID] = time.Now()
+	}
+	s.watchOwnerMu.Unlock()
+
 	session, ok := s.store.HeartbeatWatch(payload.SessionID)
 	if !ok {
 		return textResponse(http.StatusNotFound, "watch session not found"), nil
@@ -1526,10 +1570,26 @@ func (s *HTTPRoutesServer) handleWatchStop(request *pluginv1.HandleHTTPRequest) 
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid watch payload"), nil
 	}
+	s.watchOwnerMu.Lock()
+	current, known := s.watchOwners[payload.SessionID]
+	if known && current != mediaweb.Owner(request) {
+		s.watchOwnerMu.Unlock()
+		return textResponse(403, "watch session belongs to another viewer"), nil
+	}
+	if known {
+		s.watchSeen[payload.SessionID] = time.Now()
+	}
+	s.watchOwnerMu.Unlock()
+
 	session, ok := s.store.StopWatch(payload.SessionID, payload.Reason)
 	if !ok {
 		return textResponse(http.StatusNotFound, "watch session not found"), nil
 	}
+	s.mediaController().StopReservation(mediaweb.Owner(request), payload.SessionID)
+	s.watchOwnerMu.Lock()
+	delete(s.watchOwners, payload.SessionID)
+	delete(s.watchSeen, payload.SessionID)
+	s.watchOwnerMu.Unlock()
 	s.accountPool.Release(payload.SessionID)
 	return s.respondJSON(http.StatusOK, map[string]any{"session": session})
 }

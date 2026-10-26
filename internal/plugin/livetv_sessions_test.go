@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -132,5 +133,63 @@ func TestLiveTVSessionsHoldNothingElse(t *testing.T) {
 	server.accountPool.Lease("web-watch-2", server.settingsProvider().EffectiveXtreamSources()[0])
 	if full := liveTVSessionStream(t, server, "xtream:frost:101", "play-3"); full.GetStatusCode() != http.StatusConflict {
 		t.Fatalf("stream with every account watched in the web app = %d, want 409", full.GetStatusCode())
+	}
+}
+
+// The browser's managed relay must adopt its watch connection once, reject
+// another viewer/reader, and return that account when playback stops.
+func TestManagedMediaAdoptsWatchWithoutDoubleLeasing(t *testing.T) {
+	server, _ := liveTVSessionServer(t)
+	defer func() {
+		if server.media != nil {
+			server.media.Close()
+		}
+	}()
+	call := func(user, path, body string) *pluginv1.HandleHTTPResponse {
+		t.Helper()
+		response, err := server.Handle(context.Background(), &pluginv1.HandleHTTPRequest{Method: "POST", Path: "/xtream" + path, Body: []byte(body), Headers: map[string]string{"X-Silo-User-Id": user, "X-Silo-Profile-Id": "profile"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response
+	}
+	start := call("1", "/api/watch/start", `{"itemKind":"channel","itemId":"xtream:frost:101","itemName":"News"}`)
+	if start.StatusCode != 200 {
+		t.Fatalf("watch: %d %s", start.StatusCode, start.Body)
+	}
+	var watch struct {
+		Session struct {
+			ID string `json:"id"`
+		} `json:"session"`
+	}
+	if err := json.Unmarshal(start.Body, &watch); err != nil || watch.Session.ID == "" {
+		t.Fatalf("watch response: %s", start.Body)
+	}
+	body := `{"channelId":"xtream:frost:101","reservationId":"` + watch.Session.ID + `"}`
+	if other := call("2", "/api/media/start", body); other.StatusCode != 409 {
+		t.Fatalf("other viewer adopted watch: %d", other.StatusCode)
+	}
+	media := call("1", "/api/media/start", body)
+	if media.StatusCode != 202 {
+		t.Fatalf("media: %d %s", media.StatusCode, media.Body)
+	}
+	if usage := server.accountPool.Usage("frost"); usage["a"]+usage["b"] != 1 {
+		t.Fatalf("one playback holds %v", usage)
+	}
+	if duplicate := call("1", "/api/media/start", body); duplicate.StatusCode != 409 {
+		t.Fatalf("second reader adopted watch: %d", duplicate.StatusCode)
+	}
+	stop := `{"sessionId":"` + watch.Session.ID + `"}`
+	if other := call("2", "/api/watch/stop", stop); other.StatusCode != 403 {
+		t.Fatalf("other viewer stopped watch: %d", other.StatusCode)
+	}
+	if usage := server.accountPool.Usage("frost"); usage["a"]+usage["b"] != 1 {
+		t.Fatalf("denied stop released connection: %v", usage)
+	}
+	if stopped := call("1", "/api/watch/stop", stop); stopped.StatusCode != 200 {
+		t.Fatalf("stop: %d %s", stopped.StatusCode, stopped.Body)
+	}
+	if usage := server.accountPool.Usage("frost"); usage["a"]+usage["b"] != 0 {
+		t.Fatalf("stopped playback leaked account: %v", usage)
 	}
 }

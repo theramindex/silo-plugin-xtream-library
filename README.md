@@ -36,43 +36,15 @@ advertised.
 
 ## Playback and privacy
 
-The app serves catalog data without provider URLs or credentials. Playback is
-resolved only through authenticated Silo plugin gateway routes. The Silo host
-stamps the caller's identity on every route request (see "User identity and
-admin-only actions"), but the plugin route SDK has no streaming response body,
-so this plugin does not claim per-user upstream credentials, server
-transcoding, or a general media proxy.
+The app serves catalog data without provider URLs or credentials. Embedded live playback uses the Ramindex Silo fork's continuous loopback relay for MPEG-TS and HLS. Browser media routes are authenticated and bound to the Silo user/profile; nested HLS playlists, keys, and segments stay on Silo's origin.
 
-- **HLS is relayed.** Xtream HLS live channels (the default `m3u8` live
-  format), and any other HLS playback URL that embeds provider credentials
-  (Xtream-style `/USER/PASS/` paths, URL user-info, password/token query
-  parameters, or a configured account password), are fetched by the plugin.
-  The browser only receives manifests whose segment, key, and rendition URIs
-  are rewritten to short-lived AES-GCM relay tokens.
-- **Relay fetches are SSRF-guarded.** Manifest references are untrusted, so
-  relay requests refuse loopback, private, link-local, unspecified, and
-  multicast destinations at dial time (after DNS resolution, so rebinding is
-  caught), allow only `http`/`https`, follow at most 3 redirects under the same
-  policy, and ignore environment proxies. The configured provider hosts (every
-  source, which covers its playback sub-accounts) and the host of the stream
-  the relay chain started from (sealed into each token) may be LAN addresses.
-- **MPEG-TS, VOD, episodes, and Catch-up depend on an admin setting.**
-  Continuous MPEG-TS (`ts` live format), movie/episode files, and Catch-up
-  (`timeshift/...ts`) cannot pass through the buffered route SDK. XC Admin →
-  Settings → **Allow direct provider URLs** (`allowDirectProviderURLs`,
-  default **on**) decides what happens to them:
-  - **On** (default, keeps existing installs playing): the route redirects to
-    the provider URL, so the viewer's browser receives the playback account's
-    credentials.
-  - **Off**: credentialed non-HLS streams are refused with
-    `422 {"ok":false,"code":"stream_requires_hls","error":"..."}` and the
-    player shows that message. HLS is still relayed and credential-free URLs
-    still redirect.
+- **Guarded source fetches.** Only HTTP/HTTPS is allowed, with dial-time address checks, bounded redirects, and no environment proxies. Explicit administrator-configured source hosts may be LAN addresses. Per-user sources retain the public-address-only policy.
+- **Compatible playback.** One codec failure can trigger GPU conversion to H.264/AAC HLS; a manual player option is also available. It requires host FFmpeg and `/dev/dri/renderD128`, caps output at 1080p/30 fps, and shares two GPU encoder slots with Dispatcharr and HDHomeRun. Decoding and scaling use the CPU. There is no software encoder fallback.
+- **Live Rewind.** The admin enable switch, disk budget, free-space reserve, window, and buffer-count settings govern a temporary viewer-owned cache. Supported H.264 MPEG-TS is copied into segments; incompatible rewind inputs can use a GPU history. VOD and provider Catch-up remain separate.
+- **Station alternatives.** Map equivalent channel IDs to the same station key in admin settings. Priority selects the preferred feed; startup can try another available account or explicitly mapped source before bytes are sent. Failed accounts cool down briefly. There is no seamless midstream switching.
+- **Legacy and file playback.** `allowDirectProviderURLs` still governs non-HLS VOD, episodes, Catch-up, and legacy direct stream routes. When enabled, those routes can expose account credentials to the browser through redirects; when disabled, credentialed non-HLS files return `stream_requires_hls` (422). Embedded live channels use the private relay with either setting.
 
-  The trade-off: leaving it on exposes provider credentials to every viewer
-  who plays those streams; turning it off blocks TS live, VOD, series, and
-  Catch-up unless the provider serves HLS. Use the `m3u8` live format to keep
-  live credentials out of the browser either way.
+Shared playback uses SDK v0.30.0. Leaving playback releases the source and encoder; abandoned shared leases expire after 75 seconds. A browser watch reservation is adopted once, so starting its managed relay does not consume a second provider connection.
 
 Each provider keeps one primary account for catalog and guide refreshes. XC
 Admin can add compatible sub-accounts for playback and set the provider-issued
@@ -83,6 +55,8 @@ uses one lease. These counters cover XC for Silo sessions only; they cannot see
 connections created outside this plugin.
 
 ## Guide refreshes
+
+- Sports preparation reuses an indexed guide cache, returns within the route deadline, and refreshes slow guide fallbacks in the background.
 
 - XMLTV guides (M3U/XMLTV guide URL, Xtream `xmltv.php`, and alternate EPG
   feeds, plain or gzip) are decoded incrementally from the response body,

@@ -15,10 +15,6 @@ const (
 	// A program is near an event when it overlaps [start-6h, start+8h].
 	sportsProgramLeadSeconds  = 6 * 3600
 	sportsProgramTrailSeconds = 8 * 3600
-	sportsProgramBucketWidth  = int64(3600)
-	// Programs spanning more buckets than this are checked for every event
-	// rather than copied into dozens of hour buckets.
-	sportsProgramMaxBuckets = 48
 )
 
 type sportsTerm struct {
@@ -58,12 +54,9 @@ type sportsProgramRef struct {
 }
 
 type sportsChannelIndex struct {
-	Channels []sportsIndexedChannel
-	// Hour buckets of program references. A program is listed in every hour it
-	// overlaps, so one event only visits the guide around its start time.
-	buckets map[int64][]sportsProgramRef
-	// Programs with unusable or very long spans are always checked.
-	unbucketed []sportsProgramRef
+	Channels     []sportsIndexedChannel
+	channelWords map[string][]int
+	programWords map[string][]sportsProgramRef
 }
 
 func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
@@ -75,8 +68,8 @@ func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 	for _, program := range snapshot.Catalog.Programs {
 		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], sportsIndexedProgram{
 			Program:  program,
-			Text:     normalizeMatchText(strings.Join([]string{program.Title, program.Summary}, " ")),
-			Segments: sportsMatchSegments(program.Title, program.Summary),
+			Text:     normalizeMatchText(program.Title),
+			Segments: sportsMatchSegments(program.Title),
 		})
 	}
 	channels := make([]sportsIndexedChannel, 0, len(snapshot.Catalog.Channels))
@@ -89,18 +82,16 @@ func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 		categoryName := firstNonEmpty(categoryNames[channel.CategoryID], channel.CategoryName)
 		channels = append(channels, newSportsIndexedChannel(channel, categoryName, programsByChannel[channel.ID]))
 	}
-	index := sportsChannelIndex{Channels: channels, buckets: map[int64][]sportsProgramRef{}}
-	for channelPosition := range channels {
-		for programPosition, program := range channels[channelPosition].Programs {
-			ref := sportsProgramRef{channel: int32(channelPosition), program: int32(programPosition)}
-			start, end := sportsProgramSpan(program.Program)
-			first, last := sportsBucketOf(start), sportsBucketOf(end)
-			if end < start || last-first > sportsProgramMaxBuckets {
-				index.unbucketed = append(index.unbucketed, ref)
-				continue
-			}
-			for bucket := first; bucket <= last; bucket++ {
-				index.buckets[bucket] = append(index.buckets[bucket], ref)
+	index := sportsChannelIndex{Channels: channels, channelWords: map[string][]int{}, programWords: map[string][]sportsProgramRef{}}
+	for position := range channels {
+		channel := &channels[position]
+		for _, word := range sportsIdentityWords(channel.contextText) {
+			index.channelWords[word] = append(index.channelWords[word], position)
+		}
+		for programPosition, program := range channel.Programs {
+			ref := sportsProgramRef{channel: int32(position), program: int32(programPosition)}
+			for _, word := range sportsIdentityWords(program.Text) {
+				index.programWords[word] = append(index.programWords[word], ref)
 			}
 		}
 	}
@@ -131,38 +122,42 @@ func sportsProgramSpan(program model.Program) (int64, int64) {
 	return program.StartUnix, end
 }
 
-func sportsBucketOf(unix int64) int64 {
-	bucket := unix / sportsProgramBucketWidth
-	if unix < 0 && unix%sportsProgramBucketWidth != 0 {
-		bucket--
-	}
-	return bucket
-}
-
-// nearPrograms returns references to programs overlapping the event window,
-// ordered by channel then program position. It returns nil, false when the
-// event has no start time, meaning every program is near.
-func (index sportsChannelIndex) nearPrograms(event SportsEvent) ([]sportsProgramRef, bool) {
-	if event.StartUnix == 0 {
-		return nil, false
-	}
-	windowStart := event.StartUnix - sportsProgramLeadSeconds
-	windowEnd := event.StartUnix + sportsProgramTrailSeconds
-	firstBucket, lastBucket := sportsBucketOf(windowStart), sportsBucketOf(windowEnd)
-	refs := make([]sportsProgramRef, 0, 64)
-	for bucket := firstBucket; bucket <= lastBucket; bucket++ {
-		for _, ref := range index.buckets[bucket] {
-			program := index.Channels[ref.channel].Programs[ref.program].Program
-			start, _ := sportsProgramSpan(program)
-			// A multi-hour program is listed in several buckets; keep it once.
-			if max(sportsBucketOf(start), firstBucket) != bucket || !programNearSportsEvent(program, event) {
-				continue
-			}
-			refs = append(refs, ref)
+// candidatePrograms narrows the guide by participant/title words before
+// applying the exact event time window. Every full term match contains its
+// final word, so the existing scorer can decide confidence without scanning
+// every programme on every channel for each fixture.
+func (index sportsChannelIndex) candidatePrograms(query sportsMatchQuery) ([]sportsProgramRef, map[int]bool) {
+	anchors := map[string]bool{}
+	add := func(value string) {
+		words := strings.Fields(value)
+		if len(words) > 0 {
+			anchors[words[len(words)-1]] = true
 		}
 	}
-	for _, ref := range index.unbucketed {
-		if programNearSportsEvent(index.Channels[ref.channel].Programs[ref.program].Program, event) {
+	for _, term := range query.terms {
+		add(term.norm)
+	}
+	// Short abbreviations also affect strong-guide evidence even when they
+	// are too short to contribute points on their own.
+	for _, value := range []string{query.name, query.shortName, query.homeName, query.awayName, query.homeAbbr, query.awayAbbr} {
+		add(value)
+	}
+	channels := map[int]bool{}
+	seen := map[sportsProgramRef]bool{}
+	refs := []sportsProgramRef{}
+	for word := range anchors {
+		for _, position := range index.channelWords[word] {
+			channels[position] = true
+		}
+		for _, ref := range index.programWords[word] {
+			if seen[ref] {
+				continue
+			}
+			seen[ref] = true
+			if !programNearSportsEvent(index.Channels[ref.channel].Programs[ref.program].Program, query.event) {
+				continue
+			}
+			channels[int(ref.channel)] = true
 			refs = append(refs, ref)
 		}
 	}
@@ -172,7 +167,7 @@ func (index sportsChannelIndex) nearPrograms(event SportsEvent) ([]sportsProgram
 		}
 		return refs[i].program < refs[j].program
 	})
-	return refs, true
+	return refs, channels
 }
 
 func matchSportsChannels(event SportsEvent, snapshot cache.Snapshot) []SportsChannelMatch {
@@ -193,7 +188,7 @@ func (index sportsChannelIndex) MatchDetailedContext(ctx context.Context, event 
 	if len(query.terms) == 0 {
 		return []SportsChannelMatch{}, []SportsMatchDiagnostic{}
 	}
-	refs, bucketed := index.nearPrograms(event)
+	refs, candidates := index.candidatePrograms(query)
 	matches := make([]SportsChannelMatch, 0)
 	diagnostics := make([]SportsMatchDiagnostic, 0)
 	nearPrograms := make([]*sportsIndexedProgram, 0, 32)
@@ -203,19 +198,16 @@ func (index sportsChannelIndex) MatchDetailedContext(ctx context.Context, event 
 			break
 		}
 		indexed := &index.Channels[position]
+		if !candidates[position] && !(query.dated && indexed.hasDate && indexed.earliestDate.Before(query.eventDay)) {
+			continue
+		}
 		nearPrograms = nearPrograms[:0]
-		if bucketed {
-			for cursor < len(refs) && int(refs[cursor].channel) < position {
-				cursor++
-			}
-			for cursor < len(refs) && int(refs[cursor].channel) == position {
-				nearPrograms = append(nearPrograms, &indexed.Programs[refs[cursor].program])
-				cursor++
-			}
-		} else {
-			for program := range indexed.Programs {
-				nearPrograms = append(nearPrograms, &indexed.Programs[program])
-			}
+		for cursor < len(refs) && int(refs[cursor].channel) < position {
+			cursor++
+		}
+		for cursor < len(refs) && int(refs[cursor].channel) == position {
+			nearPrograms = append(nearPrograms, &indexed.Programs[refs[cursor].program])
+			cursor++
 		}
 		result := query.scoreChannel(indexed, nearPrograms)
 		if result.Score < sportsChannelMinimumScore {
@@ -328,8 +320,6 @@ func newSportsMatchQuery(event SportsEvent) sportsMatchQuery {
 	return query
 }
 
-// scoreChannel scores one channel against the event using only the programs
-// near its start time.
 func (query sportsMatchQuery) scoreChannel(channel *sportsIndexedChannel, programs []*sportsIndexedProgram) sportsChannelScore {
 	if query.dated && channel.hasDate && channel.earliestDate.Before(query.eventDay) {
 		return sportsChannelScore{RejectedReason: "Feed is dated before this fixture"}
@@ -338,8 +328,6 @@ func (query sportsMatchQuery) scoreChannel(channel *sportsIndexedChannel, progra
 	structuralMatch := false
 	strongGuideMatch := false
 	reasons := map[string]bool{}
-	// Abbreviations such as TEN and EDM are too ambiguous on their own. A
-	// channel needs to identify the event's league unless its guide confirms it.
 	hasAbbreviationContext := containsNormalizedTerm(channel.contextText, query.leagueName) || containsNormalizedTerm(channel.contextText, query.leagueID)
 	channelBothSides := query.segmentsContainBothSides(channel.Segments)
 	if !channelBothSides && query.segmentsContainSide(channel.Segments, query.homeName, query.homeAbbr) && query.segmentsContainSide(channel.Segments, query.awayName, query.awayAbbr) {
@@ -590,4 +578,16 @@ func joinMatchReasons(reasons map[string]bool) string {
 		values = values[:3]
 	}
 	return strings.Join(values, ", ")
+}
+
+func sportsIdentityWords(value string) []string {
+	words := []string{}
+	seen := map[string]bool{}
+	for _, word := range strings.Fields(value) {
+		if !seen[word] {
+			seen[word] = true
+			words = append(words, word)
+		}
+	}
+	return words
 }

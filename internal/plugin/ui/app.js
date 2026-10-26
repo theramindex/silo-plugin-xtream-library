@@ -490,6 +490,7 @@ function epgCellStyle(startUnix, endUnix, windowInfo) {
   return "left: calc(" + leftSlots.toFixed(4) + " * var(--epg-slot)); width: calc(" + widthSlots.toFixed(4) + " * var(--epg-slot) - 0.0625rem);";
 }
 function stopPlayback() {
+ if(state.videoAttachment){state.videoAttachment.destroy();state.videoAttachment=null;state.hls=null;state.tsPlayer=null;}
   const video = byId("player");
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
@@ -2488,28 +2489,12 @@ async function playChannel(channel) {
     showPlayerToast("Could not reserve a provider connection: " + readableError(error));
     return;
   }
-  if (liveRewindEnabled() && channel.streamFormat !== "hls") {
-    showPlayerToast("Preparing Live Rewind...");
-    try {
-      const manifestURL = await prepareTimeShift(channel);
-      setVideoSource(manifestURL, { rewindable: true, managedTimeShift: true, format: "hls", onFatal: function() { fallbackFromTimeShift(channel, "Live Rewind stopped. Continuing live."); } });
-      state.timeShiftTimelineTimer = setInterval(updateTimeShiftUI, 1000);
-      const video = byId("player");
-      if (video) {
-        video.addEventListener("timeupdate", updateTimeShiftUI, { signal: videoSourceListenerSignal() });
-        video.addEventListener("progress", updateTimeShiftUI, { signal: videoSourceListenerSignal() });
-      }
-      updateTimeShiftUI();
-      showPlayerToast("Live Rewind ready.");
-    } catch (error) {
-      if (timeShiftAttempt === state.timeShiftAttempt && !(error && error.superseded)) fallbackFromTimeShift(channel, "Live Rewind unavailable. Playing live.");
-    }
-  } else {
-    const streamURL = browserStreamURL(channel, watchSession && watchSession.id);
-    if (await showStreamBlockedIfNeeded(streamURL, channel.streamFormat)) return;
-    if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
-    setVideoSource(streamURL, { rewindable: isRewindableChannel(channel), format: channel.streamFormat, hlsBufferSeconds: channel.hlsBufferSeconds });
-  }
+  const streamURL = browserStreamURL(channel, watchSession && watchSession.id);
+  if (await showStreamBlockedIfNeeded(streamURL, channel.streamFormat)) return;
+  if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
+  const managedRewind = liveRewindEnabled() && !isRewindableChannel(channel);
+  setVideoSource(streamURL + (managedRewind ? "&media_mode=rewind" : ""), { rewindable: isRewindableChannel(channel), format: channel.streamFormat, hlsBufferSeconds: channel.hlsBufferSeconds });
+
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
   const guide = await getJSON("/dispatcharr/api/guide?channel_id=" + encodeURIComponent(channel.id)).catch(function() { return { programs: [] }; });
   if (!state.currentChannel || state.currentChannel.id !== channel.id) return;
