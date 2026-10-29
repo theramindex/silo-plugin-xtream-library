@@ -60,7 +60,6 @@ type Dependencies struct {
 
 type Service struct {
 	store              *cache.Store
-	snapshotStorage    cache.SnapshotStorage
 	xtreamFactory      func(baseURL, username, password string) XtreamClient
 	dispatcharrFactory func(settings config.Settings) DispatcharrClient
 	fetchURL           func(ctx context.Context, rawURL string) ([]byte, error)
@@ -137,7 +136,8 @@ func NewService(deps Dependencies) *Service {
 		}
 	}
 
-	return &Service{store: store, snapshotStorage: deps.SnapshotStorage, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher, openURL: opener}
+	store.SetStorage(deps.SnapshotStorage)
+	return &Service{store: store, xtreamFactory: factory, dispatcharrFactory: dispatcharrFactory, fetchURL: fetcher, openURL: opener}
 }
 
 // fetchXMLTV streams an XMLTV document from rawURL, decoding it token by token
@@ -161,13 +161,11 @@ func (s *Service) fetchXMLTV(ctx context.Context, rawURL, label string) (xmltv.D
 }
 
 func (s *Service) replaceSnapshot(snapshot cache.Snapshot) error {
-	s.store.Replace(snapshot)
-	return s.persistSnapshot()
+	return s.store.Replace(snapshot)
 }
 
 func (s *Service) replaceSnapshotExact(snapshot cache.Snapshot) error {
-	s.store.ReplaceExact(snapshot)
-	return s.persistSnapshot()
+	return s.store.ReplaceExact(snapshot)
 }
 
 func (s *Service) replaceSnapshotAfterSync(snapshot cache.Snapshot, exactGuide bool) error {
@@ -184,19 +182,11 @@ func (s *Service) replacePrograms(programs []model.Program, atUnix int64) error 
 		_ = s.persistSnapshot()
 		return err
 	}
-	s.store.ReplacePrograms(programs, atUnix)
-	return s.persistSnapshot()
+	_, err := s.store.ReplacePrograms(programs, atUnix)
+	return err
 }
 
-func (s *Service) persistSnapshot() error {
-	if s.snapshotStorage == nil {
-		return nil
-	}
-	if err := s.snapshotStorage.Save(s.store.Current()); err != nil {
-		return fmt.Errorf("persist catalog snapshot: %w", err)
-	}
-	return nil
-}
+func (s *Service) persistSnapshot() error { return s.store.Persist() }
 
 func (s *Service) SwitchSourceMode(ctx context.Context, previous, next config.Settings, nowUnix int64) (string, error) {
 	warning := ""

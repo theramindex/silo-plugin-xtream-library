@@ -34,7 +34,7 @@ func BuildHealthPayload(snapshot cache.Snapshot) HealthPayload {
 		SourceID:           snapshot.Catalog.Source.ID,
 		SourceName:         snapshot.Catalog.Source.Name,
 		ChannelCount:       len(snapshot.Catalog.Channels),
-		ProgramCount:       len(snapshot.Catalog.Programs),
+		ProgramCount:       snapshot.ProgramCount(),
 		LastSuccessUnix:    snapshot.Health.LastSuccessUnix,
 		LastFailureUnix:    snapshot.Health.LastFailureUnix,
 		LastError:          snapshot.Health.LastError,

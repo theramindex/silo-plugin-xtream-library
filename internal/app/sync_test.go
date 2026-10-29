@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1371,12 +1372,65 @@ func (s *memorySnapshotStorage) Load() (cache.Snapshot, bool, error) {
 	return s.snapshot, len(s.snapshot.Catalog.Channels) > 0, nil
 }
 
-func (s *memorySnapshotStorage) Save(snapshot cache.Snapshot) error {
+func (s *memorySnapshotStorage) Save(snapshot cache.Snapshot) (cache.Snapshot, error) {
 	s.snapshot = snapshot
 	s.saves++
-	return s.saveErr
+	return snapshot, s.saveErr
 }
 
 func (s *memorySnapshotStorage) Path() string {
 	return "memory"
+}
+
+func TestTargetedSQLiteRefreshPreservesUnrequestedChannels(t *testing.T) {
+	for _, alternate := range []bool{false, true} {
+		name := "short-guide"
+		if alternate {
+			name = "alternate-source"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+				{ID: "primary", BaseURL: "https://provider.example", Username: "user", Password: "secret", Enabled: true, AlternateEPGEnabled: alternate, AlternateEPGURL: "https://epg.example/guide.xml"},
+				{ID: "backup", BaseURL: "https://backup.example", Username: "user", Password: "secret", Enabled: true},
+			}, ChannelRefreshH: 24, EPGRefreshH: 6}
+			storage := cache.NewFileSnapshotStorage(filepath.Join(t.TempDir(), "catalog.json"))
+			defer storage.Close()
+			store := cache.NewStore()
+			client := &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "fresh", Title: "Fresh Primary", StartTimestamp: "1783944000", StopTimestamp: "1783947600"}}}}
+			service := NewService(Dependencies{Store: store, SnapshotStorage: storage,
+				XtreamFactory: func(string, string, string) XtreamClient { return client },
+				FetchURL: func(_ context.Context, rawURL string) ([]byte, error) {
+					if rawURL == "https://epg.example/guide.xml" {
+						return []byte(`<tv><channel id="news"><display-name>News</display-name></channel><programme channel="news" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Fresh Primary</title></programme></tv>`), nil
+					}
+					return []byte(`<tv></tv>`), nil
+				},
+			})
+			if err := store.Replace(cache.Snapshot{ConfigKey: config.CatalogCacheKey(settings), Catalog: model.CatalogState{
+				Source:   model.LiveTVSource(model.SourceModeXtream),
+				Channels: []model.Channel{{ID: "xtream:1001", SourceID: "xtream-source:primary", Name: "News"}, {ID: "xtream:backup:2001", SourceID: "xtream-source:backup", Name: "Movies"}},
+				Programs: []model.Program{
+					{ID: "old-primary", ChannelID: "xtream:1001", Title: "Old Primary", StartUnix: 1783925000, EndUnix: 1783929600},
+					{ID: "keep-backup", ChannelID: "xtream:backup:2001", Title: "Keep Backup", StartUnix: 1783925000, EndUnix: 1783929600},
+				},
+			}}); err != nil {
+				t.Fatal(err)
+			}
+			if err := service.RefreshGuideChannelsNow(ctx, settings, []string{"xtream:1001"}, 1783926000); err != nil {
+				t.Fatal(err)
+			}
+			programs, err := store.Current().ProgramQuery(ctx, nil, 0, 2000000000)
+			if err != nil || len(programs) != 2 {
+				t.Fatalf("targeted refresh lost an unrelated guide: %+v, %v", programs, err)
+			}
+			titles := map[string]string{}
+			for _, program := range programs {
+				titles[program.ChannelID] = program.Title
+			}
+			if titles["xtream:1001"] != "Fresh Primary" || titles["xtream:backup:2001"] != "Keep Backup" {
+				t.Fatalf("targeted refresh did not merge new and retained listings: %v", titles)
+			}
+		})
+	}
 }

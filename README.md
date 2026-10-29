@@ -120,8 +120,8 @@ default.
 ## Guide API
 
 `GET /dispatcharr/api/guide` returns `{"programs":[...]}` ordered by start time, then program ID.
-The guide is indexed once per catalog snapshot, so requests never copy or
-re-sort the full guide. Optional query parameters:
+Schedules are persisted in an indexed local SQLite database. Channel/time
+filters read only the requested window. Optional query parameters:
 
 | Parameter | Meaning |
 | --- | --- |
@@ -133,6 +133,25 @@ re-sort the full guide. Optional query parameters:
 With no parameters the full guide is returned (backward compatible). A program
 without an end time matches when its start lies inside the window. Invalid
 numbers, more than 2000 channels, or `start >= end` return `400`.
+
+### Local guide storage
+
+The private catalog directory contains `catalog-snapshot.sqlite`. The database
+uses WAL mode and must be on a local filesystem. Each refresh commits the
+lineup metadata and programme replacement together. Readers continue using
+the last committed guide while the import runs. Health-only updates do not
+rewrite programme rows.
+
+Existing `catalog-snapshot.json` files are served while a background import
+migrates them. The JSON file is retained as a rollback copy; after migration,
+SQLite takes precedence and the JSON copy is no longer updated. Startup reads
+catalog metadata without deserializing the complete schedule. Normal guide
+requests fetch channel/time windows; the unfiltered full-guide export remains
+available. A cache read failure returns `503`, rather than an empty successful
+guide. Sports preparation keeps its derived matching index in memory.
+
+Each account keeps its own database beside its existing sealed source registry;
+lineups and guide rows are not shared between accounts.
 
 ## Out of scope
 

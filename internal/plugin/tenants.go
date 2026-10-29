@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -131,6 +132,15 @@ func (r *TenantRouter) newTenant(userID string) *tenant {
 	// resolve to a public address (no LAN, loopback, or metadata endpoints).
 	catalogClient := upstreamhttp.NewUntrusted(5 * time.Minute)
 	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshots, HTTPClient: catalogClient})
+	if store.Current().Guide == nil && store.Current().ProgramCount() > 0 {
+		go func() {
+			legacyGuideImports <- struct{}{}
+			defer func() { <-legacyGuideImports }()
+			if err := store.Persist(); err != nil {
+				log.Printf("xtream: guide cache migration failed: %v", err)
+			}
+		}()
+	}
 	coordinator := NewRefreshCoordinator(service)
 
 	server := newHTTPRoutesServer(store, settings, nil)
@@ -186,3 +196,5 @@ func (r *TenantRouter) persistedTenants() []*tenant {
 	}
 	return tenants
 }
+
+var legacyGuideImports = make(chan struct{}, 2)

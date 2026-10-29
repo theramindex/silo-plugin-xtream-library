@@ -367,7 +367,10 @@ func (s *HTTPRoutesServer) handleLiveTVPrograms(ctx context.Context, request *pl
 		return jsonHTTPResponse(http.StatusBadRequest, livetvError{Code: "bad_request"})
 	}
 	s.ensureCatalogHydrated(ctx)
-	index := s.guideIndex.get(s.store.Current())
+	index, err := s.windowGuideIndex(ctx, query.ChannelIDs, query.Window)
+	if err != nil {
+		return jsonHTTPResponse(http.StatusServiceUnavailable, livetvError{Code: "guide_unavailable"})
+	}
 	sports := s.livetvSportsSlots()
 	programs := livetvSelectPrograms(index, query, sports)
 	// The guide is loaded per channel on demand; see livetv_guide_fill.go.

@@ -195,7 +195,7 @@ func TestStoreReplaceProgramsKeepsGuideOnSharpDropEvenWhileLoading(t *testing.T)
 	store.ReplacePrograms(regressionTestPrograms(4, 5, 10_000), 200)
 	store.MarkEPGLoading()
 
-	if applied := store.ReplacePrograms(regressionTestPrograms(1, 3, 10_000), 300); applied {
+	if applied, err := store.ReplacePrograms(regressionTestPrograms(1, 3, 10_000), 300); err != nil || applied {
 		t.Fatal("expected sharp drop to be rejected")
 	}
 	current := store.Current()
@@ -207,7 +207,7 @@ func TestStoreReplaceProgramsKeepsGuideOnSharpDropEvenWhileLoading(t *testing.T)
 	}
 
 	// A comparable refresh is applied and clears the warning.
-	if applied := store.ReplacePrograms(regressionTestPrograms(4, 3, 10_000), 400); !applied {
+	if applied, err := store.ReplacePrograms(regressionTestPrograms(4, 3, 10_000), 400); err != nil || !applied {
 		t.Fatal("expected comparable guide to apply")
 	}
 	current = store.Current()
@@ -224,7 +224,7 @@ func TestStoreReplaceProgramsRejectsChannelCoverageCollapse(t *testing.T) {
 	store.ReplacePrograms(regressionTestPrograms(6, 2, 10_000), 200)
 
 	// Same program count, but only 2 of 6 channels covered.
-	if store.ReplacePrograms(regressionTestPrograms(2, 6, 10_000), 300) {
+	if applied, err := store.ReplacePrograms(regressionTestPrograms(2, 6, 10_000), 300); err != nil || applied {
 		t.Fatal("expected coverage collapse to be rejected")
 	}
 }
@@ -237,7 +237,7 @@ func TestStoreReplaceProgramsIgnoresExpiredPrograms(t *testing.T) {
 	store.ReplacePrograms(regressionTestPrograms(4, 5, 1_000), 200)
 
 	// The old guide has fully ended by t=5000, so a small fresh guide applies.
-	if !store.ReplacePrograms(regressionTestPrograms(1, 1, 9_000), 5_000) {
+	if applied, err := store.ReplacePrograms(regressionTestPrograms(1, 1, 9_000), 5000); err != nil || !applied {
 		t.Fatal("expected fresh guide to replace an expired one")
 	}
 }

@@ -186,7 +186,8 @@ func TestScheduledTaskServerPersistsXtreamGuideForNextPluginProcess(t *testing.T
 	if err != nil || !ok {
 		t.Fatalf("load persisted guide: ok=%v err=%v", ok, err)
 	}
-	if len(persisted.Catalog.Programs) != 1 || persisted.Catalog.Programs[0].Title != "Morning News" {
+	programs, err := persisted.ProgramQuery(context.Background(), nil, 0, 1<<62)
+	if err != nil || len(programs) != 1 || programs[0].Title != "Morning News" {
 		t.Fatalf("expected next plugin process to load guide, got %+v", persisted.Catalog.Programs)
 	}
 }

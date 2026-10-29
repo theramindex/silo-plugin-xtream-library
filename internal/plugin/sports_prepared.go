@@ -24,6 +24,9 @@ func (s *HTTPRoutesServer) sportsPayloadWithBudget(ctx context.Context, refresh 
 // buildSportsPayload reuses the guide extraction already prepared by the
 // background rebuild, instead of parsing it again for the provider merge.
 func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool, budget sportsBuildBudget, snapshot cache.Snapshot, now time.Time, guide sportsGuideData) SportsPayload {
+	if guide.Unavailable {
+		return SportsPayload{Source: "Guide cache", UpdatedAtUnix: now.Unix(), Events: []SportsEvent{}, Leagues: []SportsLeague{}, FavoriteTeams: []string{}, Incomplete: true, Error: "Guide cache is temporarily unavailable. Retrying."}
+	}
 	guideEvents := guide.Events
 	providerCtx, cancelProvider := context.WithTimeout(ctx, budget.Provider)
 	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh || guide.RefreshScores)

@@ -321,7 +321,10 @@ func (s *HTTPRoutesServer) Handle(ctx context.Context, request *pluginv1.HandleH
 		if err != nil {
 			return textResponse(http.StatusBadRequest, err.Error()), nil
 		}
-		index := s.guideIndex.get(s.store.Current())
+		index, err := s.windowGuideIndex(ctx, query.ChannelIDs, query.Window)
+		if err != nil {
+			return textResponse(http.StatusServiceUnavailable, "guide cache is temporarily unavailable"), nil
+		}
 		return s.respondJSON(http.StatusOK, GuidePayload{Programs: index.query(query.ChannelIDs, query.Window)})
 	case "/dispatcharr/api/guide/ping":
 		return s.handleGuidePing(ctx, request)
@@ -562,7 +565,7 @@ func (s *HTTPRoutesServer) ensureCatalogHydrated(ctx context.Context) {
 		s.store.RecordFailure(time.Now().Unix(), err.Error())
 		return
 	}
-	if len(s.store.Current().Catalog.Programs) == 0 {
+	if s.store.Current().ProgramCount() == 0 {
 		_, _ = s.startBackgroundGuideWarm(settings)
 	}
 }
@@ -685,7 +688,12 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 	if len(channelIDs) > guidePingChannelLimit {
 		channelIDs = channelIDs[:guidePingChannelLimit]
 	}
-	currentPrograms := currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
+	nowUnix := time.Now().Unix()
+	currentGuide, err := s.store.Current().ProgramQuery(ctx, channelIDs, nowUnix, nowUnix+1)
+	if err != nil {
+		return textResponse(http.StatusServiceUnavailable, "guide cache is temporarily unavailable"), nil
+	}
+	currentPrograms := currentProgramCountForChannels(currentGuide, channelIDs, nowUnix)
 	if len(channelIDs) == 0 || currentPrograms >= len(channelIDs) {
 		return s.respondJSON(http.StatusOK, GuidePingPayload{Status: "fresh", CheckedChannels: len(channelIDs), CurrentPrograms: currentPrograms})
 	}
@@ -700,7 +708,12 @@ func (s *HTTPRoutesServer) handleGuidePing(ctx context.Context, request *pluginv
 		s.store.RecordEPGFailure(time.Now().Unix(), err.Error())
 		return textResponse(http.StatusBadGateway, "guide refresh failed"), nil
 	}
-	currentPrograms = currentProgramCountForChannels(s.store.Current().Catalog.Programs, channelIDs, time.Now().Unix())
+	nowUnix = time.Now().Unix()
+	currentGuide, err = s.store.Current().ProgramQuery(ctx, channelIDs, nowUnix, nowUnix+1)
+	if err != nil {
+		return textResponse(http.StatusServiceUnavailable, "guide cache is temporarily unavailable"), nil
+	}
+	currentPrograms = currentProgramCountForChannels(currentGuide, channelIDs, nowUnix)
 	return s.respondJSON(http.StatusOK, GuidePingPayload{
 		Status:          "fresh",
 		CheckedChannels: len(channelIDs),

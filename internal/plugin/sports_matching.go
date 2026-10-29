@@ -66,6 +66,8 @@ func newSportsChannelIndex(snapshot cache.Snapshot) sportsChannelIndex {
 	}
 	programsByChannel := map[string][]sportsIndexedProgram{}
 	for _, program := range snapshot.Catalog.Programs {
+		program.Summary = ""
+		program.ImageURL = ""
 		programsByChannel[program.ChannelID] = append(programsByChannel[program.ChannelID], sportsIndexedProgram{
 			Program:  program,
 			Text:     normalizeMatchText(program.Title),

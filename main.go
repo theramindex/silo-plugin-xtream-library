@@ -152,8 +152,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	if len(os.Args) > 1 && os.Args[1] == "manifest" {
+		sdkruntime.Serve(sdkruntime.ServeConfig{Servers: sdkruntime.CapabilityServers{Runtime: &runtimeServer{manifest: manifest}}})
+		return
+	}
 	store := cache.NewStore()
 	snapshotStorage := cache.NewFileSnapshotStorage("")
+	defer snapshotStorage.Close()
 	if snapshot, ok, loadErr := snapshotStorage.Load(); loadErr != nil {
 		log.Printf("xtream: load catalog snapshot failed: %v", loadErr)
 	} else if ok {
@@ -165,6 +170,13 @@ func main() {
 		return settingsWithRegisteredSources(settings.Get(), sourceRegistry)
 	}
 	service := app.NewService(app.Dependencies{Store: store, SnapshotStorage: snapshotStorage})
+	if store.Current().Guide == nil && store.Current().ProgramCount() > 0 {
+		go func() {
+			if err := store.Persist(); err != nil {
+				fmt.Fprintf(os.Stderr, "guide cache migration failed: %v\n", err)
+			}
+		}()
+	}
 	coordinator := pluginimpl.NewRefreshCoordinator(service)
 
 	shared := pluginimpl.NewHTTPRoutesServerWithCoordinatorAndAdminSettingsFile(store, settingsProvider, coordinator, "")
