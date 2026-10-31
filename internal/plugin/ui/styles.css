@@ -2195,3 +2195,8 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
 .my-providers-card { margin-bottom: 0; }
 
 .station-mappings{margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)}.station-mappings h3{margin:0 0 .65rem}.station-mappings p{color:var(--muted);font-size:.875rem}.station-mapping-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) 6rem;gap:.75rem;margin-top:1rem}.station-mapping-form label{display:grid;gap:.4rem;min-width:0}.station-mapping-form>button,.station-mapping-form>p{grid-column:1/-1}.station-mapping-form input{width:100%;min-width:0}@media(max-width:700px){.station-mapping-form{grid-template-columns:1fr}.station-mapping-list .settings-row{align-items:flex-start;gap:.75rem}.station-mapping-list span{overflow-wrap:anywhere}}
+
+.sports-team-channel-form { display: flex; flex-wrap: wrap; align-items: end; gap: 0.6rem; margin-top: 0.6rem; }
+.sports-team-channel-form label { display: grid; gap: 0.25rem; min-width: 14rem; flex: 1 1 14rem; font-size: 0.74rem; font-weight: 600; color: var(--muted); }
+.sports-team-channel-form select { min-height: 2.4rem; border: 1px solid var(--line); border-radius: 0.5rem; background: var(--panel); color: var(--text); padding: 0 0.6rem; font: inherit; font-size: 0.84rem; }
+.sports-team-channel-form button, .sports-team-channel-list button { min-height: 2.4rem; border: 1px solid var(--line); border-radius: 999px; background: var(--panel-2); color: var(--text); padding: 0 0.9rem; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }

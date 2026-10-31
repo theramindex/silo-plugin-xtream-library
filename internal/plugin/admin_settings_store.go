@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
 )
 
 const DefaultAdminSettingsFile = "/var/lib/continuum/plugins/silo.ramindex.xtream/category-settings.json"
@@ -185,6 +187,7 @@ func normalizeAdminSettingsPayload(payload map[string]any) map[string]any {
 
 	return map[string]any{
 		userSourcesEnabledKey:            payload[userSourcesEnabledKey] == true,
+		"sportsGuide":                    sportsguide.DecodePolicy(payload["sportsGuide"]),
 		"sportsEnabled":                  payload["sportsEnabled"] == true,
 		"mode":                           mode,
 		"delimiter":                      delimiter,

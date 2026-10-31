@@ -16,6 +16,8 @@ import (
 	pluginv1 "github.com/Silo-Server/silo-plugin-sdk/pkg/pluginproto/silo/plugin/v1"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
+
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
 )
 
 // The livetv/v1 contract (testdata/livetv-v1/contract.md) is what Silo's
@@ -245,14 +247,15 @@ func jsonHTTPResponse(status int, value any) *pluginv1.HandleHTTPResponse {
 
 // livetvProgram is one guide entry in GET /silo-compat/livetv/v1/programs.
 type livetvProgram struct {
-	ID         string   `json:"id"`
-	ChannelID  string   `json:"channelId"`
-	Title      string   `json:"title"`
-	Summary    string   `json:"summary"`
-	StartUnix  int64    `json:"startUnix"`
-	EndUnix    int64    `json:"endUnix"`
-	ImageURL   string   `json:"imageUrl"`
-	Categories []string `json:"categories"`
+	Generated  *sportsguide.Provenance `json:"generated,omitempty"`
+	ID         string                  `json:"id"`
+	ChannelID  string                  `json:"channelId"`
+	Title      string                  `json:"title"`
+	Summary    string                  `json:"summary"`
+	StartUnix  int64                   `json:"startUnix"`
+	EndUnix    int64                   `json:"endUnix"`
+	ImageURL   string                  `json:"imageUrl"`
+	Categories []string                `json:"categories"`
 	livetvFlags
 	// Featured marks a program matched to a game in the sports guide.
 	Featured bool `json:"featured"`
@@ -512,6 +515,7 @@ func livetvBuildPrograms(candidates []livetvCandidate) []livetvProgram {
 			categories = []string{}
 		}
 		item := livetvProgram{
+			Generated:   program.Generated,
 			ID:          program.ID,
 			ChannelID:   program.ChannelID,
 			Title:       program.Title,

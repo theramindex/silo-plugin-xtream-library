@@ -5,12 +5,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/theramindex/silo-plugin-xtream-library/internal/model"
 	"github.com/theramindex/silo-plugins/pkg/epg"
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
 )
 
 type Snapshot struct {
@@ -26,6 +28,10 @@ type Snapshot struct {
 }
 
 type Store struct {
+	storagePath   atomic.Value
+	overlayMu     sync.Mutex
+	overlay       *sportsguide.Store
+	overlayPath   string
 	current       atomic.Value // Immutable published Snapshot; imports never block readers.
 	watchMu       sync.Mutex
 	adminMu       sync.RWMutex
@@ -474,6 +480,11 @@ func (s *Store) SetStorage(storage SnapshotStorage) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.storage = storage
+	path := ""
+	if storage != nil {
+		path = storage.Path()
+	}
+	s.storagePath.Store(path)
 }
 func (s *Store) Persist() error {
 	s.mu.Lock()
@@ -491,6 +502,36 @@ func (s *Store) Persist() error {
 		s.touchLocked()
 	} else {
 		s.current.Store(snapshot)
+	}
+	return nil
+}
+
+// GuideOverlay belongs to the same installation/account as the catalog.
+func (s *Store) GuideOverlay() (*sportsguide.Store, error) {
+	s.overlayMu.Lock()
+	defer s.overlayMu.Unlock()
+	path := ""
+	if value := s.storagePath.Load(); value != nil && value.(string) != "" {
+		path = filepath.Join(filepath.Dir(value.(string)), "sports-guide.sqlite")
+	}
+	if s.overlay != nil && s.overlayPath == path {
+		return s.overlay, nil
+	}
+	overlay, err := sportsguide.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	if s.overlay != nil {
+		_ = s.overlay.Close()
+	}
+	s.overlay, s.overlayPath = overlay, path
+	return overlay, nil
+}
+func (s *Store) Close() error {
+	s.overlayMu.Lock()
+	defer s.overlayMu.Unlock()
+	if s.overlay != nil {
+		return s.overlay.Close()
 	}
 	return nil
 }

@@ -35,6 +35,7 @@ function loadSports(force, preparedOnly) {
     state.sportsLoading = false;
     renderRail();
     if (state.view === "sports") renderSportsPage();
+    if (state.view === "admin" && state.adminTab === "settings") renderAdminPage();
     if (state.view === "mytv") {
       updateMyTVSearchSurface();
       ensureMyTVTeamCatalog(state.myTVQuery);

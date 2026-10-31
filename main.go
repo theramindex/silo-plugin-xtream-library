@@ -157,6 +157,7 @@ func main() {
 		return
 	}
 	store := cache.NewStore()
+	defer store.Close()
 	snapshotStorage := cache.NewFileSnapshotStorage("")
 	defer snapshotStorage.Close()
 	if snapshot, ok, loadErr := snapshotStorage.Load(); loadErr != nil {
@@ -183,6 +184,7 @@ func main() {
 	// Per-user tenants start from the admin's runtime settings but never see
 	// the admin's source registry.
 	router := pluginimpl.NewTenantRouter(shared, settings.Get, "")
+	defer router.Close()
 
 	sdkruntime.Serve(sdkruntime.ServeConfig{
 		Servers: sdkruntime.CapabilityServers{

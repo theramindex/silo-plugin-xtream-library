@@ -291,7 +291,7 @@ function defaultEventKeywordRules() {
   ];
 }
 function defaultAdminCategorySettings() {
-  return { userSourcesEnabled: false, sportsEnabled: false, mode: "normal", delimiter: "pipe", virtualGroupLabel: "Categories", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, allowDirectProviderURLs: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
+  return { sportsGuide: { enabled: true, groups: [], overrides: [] }, userSourcesEnabled: false, sportsEnabled: false, mode: "normal", delimiter: "pipe", virtualGroupLabel: "Categories", virtualGroupSource: "group", collapseDuplicateVirtualGroups: true, allowRecordingsByDefault: true, allowDirectProviderURLs: true, sportsFirstPlayerEnabled: false, liveRewindEnabled: false, liveRewindCacheGB: 5, liveRewindWindowMinutes: 30, liveRewindMinFreeGB: 2, liveRewindMaxChannels: 20, inferChannelNameGroups: false, ecmEnabled: false, ecmURL: "", categoryRenames: [], categoryAliases: [], eventKeywords: defaultEventKeywordRules() };
 }
 function cloneAdminCategorySettings(settings) {
   try { return JSON.parse(JSON.stringify(Object.assign(defaultAdminCategorySettings(), settings || {}))); }
@@ -413,6 +413,9 @@ function normalizePreferences() {
   invalidateProfileSelectionCache();
 }
 function normalizeAdminCategorySettings() {
+  state.adminCategorySettings = state.adminCategorySettings || defaultAdminCategorySettings();
+  const guidePolicy = state.adminCategorySettings.sportsGuide || {};
+  state.adminCategorySettings.sportsGuide = { enabled: guidePolicy.enabled !== false, groups: items(guidePolicy.groups), overrides: items(guidePolicy.overrides) };
   state.adminCategorySettings = Object.assign(defaultAdminCategorySettings(), state.adminCategorySettings || {});
   if (state.adminCategorySettings.mode === "custom" || state.adminCategorySettings.mode === "admin_delimiter") state.adminCategorySettings.mode = "delimiter";
   if (["normal", "delimiter"].indexOf(state.adminCategorySettings.mode) === -1) state.adminCategorySettings.mode = "normal";

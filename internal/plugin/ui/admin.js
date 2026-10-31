@@ -13,6 +13,7 @@ function saveAdminCategorySettings() {
     state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
     state.adminSaveStatus = "saved";
     state.adminSaveMessage = "Saved plugin settings.";
+    if (sportsEnabled()) loadSports(true, true);
     if (state.view === "admin") renderAdminPage();
   }).catch(function(error) {
     state.adminSaveStatus = "error";
@@ -41,6 +42,10 @@ async function loadAdminApp() {
   state.savedAdminCategorySettings = cloneAdminCategorySettings(state.adminCategorySettings);
   state.adminSources = items(results[2] && results[2].sources);
   render();
+  if (!adminSettings().userSourcesEnabled) {
+    getJSON("/dispatcharr/api/channels").then(function(payload) { state.app.channels = items(payload && payload.channels); if (state.view === "admin") renderAdminPage(); }).catch(function() {});
+  }
+  if (sportsEnabled()) loadSports(false).then(function() { if (state.view === "admin") renderAdminPage(); });
 }
 // The /api/app bootstrap carries isAdmin (stamped from X-Silo-User-Role by the
 // host). Anything other than an explicit true is treated as a regular user.
@@ -151,6 +156,7 @@ function renderAdminPage() {
   if (state.adminTab === "settings") {
     renderAdminCategorySettings();
     renderAdminCategoryAliasSettings();
+    if (sportsEnabled() && !state.sports && !state.sportsLoading) loadSports(false);
   }
 }
 function renderAdminTopbarTabs() {
@@ -346,6 +352,7 @@ function renderAdminSettingsTab() {
     + '<div class="settings-card"><div class="settings-card-head"><div><h2>Provider accounts</h2><p>Choose whether everyone shares the sources on the Sources tab, or each user brings their own.</p></div></div><label class="settings-row"><span><strong>Users add their own providers</strong><small>Each user enters their own Xtream Codes server and credentials in Settings and gets their own channels and guide. Users without a provider see nothing; shared sources are not used. Admins cannot view or use anyone&#39;s credentials.</small></span><input type="checkbox" data-admin-category-field="userSourcesEnabled"' + (adminSettings().userSourcesEnabled === true ? ' checked' : '') + '></label></div>'
     + '<div class="settings-card"><div class="settings-card-head"><div><h2>Playback privacy</h2><p>Choose whether streams that cannot be relayed may expose provider credentials.</p></div></div><label class="settings-row"><span><strong>Allow direct provider URLs</strong><small>TS live, VOD, series and catch-up can&#39;t be relayed through Silo, so playback sends the provider URL, including your account credentials, to the viewer&#39;s browser. Turn off to block those streams unless the provider serves HLS.</small></span><input type="checkbox" data-admin-category-field="allowDirectProviderURLs"' + (adminSettings().allowDirectProviderURLs !== false ? ' checked' : '') + '></label></div>'
     + '<div class="settings-card"><div class="settings-card-head"><div><h2>Sports</h2><p>Live scores and matched coverage. Replays come only from provider REPLAY channels.</p></div></div><label class="settings-row"><span><strong>Enable Sports</strong><small>Show Sports browsing and team follows.</small></span><input type="checkbox" data-admin-category-field="sportsEnabled"' + (sportsEnabled() ? ' checked' : '') + '></label></div>'
+    + '<div class="settings-card">' + renderAdminSportsGuide(adminSettings()) + '</div>'
     + "<div class=\"settings-card organization-card\"><div class=\"settings-card-head\"><div><h2>Category organization</h2><p>Choose how provider categories become folders in XC for Silo.</p></div></div><section class=\"organization-section\"><div id=\"admin-category-settings\" class=\"settings-list\"></div></section><section class=\"organization-section organization-alias-section\"><div class=\"organization-section-head\"><div><h3>Alternate paths</h3><p>Show a provider category in another location without changing the source.</p></div></div><div id=\"admin-category-alias-settings\" class=\"settings-list\"></div></section></div>"
     + "";
 }
@@ -537,4 +544,63 @@ function adminFeaturedEventMap() {
     if (id) featured[id] = true;
   });
   return featured;
+}
+
+function adminSportsGuidePolicy(settings) {
+  const policy = settings.sportsGuide || {};
+  return { enabled: policy.enabled !== false, groups: items(policy.groups).slice(), overrides: items(policy.overrides).slice() };
+}
+function renderAdminSportsGuide(settings) {
+  const policy = adminSportsGuidePolicy(settings);
+  const channels = items(state.app && state.app.channels);
+  const groups = {};
+  channels.forEach(function(ch) { if (ch.categoryId) groups[ch.categoryId] = ch.categoryName || ch.categoryId; });
+  const leagues = items(state.sports && state.sports.leagues);
+  const events = items(state.sports && state.sports.events).filter(function(event) { return String(event.id || "").indexOf("epg:") !== 0; });
+  const option = function(value, label) { return "<option value=\"" + escapeHTML(value) + "\">" + escapeHTML(label) + "</option>"; };
+  const channelOptions = option("", "Choose a channel") + channels.map(function(ch) { return option(ch.id, ch.name || ch.id); }).join("");
+  const rules = policy.groups.map(function(rule, i) {
+    return "<div class=\"profile-selection-row\"><span><strong>" + escapeHTML(groups[rule.groupId] || rule.groupId) + "</strong><small>" + escapeHTML((rule.leagueId || "Automatic league") + " · " + (rule.mode || "auto")) + "</small></span><button type=\"button\" data-admin-sports-action=\"guide-remove-group\" data-guide-index=\"" + i + "\" aria-label=\"Remove group hint\">" + icon("x") + "</button></div>";
+  }).join("");
+  const links = policy.overrides.map(function(link, i) {
+    const channel = channels.find(function(ch) { return ch.id === link.channelId; });
+    const event = events.find(function(event) { return event.id === link.eventId; });
+    return "<div class=\"profile-selection-row\"><span><strong>" + escapeHTML((channel && channel.name) || link.channelId) + "</strong><small>" + escapeHTML(link.disabled ? "Automatic fill disabled" : ((event && event.name) || link.eventId)) + "</small></span><button type=\"button\" data-admin-sports-action=\"guide-remove-link\" data-guide-index=\"" + i + "\" aria-label=\"Remove event link\">" + icon("x") + "</button></div>";
+  }).join("");
+  return "<div class=\"settings-card-head sports-library-head\"><div><h3>Sports guide</h3><p>Fill gaps in the guide from confidently matched sports schedules. Provider listings stay in place. Generated windows are estimates.</p></div></div>"
+    + "<label class=\"settings-row compact-row\"><span><strong>Fill missing sports listings</strong><small>Pregame, game, and postgame entries are cached for all guide views.</small></span><input type=\"checkbox\" data-admin-category-field=\"sportsGuideEnabled\"" + (policy.enabled ? " checked" : "") + "></label>"
+    + "<h4>Group hints</h4><p class=\"settings-note\">Narrow a group to one league, use tournament/session matching, or turn filling off for that group.</p>"
+    + (rules ? "<div class=\"profile-selection-list\">" + rules + "</div>" : "")
+    + "<div class=\"sports-team-channel-form\"><label><span>Group</span><select id=\"admin-guide-group\">" + option("", "Choose a group") + Object.keys(groups).sort().map(function(id) { return option(id, groups[id]); }).join("") + "</select></label>"
+    + "<label><span>League</span><select id=\"admin-guide-league\">" + option("", "Automatic league") + leagues.map(function(league) { return option(league.id, league.name || league.id); }).join("") + "</select></label>"
+    + "<label><span>Matching</span><select id=\"admin-guide-mode\">" + option("auto", "Automatic") + option("matchup", "Two competitors") + option("session", "Tournament or session") + option("off", "Do not fill") + "</select></label><button type=\"button\" data-admin-sports-action=\"guide-add-group\">Set hint</button></div>"
+    + "<h4>Manual event links</h4><p class=\"settings-note\">Link an ambiguous channel to a scheduled event. The link expires with that event; it never rolls forward to another game.</p>"
+    + (links ? "<div class=\"profile-selection-list\">" + links + "</div>" : "")
+    + "<div class=\"sports-team-channel-form\"><label><span>Channel</span><select id=\"admin-guide-channel\">" + channelOptions + "</select></label>"
+    + "<label><span>Event</span><select id=\"admin-guide-event\">" + option("", "Choose an event") + option("__off", "Do not fill this channel") + events.map(function(event) { return option(event.id, (event.name || event.id) + " · " + new Date(Number(event.startUnix) * 1000).toLocaleString()); }).join("") + "</select></label><button type=\"button\" data-admin-sports-action=\"guide-add-link\">Set link</button></div>";
+}
+function updateAdminSportsGuide(action, target) {
+  const settings = state.adminCategorySettings || defaultAdminCategorySettings();
+  const policy = adminSportsGuidePolicy(settings);
+  const value = function(id) { const input = byId(id); return input ? String(input.value || "") : ""; };
+  if (action === "guide-add-group") {
+    const groupId = value("admin-guide-group");
+    if (!groupId) return;
+    policy.groups = policy.groups.filter(function(rule) { return rule.groupId !== groupId; });
+    policy.groups.push({ groupId: groupId, leagueId: value("admin-guide-league"), mode: value("admin-guide-mode") });
+  } else if (action === "guide-add-link") {
+    const channelId = value("admin-guide-channel"), eventId = value("admin-guide-event");
+    if (!channelId || !eventId) return;
+    policy.overrides = policy.overrides.filter(function(link) { return link.channelId !== channelId; });
+    policy.overrides.push({ channelId: channelId, eventId: eventId === "__off" ? "" : eventId, disabled: eventId === "__off" });
+  } else {
+    const index = Number(target.getAttribute("data-guide-index"));
+    const rows = action === "guide-remove-group" ? policy.groups : policy.overrides;
+    if (!Number.isInteger(index) || index < 0 || index >= rows.length) return;
+    rows.splice(index, 1);
+  }
+  settings.sportsGuide = policy;
+  state.adminCategorySettings = settings;
+  markAdminSettingsDraft();
+  renderAdminPage();
 }

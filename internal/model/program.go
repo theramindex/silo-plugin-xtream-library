@@ -1,6 +1,10 @@
 package model
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
+)
 
 type ProgramIdentity struct {
 	UpstreamID string
@@ -10,14 +14,15 @@ type ProgramIdentity struct {
 }
 
 type Program struct {
-	ID         string   `json:"id"`
-	ChannelID  string   `json:"channelId"`
-	Title      string   `json:"title"`
-	Summary    string   `json:"summary,omitempty"`
-	ImageURL   string   `json:"imageUrl,omitempty"`
-	Categories []string `json:"categories,omitempty"`
-	StartUnix  int64    `json:"startUnix"`
-	EndUnix    int64    `json:"endUnix"`
+	Generated  *sportsguide.Provenance `json:"generated,omitempty"`
+	ID         string                  `json:"id"`
+	ChannelID  string                  `json:"channelId"`
+	Title      string                  `json:"title"`
+	Summary    string                  `json:"summary,omitempty"`
+	ImageURL   string                  `json:"imageUrl,omitempty"`
+	Categories []string                `json:"categories,omitempty"`
+	StartUnix  int64                   `json:"startUnix"`
+	EndUnix    int64                   `json:"endUnix"`
 }
 
 func StableProgramID(identity ProgramIdentity) string {

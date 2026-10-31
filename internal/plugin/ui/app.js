@@ -2502,6 +2502,10 @@ async function playChannel(channel) {
   if (nowGuide) nowGuide.innerHTML = items(guide.programs).slice(0, 6).map(function(program) { return "<div class=\"program\"><time>" + escapeHTML(timeLabel(program.startUnix)) + "</time><strong>" + escapeHTML(program.title || "Untitled") + "</strong></div>"; }).join("") || "<div class=\"empty\">No guide entries.</div>";
 }
 document.addEventListener("click", function(event) {
+  const guideAction = event.target.closest("[data-admin-sports-action]");
+  if (guideAction && String(guideAction.getAttribute("data-admin-sports-action")).indexOf("guide-") === 0) {
+    event.preventDefault(); updateAdminSportsGuide(guideAction.getAttribute("data-admin-sports-action"), guideAction); return;
+  }
   const guideCategory = event.target.closest("[data-guide-category]");
   if (guideCategory) {
     event.preventDefault();
@@ -3098,6 +3102,11 @@ document.addEventListener("change", function(event) {
     return;
   }
   const adminField = event.target.getAttribute("data-admin-category-field");
+  if (adminField === "sportsGuideEnabled") {
+    state.adminCategorySettings.sportsGuide = adminSportsGuidePolicy(adminSettings());
+    state.adminCategorySettings.sportsGuide.enabled = !!event.target.checked;
+    markAdminSettingsDraft(); return;
+  }
   if (adminField) {
     updateCategoryParsingField(adminField, event.target);
     return;

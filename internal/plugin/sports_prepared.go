@@ -2,11 +2,13 @@ package plugin
 
 import (
 	"context"
+	"log"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/theramindex/silo-plugin-xtream-library/internal/cache"
+	"github.com/theramindex/silo-plugins/pkg/sportsguide"
 )
 
 func (s *HTTPRoutesServer) sportsPayload(ctx context.Context, refresh bool) SportsPayload {
@@ -31,6 +33,7 @@ func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool,
 	providerCtx, cancelProvider := context.WithTimeout(ctx, budget.Provider)
 	events, updatedUnix, source, err := s.cachedSportsEvents(providerCtx, now, refresh || guide.RefreshScores)
 	cancelProvider()
+	schedule := independentGuideSchedule(events, source, err)
 	if len(guideEvents) > 0 {
 		if len(events) == 0 {
 			events = guideEvents
@@ -100,6 +103,7 @@ func (s *HTTPRoutesServer) buildSportsPayload(ctx context.Context, refresh bool,
 	events = rankSportsEvents(events, now)
 	events = s.proxySportsEventImages(events)
 	payload := SportsPayload{
+		guideSchedule: schedule,
 		UpdatedAtUnix: updatedUnix,
 		Source:        source,
 		Leagues:       sportsLeagues(events),
@@ -185,7 +189,9 @@ func (s *HTTPRoutesServer) preparedSportsPayload(refresh bool) SportsPayload {
 // payload is missing, stale or behind the guide. sportsPreparedMu must be held.
 func (s *HTTPRoutesServer) scheduleSportsRebuildLocked(now time.Time, guideUpdatedUnix int64, refresh bool) {
 	guideChanged := guideUpdatedUnix > 0 && guideUpdatedUnix != s.sportsPrepared.GuideUpdatedUnix
-	needsRefresh := !s.sportsPrepared.Ready || refresh || guideChanged || now.After(s.sportsPrepared.ExpiresAfter)
+	policyKey := sportsguide.Fingerprint(s.sportsGuidePolicy())
+	policyChanged := s.sportsPrepared.GuidePolicyKey != "" && s.sportsPrepared.GuidePolicyKey != policyKey
+	needsRefresh := !s.sportsPrepared.Ready || refresh || guideChanged || policyChanged || now.After(s.sportsPrepared.ExpiresAfter)
 	if needsRefresh && !s.sportsPrepared.Refreshing {
 		s.sportsPrepared.Refreshing = true
 		go s.rebuildSportsPayload(refresh)
@@ -224,6 +230,7 @@ func (s *HTTPRoutesServer) preparedSportsEvent(id string) (SportsEvent, bool) {
 }
 
 func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
+	policyKey := sportsguide.Fingerprint(s.sportsGuidePolicy())
 	snapshot := s.store.Current()
 	guideUpdatedUnix := snapshot.Health.EPGLastSuccessUnix
 	s.sportsPreparedMu.Lock()
@@ -247,6 +254,11 @@ func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
 		s.sportsPreparedMu.Unlock()
 	}
 	payload := s.buildSportsPayload(ctx, refresh, budget, snapshot, startedAt, guide)
+	if len(payload.guideSchedule) > 0 {
+		if err := s.persistSportsGuide(ctx, snapshot, startedAt, payload.guideSchedule); err != nil {
+			log.Printf("sports: generated guide could not be updated: %v", err)
+		}
+	}
 	cancel()
 
 	now := time.Now()
@@ -268,6 +280,7 @@ func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
 		// Record the guide revision so the retry waits for the short deadline
 		// instead of restarting on the next request.
 		s.sportsPrepared.GuideUpdatedUnix = guideUpdatedUnix
+		s.sportsPrepared.GuidePolicyKey = policyKey
 		s.sportsPrepared.ExpiresAfter = now.Add(sportsIncompleteRetry)
 		s.sportsPreparedMu.Unlock()
 		return
@@ -278,6 +291,7 @@ func (s *HTTPRoutesServer) rebuildSportsPayload(refresh bool) {
 	s.sportsPrepared.Refreshing = false
 	s.sportsPrepared.Incomplete = payload.Incomplete
 	s.sportsPrepared.GuideUpdatedUnix = guideUpdatedUnix
+	s.sportsPrepared.GuidePolicyKey = policyKey
 	s.sportsPrepared.ExpiresAfter = now.Add(sportsPreparedTTL(payload))
 	s.sportsPreparedMu.Unlock()
 }
@@ -327,7 +341,7 @@ func (s *HTTPRoutesServer) cachedSportsEvents(ctx context.Context, now time.Time
 		return []SportsEvent{}, now.Unix(), source, err
 	}
 	for index := range events {
-		events[index].ProviderSource = strings.TrimSpace(source)
+		events[index].ProviderSource = firstNonEmpty(strings.TrimSpace(events[index].ProviderSource), strings.TrimSpace(source))
 	}
 	events = normalizeSportsEvents(events)
 	updatedUnix := now.Unix()

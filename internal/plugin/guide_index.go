@@ -267,7 +267,16 @@ func (s *HTTPRoutesServer) windowGuideIndex(ctx context.Context, ids []string, w
 	ctx, cancel := context.WithTimeout(ctx, 7*time.Second)
 	defer cancel()
 	for attempt := 0; attempt < 2; attempt++ {
-		index, err := s.guideIndex.window(ctx, s.store.Current(), ids, window)
+		snapshot := s.store.Current()
+		index, err := s.guideIndex.window(ctx, snapshot, ids, window)
+		if errors.Is(err, epg.ErrChanged) {
+			runtime.Gosched()
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		index, err = s.withSportsGuide(ctx, snapshot, index, ids, window)
 		if errors.Is(err, epg.ErrChanged) {
 			runtime.Gosched()
 			continue

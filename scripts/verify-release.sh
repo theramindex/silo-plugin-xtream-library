@@ -29,3 +29,6 @@ node scripts/test-features.cjs
 node --test scripts/prefs-sync.test.mjs
 node --test scripts/prefs-profile.test.mjs
 go run . manifest >/dev/null
+
+node --check internal/plugin/ui/admin.js
+node --test scripts/sports-guide-admin.test.mjs

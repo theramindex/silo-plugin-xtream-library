@@ -198,3 +198,12 @@ func (r *TenantRouter) persistedTenants() []*tenant {
 }
 
 var legacyGuideImports = make(chan struct{}, 2)
+
+// Close releases the per-account generated guide stores at shutdown.
+func (r *TenantRouter) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, t := range r.tenants {
+		_ = t.server.store.Close()
+	}
+}

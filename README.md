@@ -171,3 +171,30 @@ go vet ./...
 Tagged `v*` releases build Linux amd64/arm64 and Darwin arm64 artifacts in
 GitHub Actions. Catalog publication to `theramindex/silo-plugins` is a manual,
 checksum-verified step after a real release.
+
+## Generated sports guide
+
+In Admin settings, Sports guide can fill missing EPG coverage from the existing
+Sportarr/ESPN schedule providers. Generation runs in the background and creates
+one hour of pregame, an estimated game window, and one hour of postgame coverage.
+Provider listings always take precedence; generated blocks are clipped around
+them. The guide endpoints include a `generated` object with schedule source,
+event identity, phase, match evidence, and estimated timing. No upstream channel
+names or guide records are rewritten.
+
+Automatic matchup matching requires a league context, a matchup separator, and
+both named competitors. Multiple matching fixtures are left unresolved unless
+an ISO date in the channel name identifies one game. Group hints can select a
+league and choose two-competitor or conservative full-title tournament/session
+matching. Manual event links resolve ambiguous channels or disable automatic
+filling for a channel; an expired or missing linked event never rolls forward
+to a different game. Links and hints are saved with the other admin settings.
+
+The private `sports-guide.sqlite` cache sits beside `catalog-snapshot.sqlite`.
+It survives restarts independently of provider EPG, preserves its last committed
+data when schedule refresh fails, and scopes entries to source configuration
+and policy. Renamed channels and entries older than 24 hours are excluded until
+regenerated. Generation never reads this overlay as EPG evidence. Admin controls use the installation's lineup.
+
+With per-user providers, each account has a separate generated guide cache.
+Admin controls use the shared lineup and do not enumerate users' private channels.
