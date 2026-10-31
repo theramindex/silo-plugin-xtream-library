@@ -21,6 +21,14 @@ func (s *HTTPRoutesServer) handleSports(ctx context.Context, request *pluginv1.H
 		return textResponse(http.StatusMethodNotAllowed, "method not allowed"), nil
 	}
 	payload := s.preparedSportsPayload(queryValue(request, "refresh") == "1")
+	// Administrators need unmatched schedule events to resolve ambiguous feeds;
+	// the normal Sports list deliberately omits games without playable channels.
+	if s.adminSettingsAuthorized(request) {
+		payload.GuideOptions = []SportsGuideOption{}
+		for _, event := range payload.guideSchedule {
+			payload.GuideOptions = append(payload.GuideOptions, SportsGuideOption{ID: event.ID, Name: event.Name, LeagueID: event.LeagueID, LeagueName: event.LeagueName, StartUnix: event.Start})
+		}
+	}
 	return s.respondJSON(http.StatusOK, payload)
 }
 

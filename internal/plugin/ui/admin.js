@@ -555,8 +555,11 @@ function renderAdminSportsGuide(settings) {
   const channels = items(state.app && state.app.channels);
   const groups = {};
   channels.forEach(function(ch) { if (ch.categoryId) groups[ch.categoryId] = ch.categoryName || ch.categoryId; });
-  const leagues = items(state.sports && state.sports.leagues);
-  const events = items(state.sports && state.sports.events).filter(function(event) { return String(event.id || "").indexOf("epg:") !== 0; });
+  const leagueMap = {};
+  items(state.sports && state.sports.leagues).forEach(function(league) { leagueMap[league.id] = league; });
+  const events = items(state.sports && (state.sports.guideOptions || state.sports.events)).filter(function(event) { return String(event.id || "").indexOf("epg:") !== 0; });
+  events.forEach(function(event) { if (event.leagueId && !leagueMap[event.leagueId]) leagueMap[event.leagueId] = { id: event.leagueId, name: event.leagueName || event.leagueId }; });
+  const leagues = Object.keys(leagueMap).map(function(id) { return leagueMap[id]; });
   const option = function(value, label) { return "<option value=\"" + escapeHTML(value) + "\">" + escapeHTML(label) + "</option>"; };
   const channelOptions = option("", "Choose a channel") + channels.map(function(ch) { return option(ch.id, ch.name || ch.id); }).join("");
   const rules = policy.groups.map(function(rule, i) {

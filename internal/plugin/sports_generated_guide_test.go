@@ -34,8 +34,30 @@ func TestGeneratedSportsGuidePersistsWithoutReplacingOrFeedingBackIntoProviderEP
 		t.Fatal(err)
 	}
 	server := NewHTTPRoutesServer(store)
-	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{ID: "espn:game", ProviderSource: "ESPN", LeagueID: "nba", LeagueName: "NBA", Name: "Boston Celtics at New York Knicks", Home: SportsTeam{Name: "New York Knicks"}, Away: SportsTeam{Name: "Boston Celtics"}, StartUnix: now.Add(time.Hour).Unix()}}}
+	server.sportsProvider = staticSportsProvider{events: []SportsEvent{{ID: "espn:game", ProviderSource: "ESPN", LeagueID: "nba", LeagueName: "NBA", Name: "Boston Celtics at New York Knicks", Home: SportsTeam{Name: "New York Knicks"}, Away: SportsTeam{Name: "Boston Celtics"}, StartUnix: now.Add(time.Hour).Unix()}, {ID: "espn:unmatched", ProviderSource: "ESPN", LeagueID: "nhl", LeagueName: "NHL", Name: "Buffalo Sabres at Pittsburgh Penguins", Home: SportsTeam{Name: "Pittsburgh Penguins"}, Away: SportsTeam{Name: "Buffalo Sabres"}, StartUnix: now.Add(time.Hour).Unix()}}}
 	server.rebuildSportsPayload(false)
+
+	for _, role := range []string{"admin", "user"} {
+		response, err := server.handleSports(ctx, &pluginv1.HandleHTTPRequest{Method: http.MethodGet, Headers: map[string]string{"X-Silo-User-Role": role}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var choices struct {
+			GuideOptions []SportsGuideOption `json:"guideOptions"`
+		}
+		if err = json.Unmarshal(response.GetBody(), &choices); err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, choice := range choices.GuideOptions {
+			if choice.ID == "espn:unmatched" {
+				found = true
+			}
+		}
+		if found != (role == "admin") {
+			t.Fatalf("unmatched event options for %s: %+v", role, choices)
+		}
+	}
 	read := func(server *HTTPRoutesServer, path string) []model.Program {
 		t.Helper()
 		params, _ := structpb.NewStruct(map[string]any{"channel_ids": "game", "start": fmt.Sprint(now.Unix()), "end": fmt.Sprint(now.Add(5 * time.Hour).Unix())})

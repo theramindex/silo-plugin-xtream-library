@@ -7,7 +7,7 @@ function context() {
   const fields = {};
   const state = {
     app: {channels: [{id:'channel',name:'NBA <feed>',categoryId:'nba',categoryName:'Basketball'}]},
-    sports: {leagues:[{id:'nba',name:'NBA'}],events:[{id:'espn:one',name:'Celtics at Knicks',startUnix:1800000000}]},
+    sports: {leagues:[],events:[],guideOptions:[{id:'espn:one',name:'Celtics at Knicks',leagueId:'nba',leagueName:'NBA',startUnix:1800000000}]},
     adminCategorySettings: {sportsGuide:{enabled:true,groups:[],overrides:[]}}
   };
   const ctx = vm.createContext({

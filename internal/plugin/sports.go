@@ -80,7 +80,16 @@ type sportsPreparedCache struct {
 	budget sportsBuildBudget
 }
 
+type SportsGuideOption struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	LeagueID   string `json:"leagueId"`
+	LeagueName string `json:"leagueName"`
+	StartUnix  int64  `json:"startUnix"`
+}
+
 type SportsPayload struct {
+	GuideOptions  []SportsGuideOption `json:"guideOptions,omitempty"`
 	guideSchedule []sportsguide.Event
 	UpdatedAtUnix int64          `json:"updatedAtUnix"`
 	Source        string         `json:"source"`
