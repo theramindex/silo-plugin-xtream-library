@@ -3,7 +3,7 @@ module github.com/theramindex/silo-plugin-xtream-library
 go 1.26.0
 
 require (
-	github.com/Silo-Server/silo-plugin-sdk v0.30.0
+	github.com/Silo-Server/silo-plugin-sdk v0.32.1
 	github.com/theramindex/silo-plugins v0.1.16-0.20261031005458-281190e521f2
 	golang.org/x/text v0.41.0
 	google.golang.org/grpc v1.83.2

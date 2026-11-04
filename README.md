@@ -44,7 +44,7 @@ The app serves catalog data without provider URLs or credentials. Embedded live 
 - **Station alternatives.** Map equivalent channel IDs to the same station key in admin settings. Priority selects the preferred feed; startup can try another available account or explicitly mapped source before bytes are sent. Failed accounts cool down briefly. There is no seamless midstream switching.
 - **Legacy and file playback.** `allowDirectProviderURLs` still governs non-HLS VOD, episodes, Catch-up, and legacy direct stream routes. When enabled, those routes can expose account credentials to the browser through redirects; when disabled, credentialed non-HLS files return `stream_requires_hls` (422). Embedded live channels use the private relay with either setting.
 
-Shared playback uses SDK v0.30.0. Leaving playback releases the source and encoder; abandoned shared leases expire after 75 seconds. A browser watch reservation is adopted once, so starting its managed relay does not consume a second provider connection.
+Shared playback uses SDK v0.32.1. Leaving playback releases the source and encoder; abandoned shared leases expire after 75 seconds. A browser watch reservation is adopted once, so starting its managed relay does not consume a second provider connection.
 
 Each provider keeps one primary account for catalog and guide refreshes. XC
 Admin can add compatible sub-accounts for playback and set the provider-issued
