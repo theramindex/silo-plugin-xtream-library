@@ -59,6 +59,7 @@ type RefreshCoordinator struct {
 	cancel context.CancelFunc
 	closed bool
 	seq    uint64
+	guides map[*refreshExecution]context.CancelFunc
 }
 
 type refreshExecution struct {
@@ -172,7 +173,7 @@ func (c *RefreshCoordinator) Run(ctx context.Context, operation RefreshOperation
 	return run.result()
 }
 
-func (c *RefreshCoordinator) RunGuideChannels(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) error {
+func (c *RefreshCoordinator) RunGuideChannels(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) (err error) {
 	if c == nil || c.target == nil {
 		return fmt.Errorf("catalog sync is not available")
 	}
@@ -180,9 +181,44 @@ func (c *RefreshCoordinator) RunGuideChannels(ctx context.Context, settings conf
 	if !ok {
 		return c.Run(ctx, RefreshGuide, settings, nowUnix)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	key := config.CatalogCacheKey(settings)
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return fmt.Errorf("refresh coordinator is closed")
+	}
+	// A later batch from an old fill must not roll the coordinator back.
+	if c.job.ConfigKey != "" && c.job.ConfigKey != key {
+		c.mu.Unlock()
+		return context.Canceled
+	}
+	c.job.ConfigKey = key
+	runCtx, cancel := context.WithCancel(ctx)
+	run := newRefreshExecution()
+	if c.guides == nil {
+		c.guides = map[*refreshExecution]context.CancelFunc{}
+	}
+	c.guides[run] = cancel
+	c.mu.Unlock()
+	defer func() {
+		cancel()
+		c.mu.Lock()
+		delete(c.guides, run)
+		c.mu.Unlock()
+		run.complete(err)
+	}()
 	c.runMu.Lock()
 	defer c.runMu.Unlock()
-	return target.RefreshGuideChannelsNow(ctx, settings, channelIDs, nowUnix)
+	if err := runCtx.Err(); err != nil {
+		return err
+	}
+	return target.RefreshGuideChannelsNow(runCtx, settings, channelIDs, nowUnix)
 }
 
 func (c *RefreshCoordinator) Status() RefreshJob {
@@ -218,13 +254,26 @@ func (c *RefreshCoordinator) Close() {
 		c.cancel()
 	}
 	run := c.run
+	guides := make([]*refreshExecution, 0, len(c.guides))
+	for guide, cancel := range c.guides {
+		cancel()
+		guides = append(guides, guide)
+	}
 	c.mu.Unlock()
 	if run != nil {
 		<-run.done
 	}
+	for _, guide := range guides {
+		<-guide.done
+	}
 }
 
 func (c *RefreshCoordinator) nextJobLocked(operation RefreshOperation, configKey string) (RefreshJob, *refreshExecution) {
+	if c.job.ConfigKey != configKey {
+		for _, cancel := range c.guides {
+			cancel()
+		}
+	}
 	job := RefreshJob{
 		ID:        strconv.FormatUint(atomic.AddUint64(&c.seq, 1), 10),
 		Operation: operation,

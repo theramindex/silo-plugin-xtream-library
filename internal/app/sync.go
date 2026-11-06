@@ -289,7 +289,9 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 		catalog, err := s.loadXtreamSource(ctx, settings, source, nowUnix, options)
 		if err != nil {
 			failures = append(failures, fmt.Sprintf("%s: %v", source.Name, err))
-			appendStaleXtreamSource(&merged, s.store.Current().Catalog, source.ID)
+			if err := appendStaleXtreamSource(ctx, &merged, s.store.Current(), config.CatalogCacheKey(settings), source.ID); err != nil {
+				return fmt.Errorf("retain Xtream source %q: %w", source.ID, err)
+			}
 			continue
 		}
 		successfulSources++
@@ -321,21 +323,53 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	return nil
 }
 
-func appendStaleXtreamSource(target *model.CatalogState, current model.CatalogState, sourceID string) {
-	ownedChannels := make(map[string]bool)
-	wantedSourceID := "xtream-source:" + sourceID
-	for _, channel := range current.Channels {
-		if channel.SourceID != wantedSourceID {
-			continue
-		}
-		target.Channels = append(target.Channels, channel)
-		ownedChannels[channel.ID] = true
+func appendStaleXtreamSource(ctx context.Context, target *model.CatalogState, snapshot cache.Snapshot, configKey, sourceID string) error {
+	// Failed providers may retain data only from the same configuration.
+	if snapshot.ConfigKey != configKey {
+		return nil
 	}
-	for _, program := range current.Programs {
-		if ownedChannels[program.ChannelID] {
-			target.Programs = append(target.Programs, program)
+	channels := xtreamChannelsForSource(snapshot.Catalog.Channels, sourceID)
+	programs, err := preservedProgramsForChannels(ctx, snapshot, configKey, channels)
+	if err != nil {
+		return err
+	}
+	target.Channels = append(target.Channels, channels...)
+	target.Programs = append(target.Programs, programs...)
+	// Source namespaces apply to content even when an item has no category.
+	owns := func(id, kind string) bool {
+		id = strings.TrimPrefix(id, kind)
+		if sourceID == "primary" {
+			return !strings.Contains(id, ":")
+		}
+		return strings.HasPrefix(id, sourceID+":")
+	}
+	content := snapshot.Catalog.Content
+	for _, category := range content.LiveCategories {
+		if owns(category.ID, "") {
+			target.Content.LiveCategories = append(target.Content.LiveCategories, category)
 		}
 	}
+	for _, category := range content.VODCategories {
+		if owns(category.ID, "") {
+			target.Content.VODCategories = append(target.Content.VODCategories, category)
+		}
+	}
+	for _, category := range content.SeriesCategories {
+		if owns(category.ID, "") {
+			target.Content.SeriesCategories = append(target.Content.SeriesCategories, category)
+		}
+	}
+	for _, item := range content.VODItems {
+		if owns(item.ID, "vod:") {
+			target.Content.VODItems = append(target.Content.VODItems, item)
+		}
+	}
+	for _, item := range content.SeriesItems {
+		if owns(item.ID, "series:") {
+			target.Content.SeriesItems = append(target.Content.SeriesItems, item)
+		}
+	}
+	return nil
 }
 
 func (s *Service) loadXtreamSource(ctx context.Context, settings config.Settings, source config.XtreamSource, nowUnix int64, options syncOptions) (model.CatalogState, error) {
@@ -896,6 +930,13 @@ func (s *Service) RefreshGuideOnlyNow(ctx context.Context, settings config.Setti
 // client. Xtream catalogs can contain tens of thousands of streams, while a
 // Silo HTTP route has a short request deadline.
 func (s *Service) RefreshGuideChannelsNow(ctx context.Context, settings config.Settings, channelIDs []string, nowUnix int64) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	snapshot := s.store.Current()
+	if snapshot.ConfigKey != "" && snapshot.ConfigKey != config.CatalogCacheKey(settings) {
+		return context.Canceled
+	}
 	if err := settings.Validate(); err != nil {
 		return err
 	}
@@ -989,6 +1030,9 @@ func (s *Service) refreshXtreamEPGSources(ctx context.Context, settings config.S
 	}
 	if freshSources == 0 && firstErr != nil {
 		return firstErr
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return s.replacePrograms(programs, nowUnix)
 }
@@ -1116,6 +1160,9 @@ func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.
 			return err
 		}
 		programs = append(merged, programs...)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return s.replacePrograms(programs, nowUnix)
 }
@@ -1315,5 +1362,8 @@ func (s *Service) refreshEPG(ctx context.Context, settings config.Settings, nowU
 
 	snapshot := s.store.Current()
 	programs := programsFromXMLTVDocument(snapshot.Catalog.Channels, doc)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	return s.replacePrograms(programs, nowUnix)
 }

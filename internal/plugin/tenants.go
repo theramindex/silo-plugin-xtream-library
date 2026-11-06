@@ -203,7 +203,9 @@ var legacyGuideImports = make(chan struct{}, 2)
 func (r *TenantRouter) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.shared.closeRefresh()
 	for _, t := range r.tenants {
+		t.server.closeRefresh()
 		_ = t.server.store.Close()
 	}
 }

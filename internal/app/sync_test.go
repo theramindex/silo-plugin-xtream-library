@@ -170,6 +170,30 @@ func TestRefreshGuideChannelsNowOnlyFetchesRequestedXtreamChannels(t *testing.T)
 	}
 }
 
+func TestRefreshGuideChannelsNowRejectsObsoleteConfiguration(t *testing.T) {
+	old := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://old.example", XtreamUsername: "u", XtreamPassword: "p"}
+	current := old
+	current.XtreamBaseURL = "https://new.example"
+	store := cache.NewStore()
+	store.Replace(cache.Snapshot{ConfigKey: config.CatalogCacheKey(current), Catalog: model.CatalogState{
+		Source:   model.LiveTVSource(model.SourceModeXtream),
+		Channels: []model.Channel{{ID: "xtream:1001"}},
+		Programs: []model.Program{{ID: "new", ChannelID: "xtream:1001", Title: "Current provider", StartUnix: 1783926000, EndUnix: 1783929600}},
+	}})
+	client := &stubXtreamClient{epg: xtream.ShortEPGResponse{EPGListings: []xtream.EPGListing{{ID: "old", Title: "Old provider", StartTimestamp: "1783926000", StopTimestamp: "1783929600"}}}}
+	service := NewService(Dependencies{Store: store, XtreamFactory: func(string, string, string) XtreamClient { return client }})
+	if err := service.RefreshGuideChannelsNow(t.Context(), old, []string{"xtream:1001"}, 1783926000); !errors.Is(err, context.Canceled) {
+		t.Errorf("obsolete refresh = %v", err)
+	}
+	programs, err := store.Current().ProgramQuery(t.Context(), []string{"xtream:1001"}, 1783926000, 1783929600)
+	if err != nil || len(programs) != 1 || programs[0].Title != "Current provider" {
+		t.Fatalf("obsolete guide published: %+v err=%v", programs, err)
+	}
+	if len(client.epgCalls) != 0 {
+		t.Fatalf("obsolete credentials reached provider: %v", client.epgCalls)
+	}
+}
+
 func TestRefreshGuideChannelsNowDoesNotOverwriteAlternateEPGWithShortEPG(t *testing.T) {
 	t.Parallel()
 	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{{
@@ -509,33 +533,88 @@ func TestRefreshGuideOnlyXtreamUsesProviderXMLTVForEveryConfiguredSource(t *test
 
 func TestSyncXtreamKeepsFailedSourceStaleWhileRefreshingHealthySource(t *testing.T) {
 	t.Parallel()
-	store := cache.NewStore()
-	store.Replace(cache.Snapshot{Catalog: model.CatalogState{
-		Channels: []model.Channel{{ID: "xtream:backup:1001", SourceID: "xtream-source:backup", Name: "Stale Backup"}},
-		Programs: []model.Program{{ID: "old-program", ChannelID: "xtream:backup:1001", Title: "Still Available"}},
-	}})
-	service := NewService(Dependencies{
-		Store: store,
-		XtreamFactory: func(baseURL, _, _ string) XtreamClient {
-			if strings.Contains(baseURL, "backup") {
-				return &stubXtreamClient{streamsErr: errors.New("backup unavailable")}
+	for _, mode := range []string{"memory", "sqlite", "sqlite force"} {
+		t.Run(mode, func(t *testing.T) {
+			settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
+				{ID: "primary", Name: "Primary", BaseURL: "https://primary.example", Username: "one", Password: "secret", Enabled: true},
+				{ID: "backup", Name: "Backup", BaseURL: "https://backup.example", Username: "two", Password: "secret", Enabled: true},
+			}}
+			initial := cache.Snapshot{ConfigKey: config.CatalogCacheKey(settings), Catalog: model.CatalogState{
+				Source:   model.LiveTVSource(model.SourceModeXtream),
+				Channels: []model.Channel{{ID: "xtream:backup:1001", SourceID: "xtream-source:backup", Name: "Stale Backup"}},
+				Programs: []model.Program{{ID: "old-program", ChannelID: "xtream:backup:1001", Title: "Still Available", StartUnix: 1783944000, EndUnix: 1783947600}},
+				Content: model.ContentState{
+					LiveCategories:   []model.Category{{ID: "backup:1", Name: "Backup Live"}},
+					VODCategories:    []model.Category{{ID: "backup:2", Name: "Backup Movies"}},
+					SeriesCategories: []model.Category{{ID: "backup:3", Name: "Backup Shows"}},
+					VODItems:         []model.VODItem{{ID: "vod:backup:4", CategoryID: "backup:2", Name: "Cached movie"}},
+					SeriesItems:      []model.SeriesItem{{ID: "series:backup:5", CategoryID: "backup:3", Name: "Cached show"}},
+				},
+			}}
+			store := cache.NewStore()
+			var storage *cache.FileSnapshotStorage
+			if mode != "memory" {
+				storage = cache.NewFileSnapshotStorage(filepath.Join(t.TempDir(), "snapshot.sqlite"))
+				t.Cleanup(func() { _ = storage.Close() })
+				var err error
+				initial, err = storage.Save(initial)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if initial.Catalog.Programs != nil || initial.Guide == nil {
+					t.Fatal("test must use the durable guide representation")
+				}
 			}
-			return &stubXtreamClient{streams: []xtream.LiveStream{{Num: 1, Name: "Fresh Primary", StreamID: 2002}}}
-		},
-	})
-	settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamSources: []config.XtreamSource{
-		{ID: "primary", Name: "Primary", BaseURL: "https://primary.example", Username: "one", Password: "secret", Enabled: true},
-		{ID: "backup", Name: "Backup", BaseURL: "https://backup.example", Username: "two", Password: "secret", Enabled: true},
-	}}
-	if err := service.SyncNow(context.Background(), settings, 1_700_000_001); err != nil {
-		t.Fatalf("partial source failure should not fail refresh: %v", err)
-	}
-	snapshot := store.Current()
-	if len(snapshot.Catalog.Channels) != 2 || snapshot.Catalog.Channels[0].Name != "Fresh Primary" || snapshot.Catalog.Channels[1].Name != "Stale Backup" {
-		t.Fatalf("expected fresh primary plus stale backup: %+v", snapshot.Catalog.Channels)
-	}
-	if snapshot.Health.LastError == "" || !strings.Contains(snapshot.Health.LastError, "Backup") {
-		t.Fatalf("expected partial failure health detail: %+v", snapshot.Health)
+			store.Replace(initial)
+			deps := Dependencies{
+				Store: store,
+				XtreamFactory: func(baseURL, _, _ string) XtreamClient {
+					if strings.Contains(baseURL, "backup") {
+						return &stubXtreamClient{streamsErr: errors.New("backup unavailable")}
+					}
+					return &stubXtreamClient{streams: []xtream.LiveStream{{Num: 1, Name: "Fresh Primary", StreamID: 2002, EPGChannelID: "fresh"}}}
+				},
+				FetchURL: func(context.Context, string) ([]byte, error) {
+					return []byte(`<tv><programme channel="fresh" start="20260713120000 +0000" stop="20260713130000 +0000"><title>Fresh Primary Guide</title></programme></tv>`), nil
+				},
+			}
+			if storage != nil {
+				deps.SnapshotStorage = storage
+			}
+			service := NewService(deps)
+			sync := service.SyncNow
+			if mode == "sqlite force" {
+				sync = service.ForceSyncNow
+			}
+			if err := sync(context.Background(), settings, 1783944001); err != nil {
+				t.Fatalf("partial source refresh: %v", err)
+			}
+			check := func(snapshot cache.Snapshot) {
+				t.Helper()
+				if len(snapshot.Catalog.Channels) != 2 || snapshot.Catalog.Channels[0].Name != "Fresh Primary" || snapshot.Catalog.Channels[1].Name != "Stale Backup" {
+					t.Fatalf("fresh plus retained channels: %+v", snapshot.Catalog.Channels)
+				}
+				programs, err := snapshot.ProgramQuery(context.Background(), []string{"xtream:backup:1001"}, 1783944000, 1783947600)
+				if err != nil || len(programs) != 1 || programs[0].Title != "Still Available" {
+					t.Errorf("retained durable programs = %+v, err=%v", programs, err)
+				}
+				content := snapshot.Catalog.Content
+				if len(content.LiveCategories) != 1 || len(content.VODCategories) != 1 || len(content.SeriesCategories) != 1 || len(content.VODItems) != 1 || len(content.SeriesItems) != 1 {
+					t.Errorf("failed-source content lost: %+v", content)
+				}
+				if snapshot.Health.LastError == "" || !strings.Contains(snapshot.Health.LastError, "Backup") {
+					t.Errorf("partial failure health: %+v", snapshot.Health)
+				}
+			}
+			check(store.Current())
+			if storage != nil {
+				reloaded, found, err := storage.Load()
+				if err != nil || !found {
+					t.Fatalf("reload: found=%v err=%v", found, err)
+				}
+				check(reloaded)
+			}
+		})
 	}
 }
 

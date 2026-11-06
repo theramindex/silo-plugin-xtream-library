@@ -52,6 +52,7 @@ type HTTPRoutesServer struct {
 	settingsProvider    func() config.Settings
 	adminPersister      func(context.Context, map[string]any) error
 	adminStorage        adminSettingsStorage
+	sourceMutationMu    sync.Mutex
 	sourceRegistry      *config.SourceRegistry
 	sourceEPGTester     func(context.Context, config.XtreamSource, []model.Channel) (alternateEPGTestPayload, error)
 	coordinator         *RefreshCoordinator
@@ -1184,6 +1185,10 @@ func (s *HTTPRoutesServer) handleAdminSources(ctx context.Context, request *plug
 	if err := json.Unmarshal(request.GetBody(), &payload); err != nil {
 		return textResponse(http.StatusBadRequest, "invalid source payload"), nil
 	}
+	// One route server owns each shared or per-user registry. Keep its complete
+	// read/modify/write operation serialized, including legacy migration.
+	s.sourceMutationMu.Lock()
+	defer s.sourceMutationMu.Unlock()
 	sources, err := s.mutableSourceRegistry()
 	if err != nil {
 		return textResponse(http.StatusInternalServerError, "could not load source registry"), nil

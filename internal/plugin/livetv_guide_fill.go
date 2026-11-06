@@ -44,6 +44,7 @@ const (
 type livetvGuideFill struct {
 	mu        sync.Mutex
 	running   bool
+	closed    bool
 	attempted map[string]time.Time
 	// wg tracks the running fill so tests can wait for it.
 	wg sync.WaitGroup
@@ -74,7 +75,7 @@ func (s *HTTPRoutesServer) startLiveTVGuideFill(index *guideIndex, query livetvP
 
 	fill.mu.Lock()
 	defer fill.mu.Unlock()
-	if fill.running {
+	if fill.running || fill.closed {
 		return false
 	}
 	now := time.Now()
@@ -149,13 +150,32 @@ func (s *HTTPRoutesServer) loadLiveTVGuideChannels(ctx context.Context, settings
 	}
 	var firstErr error
 	for start := 0; start < len(channelIDs); start += guidePingChannelLimit {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if config.CatalogCacheKey(s.settingsProvider()) != config.CatalogCacheKey(settings) {
+			return context.Canceled
+		}
 		batch := channelIDs[start:min(start+guidePingChannelLimit, len(channelIDs))]
 		batchCtx, cancel := context.WithTimeout(ctx, livetvGuideFillBatchDeadline)
 		err := s.coordinator.RunGuideChannels(batchCtx, settings, batch, time.Now().Unix())
 		cancel()
+		if err == context.Canceled {
+			return err
+		}
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}
 	return firstErr
+}
+
+// closeRefresh stops admission, cancels all refreshes and drains background
+// fill batches before their stores are closed.
+func (s *HTTPRoutesServer) closeRefresh() {
+	s.livetvGuideFill.mu.Lock()
+	s.livetvGuideFill.closed = true
+	s.livetvGuideFill.mu.Unlock()
+	s.coordinator.Close()
+	s.livetvGuideFill.wg.Wait()
 }

@@ -10,6 +10,104 @@ import (
 	"github.com/theramindex/silo-plugin-xtream-library/internal/config"
 )
 
+type targetedGuideTarget struct {
+	countingRefreshTarget
+	started chan context.Context
+	release chan struct{}
+}
+
+func (t *targetedGuideTarget) RefreshGuideChannelsNow(ctx context.Context, _ config.Settings, _ []string, _ int64) error {
+	if t.started != nil {
+		t.started <- ctx
+	}
+	if t.release != nil {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-t.release:
+		}
+	}
+	return ctx.Err()
+}
+
+func TestTargetedGuideRejectsCanceledClosedAndObsoleteWork(t *testing.T) {
+	for _, mode := range []string{"canceled", "closed", "obsolete"} {
+		t.Run(mode, func(t *testing.T) {
+			target := &targetedGuideTarget{started: make(chan context.Context, 1)}
+			c := NewRefreshCoordinator(target)
+			defer c.Close()
+			settings := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://old.example", XtreamUsername: "u", XtreamPassword: "p"}
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			switch mode {
+			case "canceled":
+				cancel()
+			case "closed":
+				c.Close()
+			case "obsolete":
+				next := settings
+				next.XtreamBaseURL = "https://new.example"
+				if err := c.Run(t.Context(), RefreshCatalog, next, 1); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := c.RunGuideChannels(ctx, settings, []string{"xtream:1"}, 2); err == nil {
+				t.Error("invalid guide operation succeeded")
+			}
+			select {
+			case <-target.started:
+				t.Error("invalid guide operation reached the target")
+			default:
+			}
+		})
+	}
+}
+
+func TestTargetedGuideCanceledOnConfigurationReplacement(t *testing.T) {
+	target := &targetedGuideTarget{started: make(chan context.Context, 1), release: make(chan struct{})}
+	c := NewRefreshCoordinator(target)
+	defer c.Close()
+	old := config.Settings{SourceMode: config.SourceModeXtream, XtreamBaseURL: "https://old.example", XtreamUsername: "u", XtreamPassword: "p"}
+	done := make(chan error, 1)
+	go func() { done <- c.RunGuideChannels(t.Context(), old, []string{"xtream:1"}, 1) }()
+	ctx := <-target.started
+	next := old
+	next.XtreamBaseURL = "https://new.example"
+	c.Start(RefreshCatalog, next)
+	select {
+	case <-ctx.Done():
+	case <-time.After(100 * time.Millisecond):
+		t.Error("replacement did not cancel the old targeted guide")
+	}
+	close(target.release)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Errorf("superseded guide result = %v", err)
+	}
+	if err := c.Wait(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTargetedGuideCloseCancelsAndDrainsRunningWork(t *testing.T) {
+	target := &targetedGuideTarget{started: make(chan context.Context, 1), release: make(chan struct{})}
+	c := NewRefreshCoordinator(target)
+	done := make(chan error, 1)
+	go func() { done <- c.RunGuideChannels(t.Context(), config.Settings{}, []string{"xtream:1"}, 1) }()
+	ctx := <-target.started
+	closed := make(chan struct{})
+	go func() { c.Close(); close(closed) }()
+	select {
+	case <-ctx.Done():
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Close did not cancel active targeted work")
+	}
+	close(target.release)
+	<-closed
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Errorf("closed work = %v", err)
+	}
+}
+
 func TestRefreshCoordinatorCancelsObsoleteConfigAndSerializesJobs(t *testing.T) {
 	t.Parallel()
 

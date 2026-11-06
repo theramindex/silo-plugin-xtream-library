@@ -2744,6 +2744,48 @@ func TestHTTPRoutesServerAdminSourcesManagesRegistryWithoutDatabase(t *testing.T
 	}
 }
 
+func TestAdminSourceMutationsPreserveConcurrentCreates(t *testing.T) {
+	// Missing-file legacy migration gives both requests a real read/modify/write
+	// boundary to gate, without injecting storage behavior into the handler.
+	entered := make(chan struct{}, 4)
+	proceed := make(chan struct{})
+	server := NewHTTPRoutesServerWithSettings(cache.NewStore(), func() config.Settings {
+		entered <- struct{}{}
+		<-proceed
+		return config.Settings{SourceMode: config.SourceModeXtream}
+	})
+	server.sourceRegistry = config.NewSourceRegistry(filepath.Join(t.TempDir(), "sources.json"))
+	results := make(chan *pluginv1.HandleHTTPResponse, 2)
+	create := func(username string) {
+		response, err := server.Handle(t.Context(), &pluginv1.HandleHTTPRequest{
+			Method: http.MethodPost, Path: "/xtream/api/admin-sources", Headers: map[string]string{"x-silo-user-role": "admin"},
+			Body: []byte(fmt.Sprintf(`{"baseUrl":"https://provider.example","username":%q,"password":"secret","enabled":true}`, username)),
+		})
+		if err != nil {
+			t.Errorf("create: %v", err)
+		}
+		results <- response
+	}
+	go create("one")
+	<-entered
+	go create("two")
+	select {
+	case <-entered:
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(proceed)
+	for range 2 {
+		response := <-results
+		if response.GetStatusCode() != http.StatusOK {
+			t.Fatalf("create: %d %s", response.GetStatusCode(), response.GetBody())
+		}
+	}
+	sources, err := server.sourceRegistry.Load()
+	if err != nil || len(sources) != 2 {
+		t.Fatalf("acknowledged source lost: sources=%+v err=%v", sources, err)
+	}
+}
+
 func TestHTTPRoutesServerAdminSourcesCanDeleteLastSourceAndReAddIt(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "sources.json")
