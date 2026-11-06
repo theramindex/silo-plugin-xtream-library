@@ -27,13 +27,13 @@
     {
       "type": "scheduled_task.v1",
       "id": "xtream-refresh-channels",
-      "display_name": "Refresh Live TV Channels",
+      "display_name": "Xtream channel refresh",
       "description": "Refreshes source channel and group metadata."
     },
     {
       "type": "scheduled_task.v1",
       "id": "xtream-refresh-epg",
-      "display_name": "Refresh Live TV Guide",
+      "display_name": "Xtream guide refresh",
       "description": "Purges stale guide data and refreshes source EPG programs."
     },
     {

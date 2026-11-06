@@ -6,11 +6,11 @@ function attachSharedVideoSource(video, url, options) {
   Promise.all([loadPlayerLibrary("media.js","SiloLiveMedia"),ensurePlayerLibraries("")]).then(function(){
     if(attachment.cancelled)return;
     const manager = new SiloLiveMedia({base:route("/dispatcharr"),root:base,video:video,fetch:coreFetch,reservationId:parsed.searchParams.get("session_id")||((video.id==="player"&&state.currentSession)?state.currentSession.id:""),
-      headers:function(){return typeof coreMediaRequestHeaders === "function" ? coreMediaRequestHeaders(route("/dispatcharr/api/media/start")) : playerRequestHeaders();},
+      headers:function(){return playerRequestHeaders();},
       loadLibraries:function(){return ensurePlayerLibraries("");},
       hlsOptions:liveHLSOptions(options&&options.hlsBufferSeconds),
       onStatus:function(message){if(video.id==="player"&&message)showPlayerToast(message);},
-      onError:function(message){if(options&&options.onFatal)options.onFatal({message:message});else if(video.id==="player"){if(typeof showPlayerError==="function")showPlayerError(message);else showPlayerToast(message);}},
+      onError:function(message){if(options&&options.onFatal)options.onFatal({message:message});else if(video.id==="player")handlePlaybackFatalError({message:message});},
       onAttached:function(source){attachment.hls=source.hls;attachment.tsPlayer=source.ts;if(video.id==="player"){
         state.hls=source.hls;state.tsPlayer=source.ts;
         if(source.mode==="rewind"||source.rewind){state.timeShiftSession={ready:true,shared:true};video.controls=true;clearInterval(state.timeShiftTimelineTimer);state.timeShiftTimelineTimer=setInterval(updateTimeShiftUI,1000);}
@@ -61,6 +61,7 @@ function playerFavoriteButtonHTML(channel) {
   return "<button id=\"player-favorite-button\" class=\"player-icon favorite" + (isFavorite ? " active" : "") + "\" data-player-action=\"favorite\" aria-label=\"" + (isFavorite ? "Remove channel from favorites" : "Favorite channel") + "\" aria-pressed=\"" + (isFavorite ? "true" : "false") + "\">" + icon(isFavorite ? "heart-solid" : "heart") + "</button>";
 }
 function renderPlayerPage() {
+  state.playerErrorMessage = "";
   const channel = state.currentChannel || visibleChannels(false)[0] || null;
   const program = currentProgram(channel) || {};
   const channelName = channel ? channel.name || "Untitled channel" : "Choose a channel";
@@ -85,9 +86,10 @@ function renderPlayerPage() {
     + "<button class=\"player-icon\" data-player-action=\"add-multiview\" aria-label=\"Add current channel to multiview\">" + icon("multiview") + "</button>"
     + "<button id=\"player-subtitles-button\" class=\"player-icon\" data-player-action=\"subtitles\" aria-label=\"Subtitles\" aria-pressed=\"false\">" + icon("captions") + "</button>"
     + "<button id=\"player-language-button\" class=\"player-icon\" data-player-action=\"language-menu\" aria-label=\"Audio language\" aria-haspopup=\"true\" aria-expanded=\"false\">" + icon("language") + "</button></div>";
-  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\"><div class=\"playback-stage\">"
+  byId("view").innerHTML = "<section class=\"" + playbackShellClass + "\" tabindex=\"-1\" aria-label=\"" + escapeHTML(channelName + " player") + "\"><div class=\"playback-stage\">"
     + "<video id=\"player\" class=\"playback-video\"" + videoAttributes + "></video><div class=\"playback-scrim\"></div>"
     + "<button id=\"player-center-button\" class=\"player-center-button hidden\" data-player-action=\"play-toggle\" aria-label=\"Play\">" + icon("play") + "</button>"
+    + "<div id=\"player-error\" class=\"player-error hidden\" role=\"alert\"></div>"
     + "<div class=\"player-top\"><button class=\"player-exit player-icon\" data-player-action=\"back\" aria-label=\"Back to Live TV browse\">" + icon("arrow-left") + "</button>" + topActions + "</div>"
     + "<div id=\"player-toast\" class=\"player-toast\" role=\"status\"></div><div id=\"player-guide-panel\" class=\"player-guide-panel\"></div>"
     + "<div id=\"player-sports-status\" class=\"sr-only\" role=\"status\"></div><div id=\"player-sports-drawer\" class=\"player-sports-drawer\"></div>"
@@ -105,8 +107,90 @@ function renderPlayerPage() {
   }
   renderPlayerMoreMenu();
   updateFullscreenButton();
+  // Rendering replaced the launching control; give keyboard and remote users a
+  // focus point inside the player without pinning the chrome open.
+  const shell = document.querySelector(".playback-shell");
+  const active = document.activeElement;
+  if (shell && typeof shell.focus === "function" && (!active || active === document.body || !document.contains(active))) shell.focus({ preventScroll: true });
   wakePlayerChrome(1800);
 }
+// Shared with Dispatcharr plugin: keep in sync.
+// Player focus. The control that opened a player overlay is remembered so
+// Escape can return focus to it, and the control that launched playback is
+// saved as a selector so leaving the player can refocus its re-rendered copy
+// (keyboard and TV-remote users).
+const playerOverlayOpenerActions = ["audio-menu", "language-menu", "volume-menu", "more", "guide", "sports"];
+let playerOverlayOpener = null;
+let playerLastActivatedElement = null;
+// Safari does not focus buttons on click, so remember the last control that was
+// activated; playerLaunchFocusSelector falls back to it when nothing has focus.
+document.addEventListener("click", function(event) {
+  const target = event.target && event.target.closest ? event.target.closest("button, a, [tabindex]") : null;
+  if (target) playerLastActivatedElement = target;
+}, true);
+function rememberPlayerOverlayOpener(action, button) {
+  if (playerOverlayOpenerActions.indexOf(action) < 0) return;
+  // An item in the More menu disappears with the menu; the More button stands in.
+  playerOverlayOpener = button && button.closest && button.closest(".player-more-menu") ? byId("player-more-button") : (button || null);
+}
+function focusPlayerOverlayOpener(fallbackID) {
+  const opener = playerOverlayOpener;
+  playerOverlayOpener = null;
+  const target = opener && document.contains(opener) && !opener.hidden ? opener : (byId(fallbackID) || document.querySelector(".player-exit"));
+  if (target && typeof target.focus === "function") target.focus();
+}
+// closeTopPlayerOverlay closes the topmost open player overlay (popover menus,
+// then the guide panel, then the sports drawer) and refocuses its opener. It
+// returns false when nothing was open, so Escape can leave the player instead.
+function closeTopPlayerOverlay() {
+  let fallback = "";
+  if (state.moreMenuOpen || state.audioMenuOpen || state.volumeMenuOpen) {
+    fallback = state.moreMenuOpen ? "player-more-button" : (state.volumeMenuOpen ? "player-volume-button" : "player-audio-button");
+    closePlayerPopovers();
+  } else if (state.playerGuideOpen) {
+    state.playerGuideOpen = false;
+    renderPlayerGuidePanel();
+    fallback = "player-guide-button";
+  } else if (state.playerSportsOpen) {
+    togglePlayerSports(false);
+    fallback = "player-more-button";
+  } else {
+    return false;
+  }
+  focusPlayerOverlayOpener(fallback);
+  wakePlayerChrome();
+  return true;
+}
+// Space/K are playback shortcuts only when focus is not on something Space
+// would otherwise activate or type into.
+function playerShortcutTargetIsControl(target) {
+  return !!(target && target.closest && target.closest("button, [role=\"menuitem\"], summary, input, textarea, select, [contenteditable=\"true\"]"));
+}
+// playerLaunchFocusSelector describes the control that launched playback (the
+// focused element, else the last one clicked) by its id or data-* identity.
+function playerLaunchFocusSelector(element) {
+  const active = element || (document.activeElement && document.activeElement !== document.body ? document.activeElement : playerLastActivatedElement);
+  if (!active || active === document.body || !active.getAttributeNames || !document.contains(active) || (active.closest && active.closest(".playback-shell"))) return "";
+  if (active.id) return "#" + cssEscape(active.id);
+  const names = active.getAttributeNames().filter(function(name) { return name.indexOf("data-") === 0 && name !== "data-img-error" && name !== "data-img-load" && name !== "data-overflow-tooltip"; });
+  if (!names.length) return "";
+  return active.tagName.toLowerCase() + names.map(function(name) { return "[" + name + "=\"" + cssEscape(active.getAttribute(name) || "") + "\"]"; }).join("");
+}
+// restorePlayerLaunchFocus refocuses that control once the browse view has
+// re-rendered, unless something else already took focus.
+function restorePlayerLaunchFocus(selector) {
+  if (!selector) return;
+  requestAnimationFrame(function() {
+    if (state.view === "player") return;
+    const active = document.activeElement;
+    if (active && active !== document.body && document.contains(active)) return;
+    let target = null;
+    try { target = document.querySelector(selector); } catch (_) { target = null; }
+    if (!target || typeof target.focus !== "function") return;
+    try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+  });
+}
+
 function hasOpenPlayerOverlay() {
   return state.audioMenuOpen || state.volumeMenuOpen || state.moreMenuOpen || state.playerGuideOpen;
 }
@@ -117,7 +201,7 @@ function playerChromeHasFocus() {
 function updatePlayerChrome() {
   const shell = document.querySelector(".playback-shell");
   if (!shell) return;
-  shell.classList.toggle("is-idle", state.playerChromeIdle && !hasOpenPlayerOverlay() && !playerChromeHasFocus());
+  shell.classList.toggle("is-idle", state.playerChromeIdle && !hasOpenPlayerOverlay() && !playerChromeHasFocus() && !state.playerErrorMessage);
 }
 function wakePlayerChrome(delay) {
   if (state.view !== "player") return;
@@ -402,6 +486,75 @@ function closePlayerPopovers(except) {
   updateVolumeMenu();
   renderPlayerMoreMenu();
 }
+// A failed stream keeps a visible explanation with Try again and Back until the
+// viewer acts, instead of a toast over a black screen (ported from Dispatcharr).
+function showPlayerError(message) {
+  const panel = byId("player-error");
+  if (!panel) {
+    showPlayerToast(message, 8000);
+    return;
+  }
+  const channel = state.currentChannel;
+  state.playerErrorMessage = message;
+  state.playerWaiting = false;
+  panel.innerHTML = playerLogoHTML(channel)
+    + "<strong>" + escapeHTML((channel && channel.name) || "This channel") + "</strong>"
+    + "<p>" + escapeHTML(message) + "</p>"
+    + "<div class=\"player-error-actions\"><button type=\"button\" class=\"player-error-primary\" data-player-action=\"retry\">" + icon("play") + "<span>Try again</span></button>"
+    + "<button type=\"button\" data-player-action=\"back\">" + icon("arrow-left") + "<span>Back</span></button></div>";
+  panel.classList.remove("hidden");
+  updateCenterPlayButton();
+  wakePlayerChrome();
+  const retry = panel.querySelector("[data-player-action=\"retry\"]");
+  if (retry && !(document.activeElement && document.activeElement.closest && document.activeElement.closest(".player-top, .player-bottom"))) {
+    try { retry.focus({ preventScroll: true }); } catch (_) { retry.focus(); }
+  }
+}
+function clearPlayerError() {
+  if (!state.playerErrorMessage) return;
+  state.playerErrorMessage = "";
+  const panel = byId("player-error");
+  if (panel) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+  }
+  updateCenterPlayButton();
+}
+function playbackErrorStatus(error) {
+  const values = [
+    error && error.status,
+    error && error.code,
+    error && error.response && error.response.code,
+    error && error.info && error.info.code,
+    error && error.errorInfo && error.errorInfo.code
+  ];
+  for (let index = 0; index < values.length; index += 1) {
+    const status = Number(values[index]);
+    if (Number.isFinite(status) && status >= 100 && status <= 599) return status;
+  }
+  return 0;
+}
+function handlePlaybackFatalError(error) {
+  if (state.view !== "player") return;
+  const status = playbackErrorStatus(error);
+  state.playerWaiting = false;
+  const video = byId("player");
+  if (video) video.pause();
+  updateCenterPlayButton();
+  if (status === 401 || status === 403) {
+    showPlayerError("Playback authorization expired. Try again to reopen the channel.");
+    return;
+  }
+  if (status === 409) {
+    showPlayerError("All provider connections are in use. Stop another stream, then try again.");
+    return;
+  }
+  if (status === 503) {
+    showPlayerError("This channel is temporarily unavailable.");
+    return;
+  }
+  showPlayerError("The stream could not be loaded. The channel may be offline or out of connections.");
+}
 function showPlayerToast(message, durationMs) {
   const toast = byId("player-toast");
   if (!toast) return;
@@ -434,7 +587,7 @@ async function streamBlockedMessage(url, format) {
 async function showStreamBlockedIfNeeded(url, format) {
   const message = await streamBlockedMessage(url, format);
   if (!message) return false;
-  showPlayerToast(message, 12000);
+  showPlayerError(message);
   return true;
 }
 function fullscreenElement() {
@@ -511,7 +664,13 @@ function setVideoSource(url, options) {
   video.addEventListener("playing", function() { state.playerWaiting = false; updateCenterPlayButton(); }, listen());
   video.addEventListener("pause", updateCenterPlayButton, listen());
   video.addEventListener("play", updateCenterPlayButton, listen());
-  video.addEventListener("error", function() { state.playerWaiting = false; updateCenterPlayButton(); }, listen());
+  const onFatal = options && options.onFatal ? options.onFatal : handlePlaybackFatalError;
+  video.addEventListener("playing", clearPlayerError, listen());
+  video.addEventListener("error", function() {
+    state.playerWaiting = false;
+    updateCenterPlayButton();
+    if (!(state.videoAttachment && state.videoAttachment.manager) && video.error && (video.error.code === 3 || video.error.code === 4)) onFatal({ code: video.error.code });
+  }, listen());
   if (video.textTracks && video.textTracks.addEventListener) {
     video.textTracks.addEventListener("addtrack", updateSubtitlesButton, listen());
     video.textTracks.addEventListener("removetrack", updateSubtitlesButton, listen());
@@ -520,7 +679,7 @@ function setVideoSource(url, options) {
   if(state.videoAttachment){state.videoAttachment.destroy();state.videoAttachment=null;state.hls=null;state.tsPlayer=null;}
   if (state.hls) { state.hls.destroy(); state.hls = null; }
   if (state.tsPlayer) { state.tsPlayer.destroy(); state.tsPlayer = null; }
-  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: options && options.managedTimeShift, format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: options && options.onFatal });
+  const attachment = attachVideoSource(video, url, { rewindable: rewindable, managedTimeShift: options && options.managedTimeShift, format: options && options.format, hlsBufferSeconds: options && options.hlsBufferSeconds, onFatal: onFatal });
   state.videoAttachment=attachment;
   state.hls = attachment.hls;
   state.tsPlayer = attachment.tsPlayer;
@@ -560,9 +719,16 @@ function startWatch(channel) {
 function handlePlayerAction(action, button) {
   const video = byId("player");
   wakePlayerChrome();
+  rememberPlayerOverlayOpener(action, button);
   if(action === "compatible-playback"||action === "live-rewind"){state.moreMenuOpen=false;renderPlayerMoreMenu();sharedPlaybackMode(action==="live-rewind"?"rewind":"compatible");return;}
   if (action === "back") {
     returnFromPlayer();
+    return;
+  }
+  if (action === "retry") {
+    clearPlayerError();
+    if (typeof state.playerRetry === "function") state.playerRetry();
+    else if (state.currentChannel) playChannel(state.currentChannel);
     return;
   }
   if (action === "guide") {
@@ -690,6 +856,22 @@ function handlePlayerAction(action, button) {
     renderRail();
   }
 }
+function capturePlayerReturnContext() {
+  if (state.view === "player") return;
+  const main = document.querySelector(".main");
+  const guideScroll = byId("guide-scroll");
+  state.playerReturnContext = {
+    view: state.view,
+    category: state.category,
+    query: state.query,
+    folderQuery: state.folderQuery,
+    scrollY: window.scrollY,
+    mainScrollTop: main ? main.scrollTop : 0,
+    guideScrollTop: guideScroll ? guideScroll.scrollTop : 0,
+    guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0,
+    launchFocus: playerLaunchFocusSelector()
+  };
+}
 function returnFromPlayer() {
   const context = state.playerReturnContext;
   if (!context) {
@@ -711,6 +893,7 @@ function returnFromPlayer() {
       guideScroll.scrollTop = context.guideScrollTop || 0;
       renderGuideWindow(true);
     }
+    restorePlayerLaunchFocus(context.launchFocus);
   });
 }
 function stopWatchOnUnload(sessionID) {

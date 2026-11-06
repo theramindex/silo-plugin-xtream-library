@@ -17,7 +17,7 @@ function saveAdminCategorySettings() {
     if (state.view === "admin") renderAdminPage();
   }).catch(function(error) {
     state.adminSaveStatus = "error";
-    state.adminSaveMessage = "Could not save plugin settings: " + readableError(error);
+    state.adminSaveMessage = "Could not save plugin settings: " + adminErrorDetail(error);
     if (state.view === "admin") renderAdminPage();
     try { console.warn("Dispatcharr admin plugin settings save failed", error); } catch (_) {}
   });
@@ -82,26 +82,165 @@ function sourceManagerEndpoint() {
 function sourceRefreshEndpoint() {
   return userSourcesActive() ? "/dispatcharr/api/my-refresh" : "/dispatcharr/api/refresh-channels";
 }
+// Re-rendering the source manager replaces the whole view, so keep focus on
+// the same control (or move it into a newly opened dialog).
+function sourceManagerFocusSelector(element) {
+  if (!element || element === document.body || !element.getAttribute) return "";
+  if (element.id) return "#" + cssEscape(element.id);
+  const names = ["data-source-step", "data-source-format", "data-source-action", "data-account-action", "data-account-field", "data-source-id", "data-account-index"];
+  const parts = names.filter(function(name) { return element.hasAttribute(name); }).map(function(name) {
+    return "[" + name + "=\"" + cssEscape(element.getAttribute(name)) + "\"]";
+  });
+  return parts.join("");
+}
+function focusSourceManagerElement(selector) {
+  let target = null;
+  if (selector) {
+    try { target = document.querySelector(selector); } catch (_) { target = null; }
+  }
+  if (target && typeof target.focus === "function") {
+    try { target.focus({ preventScroll: true }); } catch (_) { target.focus(); }
+    return true;
+  }
+  return false;
+}
 function rerenderSourceManager() {
+  const active = document.activeElement;
+  const dialogWasOpen = !!document.querySelector(".source-dialog");
+  const focusSelector = sourceManagerFocusSelector(active);
+  // An open delete confirmation is rebuilt on the re-rendered Delete button.
+  const pendingConfirm = activeInlineConfirm;
+  const pendingConfirmSelector = pendingConfirm ? sourceManagerFocusSelector(pendingConfirm.trigger) : "";
   if (isAdminRoute) renderAdminPage();
   else if (state.view === "settings") renderSettings();
+  else return;
+  const dialog = document.querySelector(".source-dialog");
+  if (pendingConfirmSelector && activeInlineConfirm === pendingConfirm) {
+    const freshTrigger = document.querySelector(pendingConfirmSelector);
+    if (freshTrigger && freshTrigger !== pendingConfirm.trigger) {
+      openInlineConfirm(freshTrigger, pendingConfirm.options);
+      return;
+    }
+  }
+  if (focusSourceManagerElement(state.sourceManagerFocusNext)) {
+    state.sourceManagerFocusNext = "";
+    return;
+  }
+  state.sourceManagerFocusNext = "";
+  if (focusSelector && (!dialog || !dialogWasOpen || dialog.querySelector(focusSelector)) && focusSourceManagerElement(focusSelector)) {
+    if (!dialog || dialog.contains(document.activeElement)) return;
+  }
+  if (dialog && !dialog.contains(document.activeElement)) {
+    const first = dialog.querySelector(".source-dialog-content input:not([readonly]), .source-dialog-content select, .source-dialog-content button") || dialog.querySelector("button");
+    if (first) first.focus();
+  }
+}
+function sourceEditorDirty() {
+  if (!state.adminSourceEditor) return false;
+  return JSON.stringify(sourceEditorPayload("save")) !== state.adminSourceEditorBaseline;
+}
+// Escape is easy to press by accident, so it only closes an untouched editor.
+// With edits, it explains how to discard and moves focus to Cancel; the Cancel
+// button still discards straight away (as in Dispatcharr's connection dialog).
+function dismissSourceEditor() {
+  if (!sourceEditorDirty()) {
+    handleAdminSourceAction("cancel", "");
+    return;
+  }
+  setAdminSourceMessage("You have unsaved changes. Choose Cancel to discard them, or Save to keep them.", "error");
+  rerenderSourceManager();
+  const cancel = document.querySelector(".source-dialog footer [data-source-action=\"cancel\"]");
+  if (cancel) cancel.focus();
+}
+function sourceDialogKeydown(event) {
+  const dialog = document.querySelector(".source-dialog");
+  if (!dialog || !state.adminSourceEditor) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    dismissSourceEditor();
+    return true;
+  }
+  if (event.key !== "Tab") return false;
+  const focusable = Array.prototype.slice.call(dialog.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+  if (!focusable.length) return false;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  // Focus outside the dialog, or on a non-tabbable element inside it (the
+  // dialog itself), is not a control, so wrap instead of letting it escape.
+  if (focusable.indexOf(document.activeElement) === -1) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+    return true;
+  }
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+    return true;
+  }
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+    return true;
+  }
+  return false;
+}
+// Users with their own providers get a fresh catalog once a save, delete or
+// refresh lands. The refresh runs in the background, so watch the lightweight
+// status until it finishes, then reload the app once.
+async function reloadUserCatalog() {
+  if (!userSourcesActive()) return;
+  const attempt = (state.userCatalogReloadAttempt || 0) + 1;
+  state.userCatalogReloadAttempt = attempt;
+  const before = (state.app && state.app.status) || {};
+  const initialSuccess = Number(before.lastSuccessUnix || 0);
+  const initialFailure = Number(before.lastFailureUnix || 0);
+  const initialChannels = Number(before.channelCount || 0);
+  for (let round = 0; round < 10 && items(state.adminSources).length; round += 1) {
+    await new Promise(function(resolve) { setTimeout(resolve, round === 0 ? 1000 : 3000); });
+    if (attempt !== state.userCatalogReloadAttempt) return;
+    const status = await getJSON("/dispatcharr/api/status").catch(function() { return null; });
+    if (attempt !== state.userCatalogReloadAttempt) return;
+    if (!status) break;
+    const finished = Number(status.lastSuccessUnix || 0) > initialSuccess || Number(status.lastFailureUnix || 0) > initialFailure || (!initialChannels && Number(status.channelCount || 0) > 0);
+    if (finished) break;
+  }
+  if (attempt !== state.userCatalogReloadAttempt) return;
+  try {
+    await hydrateApp(await fetchAppBootstrap(), { reuseSettings: true });
+  } catch (_) {
+    return;
+  }
+  if (attempt !== state.userCatalogReloadAttempt) return;
+  if (state.view === "settings") rerenderSourceManager();
+  else if (state.view !== "player" && state.view !== "multiview") render();
 }
 function renderMyProvidersCard() {
   if (!userSourcesActive()) return "";
-  if (state.adminSources === undefined) {
+  // core.js starts adminSources as [], so track the first load separately.
+  if (!state.myProvidersRequested) {
+    state.myProvidersRequested = true;
     state.adminSources = null;
     getJSON(sourceManagerEndpoint()).then(function(payload) {
       state.adminSources = items(payload && payload.sources);
       rerenderSourceManager();
     }).catch(function(error) {
       state.adminSources = [];
-      state.adminSourceMessage = "Could not load your providers: " + readableError(error);
+      setAdminSourceMessage(errorSentence("Could not load your providers.", error), "error");
       rerenderSourceManager();
     });
   }
   const actions = "<div class=\"my-providers-actions\"><button class=\"admin-outline-action\" type=\"button\" data-source-action=\"refresh\">" + icon("loader") + "<span>Refresh</span></button><button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add provider</span></button></div>";
   return "<div class=\"settings-card my-providers-card\"><div class=\"settings-card-head\"><div><h2>My providers</h2><p>Your own Xtream Codes accounts. Only you can use them; passwords are never shown again after saving, including to Silo admins.</p></div>" + actions + "</div></div>"
-    + (state.adminSources === null ? "<div class=\"settings-card\"><div class=\"empty\">Loading your providers…</div></div>" : renderAdminSourcesTab());
+    + (state.adminSources === null ? "<div class=\"settings-card\"><div class=\"empty\" role=\"status\">Loading your providers…</div></div>" : renderAdminSourcesTab());
+}
+function setAdminSourceMessage(message, kind) {
+  state.adminSourceMessage = message || "";
+  state.adminSourceMessageKind = message ? (kind || "success") : "";
+}
+function adminSourceMessageHTML(extraClass) {
+  if (!state.adminSourceMessage) return "";
+  const error = state.adminSourceMessageKind === "error";
+  return "<div class=\"settings-note" + (error ? " settings-warning" : "") + (extraClass ? " " + extraClass : "") + "\" role=\"" + (error ? "alert" : "status") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>";
 }
 function adminSaveStatusHTML() {
   if (!state.adminSaveMessage) return "";
@@ -169,7 +308,7 @@ function renderAdminTopbarActions() {
   const root = byId("admin-actions");
   if (!root) return;
   if (state.adminTab === "sources") {
-    root.innerHTML = "<button class=\"admin-outline-action\" type=\"button\" data-source-action=\"refresh\">" + icon("loader") + "<span>Refresh Catalog</span></button><button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add Source</span></button>";
+    root.innerHTML = "<button class=\"admin-outline-action\" type=\"button\" data-source-action=\"refresh\">" + icon("loader") + "<span>Refresh catalog</span></button><button class=\"admin-primary-action\" type=\"button\" data-source-action=\"add\">" + icon("plus") + "<span>Add source</span></button>";
     return;
   }
   const dirty = adminSettingsDirty();
@@ -189,12 +328,39 @@ function renderAdminSourcesTab() {
     const active = accounts.reduce(function(total, account) { return total + (Number(account.activeConnections) || 0); }, 0);
     const capacity = accounts.reduce(function(total, account) { return total + (Number(account.connectionLimit) || 0); }, 0);
     const accountSummary = accounts.length ? accounts.length + " account" + (accounts.length === 1 ? "" : "s") : "1 account";
-    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small><small class=\"source-epg-summary\">" + escapeHTML(epg) + "</small></div><div class=\"source-user\"><span>" + escapeHTML(accountSummary) + "</span><small>" + escapeHTML(String(active) + " active" + (capacity ? " · " + capacity + " pooled" : "")) + "</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button><button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\">Delete</button></div></div>";
+    return "<div class=\"source-table-row\"><div class=\"source-primary\"><strong>" + escapeHTML(source.name || source.id) + "</strong><small>" + escapeHTML(source.baseUrl || "Server not configured") + "</small><small class=\"source-epg-summary\">" + escapeHTML(epg) + "</small></div><div class=\"source-user\"><span>" + escapeHTML(accountSummary) + "</span><small>" + escapeHTML(String(active) + " active" + (capacity ? " · " + capacity + " pooled" : "")) + "</small></div><div class=\"source-count\"><strong>" + escapeHTML(String(source.channelCount || 0)) + "</strong><small>Channels</small></div><div class=\"source-format\"><span>" + escapeHTML(String(source.liveFormat || "m3u8").toUpperCase()) + "</span><small>Live format</small></div><div class=\"source-state\"><span class=\"source-status" + (source.enabled ? " enabled" : "") + "\">" + status + "</span></div><div class=\"source-actions\"><button type=\"button\" data-source-action=\"refresh-source\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Refresh " + escapeHTML(source.name || source.id) + "\">" + icon("loader") + "<span>Refresh</span></button><button type=\"button\" data-source-action=\"test\" data-source-id=\"" + escapeHTML(source.id) + "\">Test</button><button type=\"button\" data-source-action=\"edit\" data-source-id=\"" + escapeHTML(source.id) + "\">Edit</button><button type=\"button\" data-source-action=\"toggle\" data-source-id=\"" + escapeHTML(source.id) + "\">" + (source.enabled ? "Disable" : "Enable") + "</button>" + sourceDeleteControlHTML(source) + "</div></div>";
   }).join("");
-  const message = state.adminSourceMessage ? "<div class=\"settings-note" + (state.adminSourceMessage.indexOf("Could not") === 0 ? " settings-warning" : "") + "\">" + escapeHTML(state.adminSourceMessage) + "</div>" : "";
-  const header = rows ? "<div class=\"source-table-head\"><span>Source</span><span>Pool</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
+  const message = state.adminSourceEditor ? "" : adminSourceMessageHTML();
+  const header = rows ? "<div class=\"source-table-head\"><span>" + (userSourcesActive() ? "Provider" : "Source") + "</span><span>Pool</span><span>Channels</span><span>Format</span><span>Status</span><span>Actions</span></div>" : "";
   const perUserNote = isAdminRoute && adminSettings().userSourcesEnabled === true ? "<div class=\"settings-note settings-warning\">Users add their own providers (Organization tab). These shared sources are not used for anyone&#39;s channels or playback while that is on.</div>" : "";
-  return "<div class=\"settings-card source-manager-card\">" + perUserNote + message + "<div class=\"source-table\">" + header + (rows || "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtreme Codes account to begin building the Live TV catalog.</span></div>") + "</div></div>" + renderAdminSourceEditor();
+  return "<div class=\"settings-card source-manager-card\">" + perUserNote + message + "<div class=\"source-table\">" + header + (rows || (userSourcesActive() ? "<div class=\"source-empty\"><strong>No provider yet</strong><span>Add your Xtream Codes account to build your channels and guide.</span></div>" : "<div class=\"source-empty\"><strong>No sources configured</strong><span>Add an Xtream Codes account to begin building the Live TV catalog.</span></div>")) + "</div></div>" + renderAdminSourceEditor();
+}
+function sourceDisplayName(source) {
+  return String((source && (source.name || source.id)) || (userSourcesActive() ? "this provider" : "this source"));
+}
+// Delete asks first through the shared inline confirmation (see
+// handleAdminSourceAction and openInlineConfirm in core.js).
+function sourceDeleteControlHTML(source) {
+  return "<button type=\"button\" class=\"danger\" data-source-action=\"delete\" data-source-id=\"" + escapeHTML(source.id) + "\" aria-label=\"Delete " + escapeHTML(sourceDisplayName(source)) + "\">Delete</button>";
+}
+// Quick checks before a test or save, so an empty or malformed field points at
+// itself instead of coming back as a provider error.
+function sourceEditorValidationError(source) {
+  const url = String(source.baseUrl || "").trim();
+  if (!url) return "Enter the provider's server URL.";
+  let parsed = null;
+  try { parsed = new URL(url); } catch (_) { parsed = null; }
+  if (!parsed || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) return "Enter the server URL with http:// or https://, for example https://provider.example.com.";
+  if (/player_api\.php|get\.php/i.test(parsed.pathname)) return "Use the provider's base URL, without player_api.php or get.php.";
+  if (!String(source.username || "").trim()) return "Enter the account username.";
+  if (!source.id && !source.password && !source.passwordConfigured) return "Enter the account password.";
+  return "";
+}
+function sourceBusyLabel(action, idle, busy) {
+  return state.adminSourceBusy === action ? busy : idle;
+}
+function sourceBusyAttr(action) {
+  return state.adminSourceBusy ? " disabled" + (state.adminSourceBusy === action ? " aria-busy=\"true\"" : "") : "";
 }
 function renderAdminSourceEditor() {
   const source = state.adminSourceEditor;
@@ -203,16 +369,22 @@ function renderAdminSourceEditor() {
   const step = state.adminSourceEditorStep || "general";
   const epgResult = state.adminSourceEPGResult;
   const epgError = state.adminSourceEPGError;
-  const nav = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "accounts", label: "Sub-accounts", icon: "integrations" }, { id: "guide", label: "Alternate EPG", icon: "guide" }, { id: "playback", label: "Playback", icon: "play" }].map(function(item) {
-    return "<button type=\"button\" data-source-step=\"" + item.id + "\" class=\"" + (step === item.id ? "active" : "") + "\">" + icon(item.icon) + "<span>" + item.label + "</span></button>";
+  const personal = userSourcesActive();
+  const steps = [{ id: "general", label: "General", icon: "settings" }, { id: "connection", label: "Connection", icon: "integrations" }, { id: "accounts", label: "Sub-accounts", icon: "integrations" }, { id: "guide", label: "Alternate EPG", icon: "guide" }, { id: "playback", label: "Playback", icon: "play" }].filter(function(item) {
+    // A user's own provider is one account; pooling is an admin concern.
+    return !(personal && item.id === "accounts");
+  });
+  const nav = steps.map(function(item) {
+    return "<button type=\"button\" data-source-step=\"" + item.id + "\" class=\"" + (step === item.id ? "active" : "") + "\"" + (step === item.id ? " aria-current=\"step\"" : "") + ">" + icon(item.icon) + "<span>" + item.label + "</span></button>";
   }).join("");
   let content = "";
-  if (step === "general") content = "<div class=\"source-step-copy\"><h3>General</h3><p>Name this source and choose whether it participates in catalog refreshes.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Display name <small>· optional</small></span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Defaults to provider domain\"></label><label class=\"source-field-wide\"><span>Source ID</span><input value=\"" + escapeHTML(derivedSourceID(source.baseUrl, source.username) || source.id || "") + "\" placeholder=\"Generated after entering server and username\" readonly><small>Generated from the provider domain and username. Saving migrates legacy IDs such as primary.</small></label><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Enabled</strong><small>Include this source in channel, guide, and content refreshes.</small></span><span class=\"source-switch-control\"><input id=\"source-enabled\" type=\"checkbox\" aria-label=\"Enabled\"" + (source.enabled !== false ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label></div>";
-  if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Enter the Xtreme Codes server and account credentials.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"><small>Use the provider base URL, not player_api.php.</small></label><label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label><label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"" + escapeHTML(source.password || "") + "\" autocomplete=\"new-password\"></label><div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-editor\">Test connection</button></div></div>";
+  const sourceIDField = personal ? "" : "<label class=\"source-field-wide\"><span>Source ID</span><input value=\"" + escapeHTML(derivedSourceID(source.baseUrl, source.username) || source.id || "") + "\" placeholder=\"Generated after entering server and username\" readonly><small>Generated from the provider domain and username. Saving migrates legacy IDs such as primary.</small></label>";
+  if (step === "general") content = "<div class=\"source-step-copy\"><h3>General</h3><p>" + (personal ? "Name this provider and choose whether it is used for your channels and guide." : "Name this source and choose whether it participates in catalog refreshes.") + "</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Display name <small>· optional</small></span><input id=\"source-name\" value=\"" + escapeHTML(source.name || "") + "\" placeholder=\"Defaults to provider domain\"></label>" + sourceIDField + "<label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Enabled</strong><small>" + (personal ? "Use this provider for your channels, guide, and content." : "Include this source in channel, guide, and content refreshes.") + "</small></span><span class=\"source-switch-control\"><input id=\"source-enabled\" type=\"checkbox\" aria-label=\"Enabled\"" + (source.enabled !== false ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label></div>";
+  if (step === "connection") content = "<div class=\"source-step-copy\"><h3>Connection</h3><p>Enter the Xtream Codes server and account credentials.</p></div><div class=\"source-form\"><label class=\"source-field-wide\"><span>Server URL</span><input id=\"source-url\" type=\"url\" value=\"" + escapeHTML(source.baseUrl || "") + "\" placeholder=\"https://provider.example.com\"><small>Use the provider base URL, not player_api.php.</small></label><label><span>Username</span><input id=\"source-username\" value=\"" + escapeHTML(source.username || "") + "\" autocomplete=\"off\"></label><label><span>Password" + (source.passwordConfigured ? " · leave blank to keep current" : "") + "</span><input id=\"source-password\" type=\"password\" value=\"" + escapeHTML(source.password || "") + "\" autocomplete=\"new-password\"></label><div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-editor\"" + sourceBusyAttr("test") + ">" + sourceBusyLabel("test", "Test connection", "Testing…") + "</button></div></div>";
   if (step === "accounts") content = renderSourceAccountsStep(source);
-  if (step === "guide") content = "<div class=\"source-step-copy\"><h3>Alternate EPG</h3><p>Overlay an optional XMLTV feed onto this source. Channel and playback IDs are never changed.</p></div><div class=\"source-form\"><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Use alternate EPG</strong><small>Provider guide remains available if this feed fails.</small></span><span class=\"source-switch-control\"><input id=\"source-alternate-epg-enabled\" type=\"checkbox\" aria-label=\"Use alternate EPG\"" + (source.alternateEpgEnabled ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label><label class=\"source-field-wide\"><span>XMLTV URL</span><input id=\"source-alternate-epg-url\" type=\"url\" value=\"" + escapeHTML(source.alternateEpgUrl || "") + "\" placeholder=\"https://epg.example/guide.xml\"><small>Use a feed you are authorized to access. XC for Silo does not bundle a third-party guide.</small></label><label class=\"source-field-wide\"><span>Merge policy</span><select id=\"source-alternate-epg-policy\"><option value=\"fill_missing\"" + (source.alternateEpgPolicy !== "prefer_alternate" ? " selected" : "") + ">Fill missing guide data</option><option value=\"prefer_alternate\"" + (source.alternateEpgPolicy === "prefer_alternate" ? " selected" : "") + ">Prefer alternate guide</option></select><small>Fill missing preserves overlapping Xtream programs and fills actual schedule gaps. Prefer alternate replaces programs only on matched channels.</small></label>" + (epgResult ? "<div class=\"source-epg-result\"><strong>Coverage test passed</strong><span>" + escapeHTML(String(epgResult.matchedChannels)) + " matched · " + escapeHTML(String(epgResult.unmatchedChannels)) + " unmatched · " + escapeHTML(String(epgResult.programCount)) + " programs</span></div>" : "") + (epgError ? "<div class=\"source-epg-result error\"><strong>Coverage test failed</strong><span>" + escapeHTML(epgError) + "</span></div>" : "") + "<div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-epg\">Test EPG and coverage</button></div></div>";
+  if (step === "guide") content = "<div class=\"source-step-copy\"><h3>Alternate EPG</h3><p>Overlay an optional XMLTV feed onto this source. Channel and playback IDs are never changed.</p></div><div class=\"source-form\"><label class=\"source-enabled\"><span class=\"source-enabled-copy\"><strong>Use alternate EPG</strong><small>Provider guide remains available if this feed fails.</small></span><span class=\"source-switch-control\"><input id=\"source-alternate-epg-enabled\" type=\"checkbox\" aria-label=\"Use alternate EPG\"" + (source.alternateEpgEnabled ? " checked" : "") + "><span class=\"source-switch\" aria-hidden=\"true\"></span></span></label><label class=\"source-field-wide\"><span>XMLTV URL</span><input id=\"source-alternate-epg-url\" type=\"url\" value=\"" + escapeHTML(source.alternateEpgUrl || "") + "\" placeholder=\"https://epg.example/guide.xml\"><small>Use a feed you are authorized to access. XC for Silo does not bundle a third-party guide.</small></label><label class=\"source-field-wide\"><span>Merge policy</span><select id=\"source-alternate-epg-policy\"><option value=\"fill_missing\"" + (source.alternateEpgPolicy !== "prefer_alternate" ? " selected" : "") + ">Fill missing guide data</option><option value=\"prefer_alternate\"" + (source.alternateEpgPolicy === "prefer_alternate" ? " selected" : "") + ">Prefer alternate guide</option></select><small>Fill missing preserves overlapping Xtream programs and fills actual schedule gaps. Prefer alternate replaces programs only on matched channels.</small></label>" + (epgResult ? "<div class=\"source-epg-result\" role=\"status\"><strong>Coverage test passed</strong><span>" + escapeHTML(String(epgResult.matchedChannels)) + " matched · " + escapeHTML(String(epgResult.unmatchedChannels)) + " unmatched · " + escapeHTML(String(epgResult.programCount)) + " programs</span></div>" : "") + (epgError ? "<div class=\"source-epg-result error\" role=\"alert\"><strong>Coverage test failed</strong><span>" + escapeHTML(epgError) + "</span></div>" : "") + "<div class=\"source-step-action\"><button type=\"button\" data-source-action=\"test-epg\"" + sourceBusyAttr("test_epg") + ">" + sourceBusyLabel("test_epg", "Test EPG and coverage", "Testing…") + "</button></div></div>";
   if (step === "playback") content = "<div class=\"source-step-copy\"><h3>Playback</h3><p>Choose the live stream container requested from this provider.</p></div><div class=\"source-format-options\"><button type=\"button\" data-source-format=\"m3u8\" class=\"" + (source.liveFormat !== "ts" ? "active" : "") + "\"><strong>HLS</strong><span>.m3u8 · recommended for browsers</span></button><button type=\"button\" data-source-format=\"ts\" class=\"" + (source.liveFormat === "ts" ? "active" : "") + "\"><strong>MPEG-TS</strong><span>.ts · provider compatibility</span></button></div>" + (source.liveFormat === "ts" ? "" : "<div class=\"source-form\"><label class=\"source-field-wide\"><span>Live resilience buffer</span><input id=\"source-hls-buffer-seconds\" type=\"number\" min=\"5\" max=\"60\" step=\"1\" value=\"" + escapeHTML(String(boundedHLSBufferSeconds(source.hlsBufferSeconds))) + "\"><small>Seconds behind the live edge. Playback still starts immediately; higher values trade live delay for fewer stalls.</small></label></div>");
-  return "<div class=\"source-dialog-backdrop\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\"><header><div class=\"source-dialog-icon\">" + icon("guide") + "</div><div><h2 id=\"source-dialog-title\">" + (editing ? "Edit Source" : "Add Source") + "</h2><p>Configure an Xtreme Codes provider account.</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"Close source editor\">" + icon("x") + "</button></header><div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Source setup steps\">" + nav + "</nav><div class=\"source-dialog-content\">" + content + "</div></div><footer><button type=\"button\" data-source-action=\"cancel\">Cancel</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\">" + (editing ? "Save Changes" : "Add Source") + "</button></footer></section></div>";
+  return "<div class=\"source-dialog-backdrop\"><section class=\"source-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"source-dialog-title\"><header><div class=\"source-dialog-icon\">" + icon("guide") + "</div><div><h2 id=\"source-dialog-title\">" + (personal ? (editing ? "Edit provider" : "Add provider") : (editing ? "Edit source" : "Add source")) + "</h2><p>" + (personal ? "Your own Xtream Codes account. Only you can use it." : "Configure an Xtream Codes provider account.") + "</p></div><button type=\"button\" class=\"source-close\" data-source-action=\"cancel\" aria-label=\"" + (personal ? "Close provider editor" : "Close source editor") + "\">" + icon("x") + "</button></header><div class=\"source-dialog-body\"><nav class=\"source-dialog-nav\" aria-label=\"Source setup steps\">" + nav + "</nav><div class=\"source-dialog-content\">" + content + "</div></div><footer><div class=\"source-dialog-status\" aria-live=\"polite\">" + adminSourceMessageHTML("source-dialog-note") + "</div><button type=\"button\" data-source-action=\"cancel\">Cancel</button><button type=\"button\" class=\"admin-save\" data-source-action=\"save\"" + sourceBusyAttr("save") + ">" + sourceBusyLabel("save", editing ? "Save changes" : (personal ? "Add provider" : "Add source"), "Saving…") + "</button></footer></section></div>";
 }
 function renderSourceAccountsStep(source) {
   ensureSourceCatalogAccount(source);
@@ -221,7 +393,7 @@ function renderSourceAccountsStep(source) {
   const rows = accounts.map(function(account, index) {
     const catalog = account.id === catalogID || account.catalog;
     const status = catalog || account.compatible ? "Ready" : "Test required";
-    return "<div class=\"source-account-row\" data-account-row=\"" + index + "\"><div class=\"source-account-head\"><div><strong>" + escapeHTML(account.name || account.username || (catalog ? "Catalog account" : "Playback account")) + "</strong><small>" + (catalog ? "Catalog + playback" : status) + (account.activeConnections ? " · " + account.activeConnections + " active" : "") + "</small></div>" + (catalog ? "<span class=\"source-account-badge\">Primary</span>" : "<button type=\"button\" class=\"danger\" data-account-action=\"remove\" data-account-index=\"" + index + "\" aria-label=\"Remove account\">" + icon("x") + "</button>") + "</div><div class=\"source-account-fields\"><label><span>Name</span><input data-account-field=\"name\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(account.name || "") + "\" placeholder=\"Backup account\"></label><label><span>Username</span><input data-account-field=\"username\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(account.username || "") + "\"" + (catalog ? " readonly" : "") + "></label><label><span>Password" + (account.passwordConfigured ? " · leave blank to keep" : "") + "</span><input type=\"password\" data-account-field=\"password\" data-account-index=\"" + index + "\" value=\"\" autocomplete=\"new-password\"" + (catalog ? " readonly" : "") + "></label><label><span>Stream limit <small>· 0 = unlimited</small></span><input type=\"number\" min=\"0\" data-account-field=\"connectionLimit\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(String(account.connectionLimit || 0)) + "\"></label></div><div class=\"source-account-controls\"><label><input type=\"checkbox\" data-account-field=\"enabled\" data-account-index=\"" + index + "\"" + (account.enabled !== false ? " checked" : "") + (catalog ? " disabled" : "") + "> Enabled for playback</label>" + (!catalog ? "<button type=\"button\" data-account-action=\"test\" data-account-index=\"" + index + "\">Test account</button>" : "") + "</div></div>";
+    return "<div class=\"source-account-row\" data-account-row=\"" + index + "\"><div class=\"source-account-head\"><div><strong>" + escapeHTML(account.name || account.username || (catalog ? "Catalog account" : "Playback account")) + "</strong><small>" + (catalog ? "Catalog + playback" : status) + (account.activeConnections ? " · " + account.activeConnections + " active" : "") + "</small></div>" + (catalog ? "<span class=\"source-account-badge\">Primary</span>" : "<button type=\"button\" class=\"danger\" data-account-action=\"remove\" data-account-index=\"" + index + "\" aria-label=\"Remove account " + escapeHTML(account.name || account.username || String(index + 1)) + "\">" + icon("x") + "</button>") + "</div><div class=\"source-account-fields\"><label><span>Name</span><input data-account-field=\"name\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(account.name || "") + "\" placeholder=\"Backup account\"></label><label><span>Username</span><input data-account-field=\"username\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(account.username || "") + "\"" + (catalog ? " readonly" : "") + "></label><label><span>Password" + (account.passwordConfigured ? " · leave blank to keep" : "") + "</span><input type=\"password\" data-account-field=\"password\" data-account-index=\"" + index + "\" value=\"\" autocomplete=\"new-password\"" + (catalog ? " readonly" : "") + "></label><label><span>Stream limit <small>· 0 = unlimited</small></span><input type=\"number\" min=\"0\" data-account-field=\"connectionLimit\" data-account-index=\"" + index + "\" value=\"" + escapeHTML(String(account.connectionLimit || 0)) + "\"></label></div><div class=\"source-account-controls\"><label><input type=\"checkbox\" data-account-field=\"enabled\" data-account-index=\"" + index + "\"" + (account.enabled !== false ? " checked" : "") + (catalog ? " disabled" : "") + "> Enabled for playback</label>" + (!catalog ? "<button type=\"button\" data-account-action=\"test\" data-account-index=\"" + index + "\"" + sourceBusyAttr("test_account") + ">" + sourceBusyLabel("test_account", "Test account", "Testing…") + "</button>" : "") + "</div></div>";
   }).join("");
   return "<div class=\"source-step-copy\"><h3>Sub-accounts</h3><p>Pool credentials for this provider. The primary account builds the catalog; compatible enabled accounts share playback.</p></div><div class=\"source-account-list\">" + (rows || "<div class=\"source-account-empty\">The connection account becomes the primary catalog account when you save.</div>") + "</div><div class=\"source-step-action source-account-add-action\"><button type=\"button\" data-account-action=\"add\">" + icon("plus") + "<span>Add playback account</span></button></div>";
 }
@@ -255,40 +427,69 @@ async function refreshAdminSources() {
   state.adminSources = items(payload && payload.sources);
   rerenderSourceManager();
 }
+const SOURCE_TEST_ACTIONS = { test: true, test_epg: true, test_account: true };
+function sourceErrorLead(action) {
+  const personal = userSourcesActive();
+  if (action === "test") return "Connection test failed.";
+  if (action === "test_account") return "Playback account test failed.";
+  if (action === "test_epg") return "Alternate EPG test failed.";
+  if (action === "delete") return personal ? "Could not delete your provider." : "Could not delete the source.";
+  return personal ? "Could not save your provider." : "Could not save the source.";
+}
 async function submitAdminSource(payload, successMessage) {
   const requestID = ++state.adminSourceRequestID;
-  state.adminSourceMessage = "";
+  const testing = !!SOURCE_TEST_ACTIONS[payload.action];
+  setAdminSourceMessage("", "");
   if (payload.action === "test_epg") {
     state.adminSourceEPGResult = null;
     state.adminSourceEPGError = "";
-    rerenderSourceManager();
   }
+  if (state.adminSourceEditor && (payload.action === "test" || payload.action === "save")) {
+    const invalid = sourceEditorValidationError(state.adminSourceEditor);
+    if (invalid) {
+      setAdminSourceMessage(invalid, "error");
+      if (state.adminSourceEditorStep !== "connection") state.adminSourceEditorStep = "connection";
+      rerenderSourceManager();
+      return;
+    }
+  }
+  state.adminSourceBusy = payload.action || "save";
+  if (state.adminSourceEditor && testing) setAdminSourceMessage(payload.action === "test_epg" ? "Testing the XMLTV feed…" : "Testing the connection…", "info");
+  rerenderSourceManager();
+  let result = null;
   try {
-    const result = await postJSON(sourceManagerEndpoint(), payload);
+    result = await postJSON(sourceManagerEndpoint(), payload);
     if (requestID !== state.adminSourceRequestID) return;
     if (result && result.sources) state.adminSources = items(result.sources);
     if (payload.action === "test_epg" && result && result.coverage) {
       state.adminSourceEPGResult = result.coverage;
       state.adminSourceEPGError = "";
-      state.adminSourceMessage = "Alternate EPG matched " + result.coverage.matchedChannels + " channels, left " + result.coverage.unmatchedChannels + " unmatched, and supplied " + result.coverage.programCount + " programs.";
-    } else state.adminSourceMessage = successMessage;
+      setAdminSourceMessage("Alternate EPG matched " + result.coverage.matchedChannels + " channels, left " + result.coverage.unmatchedChannels + " unmatched, and supplied " + result.coverage.programCount + " programs.", "success");
+    } else setAdminSourceMessage(successMessage, "success");
     if (payload.action === "test_account" && result && result.compatible) {
       const account = items(state.adminSourceEditor && state.adminSourceEditor.accounts).find(function(candidate) { return candidate.id === result.accountId; });
       if (account) account.compatible = true;
-      state.adminSourceMessage = "Playback account verified.";
+      setAdminSourceMessage("Playback account verified.", "success");
     }
-    if (payload.action !== "test" && payload.action !== "test_epg" && payload.action !== "test_account") state.adminSourceEditor = null;
-    if (userSourcesActive() && payload.action !== "test" && payload.action !== "test_epg" && payload.action !== "test_account") state.app.sourcesConfigured = items(state.adminSources).length > 0;
+    if (!testing) {
+      if (state.adminSourceEditor) state.sourceManagerFocusNext = state.adminSourceEditorOpener || "";
+      state.adminSourceEditor = null;
+      state.adminSourceEditorOpener = "";
+    }
+    if (userSourcesActive() && !testing) state.app.sourcesConfigured = items(state.adminSources).length > 0;
   } catch (error) {
     if (requestID !== state.adminSourceRequestID) return;
-    const errorPrefix = payload.action === "test" ? "Connection test failed: " : (payload.action === "test_account" ? "Playback account test failed: " : (payload.action === "test_epg" ? "Alternate EPG test failed: " : "Could not save source: "));
-    state.adminSourceMessage = errorPrefix + readableError(error);
+    setAdminSourceMessage(errorSentence(sourceErrorLead(payload.action), error), "error");
     if (payload.action === "test_epg") {
       state.adminSourceEPGResult = null;
-      state.adminSourceEPGError = readableError(error);
+      state.adminSourceEPGError = friendlyError(error, "The XMLTV feed could not be loaded or did not match any channels.");
     }
+    result = null;
+  } finally {
+    if (requestID === state.adminSourceRequestID) state.adminSourceBusy = "";
   }
   rerenderSourceManager();
+  if (result && !testing) reloadUserCatalog();
 }
 function handleSourceAccountAction(action, index) {
   const source = state.adminSourceEditor;
@@ -303,6 +504,7 @@ function handleSourceAccountAction(action, index) {
   if (!account) return;
   if (action === "remove") {
     source.accounts.splice(index, 1);
+    state.sourceManagerFocusNext = "[data-account-action=\"add\"]";
     rerenderSourceManager();
     return;
   }
@@ -313,38 +515,68 @@ function handleSourceAccountAction(action, index) {
     submitAdminSource(payload, "Playback account verified.");
   }
 }
-function handleAdminSourceAction(action, sourceID) {
+function handleAdminSourceAction(action, sourceID, trigger) {
   const source = adminSourceByID(sourceID);
+  const personal = userSourcesActive();
+  if (action !== "delete") closeInlineConfirm(false);
   if (action === "refresh") {
-    state.adminSourceMessage = "Catalog refresh queued.";
-    postJSON(sourceRefreshEndpoint(), {}).then(function() { refreshAdminSources(); }).catch(function(error) {
-      state.adminSourceMessage = "Could not refresh catalog: " + readableError(error);
+    setAdminSourceMessage(personal ? "Refreshing your channels and guide…" : "Catalog refresh queued.", "info");
+    postJSON(sourceRefreshEndpoint(), {}).then(function() {
+      if (personal) setAdminSourceMessage("Refresh started. Your channels and guide update when it finishes.", "success");
+      reloadUserCatalog();
+      return refreshAdminSources();
+    }).catch(function(error) {
+      setAdminSourceMessage(errorSentence(personal ? "Could not refresh your provider." : "Could not refresh the catalog.", error), "error");
       rerenderSourceManager();
     });
     rerenderSourceManager();
     return;
   }
   if (action === "refresh-source" && source) {
-    state.adminSourceMessage = "Refreshing " + (source.name || source.id) + "…";
+    setAdminSourceMessage("Refreshing " + sourceDisplayName(source) + "…", "info");
     postJSON(sourceRefreshEndpoint(), {}).then(function() {
-      state.adminSourceMessage = (source.name || source.id) + " catalog refreshed.";
+      setAdminSourceMessage(sourceDisplayName(source) + " refresh started.", "success");
+      reloadUserCatalog();
       return refreshAdminSources();
     }).catch(function(error) {
-      state.adminSourceMessage = "Could not refresh " + (source.name || source.id) + ": " + readableError(error);
+      setAdminSourceMessage(errorSentence("Could not refresh " + sourceDisplayName(source) + ".", error), "error");
       rerenderSourceManager();
     });
     rerenderSourceManager();
     return;
   }
+  if (action === "add" || (action === "edit" && source)) {
+    state.adminSourceEditorOpener = action === "add" ? "[data-source-action=\"add\"]" : "[data-source-action=\"edit\"][data-source-id=\"" + cssEscape(source.id) + "\"]";
+    setAdminSourceMessage("", "");
+  }
   if (action === "add") { state.adminSourceEditor = { enabled: true, liveFormat: "m3u8", hlsBufferSeconds: 12, alternateEpgEnabled: false, alternateEpgPolicy: "fill_missing", accounts: [] }; state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
   if (action === "edit" && source) { state.adminSourceEditor = Object.assign({}, source, { password: "", accounts: items(source.accounts).map(function(account) { return Object.assign({}, account, { password: "" }); }) }); state.adminSourceEditorStep = "general"; state.adminSourceEPGResult = null; state.adminSourceEPGError = ""; }
-  if (action === "cancel") state.adminSourceEditor = null;
-  if (action === "save") return submitAdminSource(sourceEditorPayload("save"), "Source saved. Catalog refresh queued.");
+  // Snapshot the draft so Escape can tell an untouched editor from one with edits.
+  if (action === "add" || (action === "edit" && source)) state.adminSourceEditorBaseline = JSON.stringify(sourceEditorPayload("save"));
+  if (action === "cancel") {
+    state.adminSourceRequestID += 1;
+    state.adminSourceBusy = "";
+    state.adminSourceEditor = null;
+    setAdminSourceMessage("", "");
+    state.sourceManagerFocusNext = state.adminSourceEditorOpener || "";
+    state.adminSourceEditorOpener = "";
+  }
+  if (action === "save") return submitAdminSource(sourceEditorPayload("save"), personal ? "Provider saved. Your channels and guide are refreshing." : "Source saved. Catalog refresh queued.");
   if (action === "test-editor") return submitAdminSource(sourceEditorPayload("test"), "Connection successful.");
   if (action === "test-epg") return submitAdminSource(sourceEditorPayload("test_epg"), "Alternate EPG is available.");
-  if (action === "test" && source) return submitAdminSource(Object.assign({}, source, { action: "test", password: "" }), "Connection successful.");
-  if (action === "toggle" && source) return submitAdminSource(Object.assign({}, source, { action: "save", enabled: !source.enabled, password: "" }), source.enabled ? "Source disabled." : "Source enabled. Catalog refresh queued.");
-  if (action === "delete" && source) return submitAdminSource({ action: "delete", id: source.id }, "Source deleted. Catalog refresh queued.");
+  if (action === "test" && source) return submitAdminSource(Object.assign({}, source, { action: "test", password: "" }), "Connection to " + sourceDisplayName(source) + " successful.");
+  if (action === "toggle" && source) return submitAdminSource(Object.assign({}, source, { action: "save", enabled: !source.enabled, password: "" }), source.enabled ? sourceDisplayName(source) + " disabled." : sourceDisplayName(source) + " enabled. Refresh queued.");
+  if (action === "delete" && source) {
+    // Destructive: confirm inline first (openInlineConfirm in core.js).
+    openInlineConfirm(trigger || document.querySelector("[data-source-action=\"delete\"][data-source-id=\"" + cssEscape(source.id) + "\"]"), {
+      title: sourceDisplayName(source),
+      message: personal ? "Your channels and guide from this provider will be removed." : "",
+      onConfirm: function() {
+        submitAdminSource({ action: "delete", id: source.id }, personal ? sourceDisplayName(source) + " deleted." : sourceDisplayName(source) + " deleted. Catalog refresh queued.");
+      }
+    });
+    return;
+  }
   rerenderSourceManager();
 }
 function renderAdminSettingsTab() {

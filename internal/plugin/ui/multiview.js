@@ -26,8 +26,20 @@ function syncMultiviewAudio() {
       video.volume = active ? state.volume : 0;
     }
     const root = document.querySelector("[data-multiview-tile=\"" + cssEscape(tile.id) + "\"]");
-    if (root) root.classList.toggle("active", active);
+    if (root) {
+      root.classList.toggle("active", active);
+      const audioButton = root.querySelector("[data-multiview-action=\"focus\"]");
+      const audioBadge = root.querySelector(".multiview-audio-badge");
+      if (audioButton) {
+        audioButton.setAttribute("aria-pressed", active ? "true" : "false");
+        audioButton.setAttribute("aria-label", active ? "Audio is playing from this tile" : "Use audio from this tile");
+      }
+      if (audioBadge) audioBadge.textContent = active ? "Audio" : "Muted";
+    }
   });
+  const activeTile = multiviewTileByID(state.multiviewActiveTileID);
+  const status = byId("multiview-audio-status");
+  if (status && activeTile && activeTile.channel) status.textContent = "Audio playing from " + (activeTile.channel.name || "selected channel") + ".";
 }
 function startMultiviewHeartbeat() {
   if (state.multiviewHeartbeat) clearInterval(state.multiviewHeartbeat);
@@ -94,10 +106,11 @@ function renderMultiviewPage() {
   if (!state.multiviewActiveTileID && tiles[0]) state.multiviewActiveTileID = tiles[0].id;
   if (state.multiviewActiveTileID && !tiles.some(function(tile) { return tile.id === state.multiviewActiveTileID; })) state.multiviewActiveTileID = tiles[0] ? tiles[0].id : "";
   const countClass = "count-" + Math.max(tiles.length, 1);
-  const guidance = tiles.length ? "Select a tile to hear its audio." : "Choose up to four channels.";
-  byId("view").innerHTML = "<section class=\"multiview-page\"><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(guidance) + "</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\">" + escapeHTML(String(tiles.length)) + "/4</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
+  const connectionLimit = multiviewConnectionLimit();
+  const guidance = (tiles.length ? "Select a tile to hear its audio." : "Choose up to " + multiviewLimitWords(connectionLimit) + ".") + " Each tile uses one provider connection." + (connectionLimit < 4 ? " Limited on this network connection." : "");
+  byId("view").innerHTML = "<section class=\"multiview-page\"><div id=\"multiview-audio-status\" class=\"sr-only\" role=\"status\"></div><div class=\"multiview-toolbar\"><div><h2>Multiview</h2><p>" + escapeHTML(guidance) + "</p></div><div class=\"multiview-actions\"><span class=\"multiview-count\" aria-label=\"" + escapeHTML(tiles.length + " of " + connectionLimit + " tiles") + "\">" + escapeHTML(String(tiles.length)) + "/" + escapeHTML(String(connectionLimit)) + "</span>" + (tiles.length ? "<button class=\"chip\" type=\"button\" data-multiview-action=\"clear\">Clear</button>" : "") + "</div></div>"
     + (tiles.length ? "<div class=\"multiview-grid " + countClass + "\">" + tiles.map(renderMultiviewTile).join("") + "</div>" : renderMultiviewEmpty())
-    + (tiles.length && tiles.length < 4 ? renderMultiviewPicker() : "")
+    + (tiles.length && tiles.length < connectionLimit ? renderMultiviewPicker() : "")
     + "</section>";
   attachMultiviewPlayers();
 }
@@ -108,10 +121,21 @@ function renderMultiviewTile(tile) {
   const title = program.title || channel.name || "Live TV";
   const subtitle = channel.categoryName || "Live TV";
   const muted = active ? "Audio" : "Muted";
-  return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Use audio from this tile\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
+  return "<article class=\"multiview-tile" + (active ? " active" : "") + "\" data-multiview-tile=\"" + escapeHTML(tile.id) + "\" data-multiview-focus=\"" + escapeHTML(tile.id) + "\"><video id=\"" + escapeHTML(tile.videoID) + "\" class=\"multiview-video\" autoplay playsinline" + (active ? "" : " muted") + "></video><div class=\"multiview-tile-controls\"><button type=\"button\" data-multiview-action=\"focus\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-pressed=\"" + (active ? "true" : "false") + "\" aria-label=\"" + (active ? "Audio is playing from this tile" : "Use audio from this tile") + "\">" + icon("speaker") + "</button><button type=\"button\" data-multiview-action=\"single\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Open channel player\">" + icon("external") + "</button><button type=\"button\" data-multiview-action=\"remove\" data-multiview-tile-id=\"" + escapeHTML(tile.id) + "\" aria-label=\"Remove from multiview\">" + icon("x") + "</button></div><div class=\"multiview-tile-meta\"><div><strong data-overflow-tooltip=\"" + escapeHTML(title) + "\">" + escapeHTML(title) + "</strong><small data-overflow-tooltip=\"" + escapeHTML(channel.name || subtitle) + "\">" + escapeHTML(channel.name || subtitle) + "</small></div><span class=\"multiview-audio-badge\">" + escapeHTML(muted) + "</span></div></article>";
 }
 function renderMultiviewEmpty() {
-  return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to four live channels. The active tile is the only one with audio.</div>" + renderMultiviewPicker() + "</div>";
+  return "<div class=\"multiview-empty\"><div class=\"empty\">Add up to " + escapeHTML(multiviewLimitWords(multiviewConnectionLimit())) + ". The active tile is the only one with audio, and each tile uses one provider connection.</div>" + renderMultiviewPicker() + "</div>";
+}
+// Same network-based cap as Dispatcharr: fewer tiles on save-data or slow links.
+function multiviewConnectionLimit() {
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  if (!connection) return 4;
+  if (connection.saveData || /(^|-)2g$/.test(String(connection.effectiveType || ""))) return 1;
+  if (String(connection.effectiveType || "") === "3g") return 2;
+  return 4;
+}
+function multiviewLimitWords(limit) {
+  return limit === 1 ? "one live channel" : (limit === 2 ? "two live channels" : "four live channels");
 }
 function multiviewChannelMatchesQuery(channel, query) {
   if (!query) return true;
@@ -170,7 +194,7 @@ function attachMultiviewPlayers() {
       video.play().catch(function() {});
     }).catch(function(error) {
       if (error && error.superseded) return;
-      showAppToast("Could not reserve a provider connection: " + readableError(error));
+      showAppToast(friendlyError(error, "A provider connection could not be reserved for this tile."));
     }).finally(function() { tile.attaching = false; });
   });
   syncMultiviewAudio();
@@ -188,8 +212,9 @@ function addChannelToMultiview(channel) {
     render();
     return;
   }
-  if (state.multiviewTiles.length >= 4) {
-    showAppToast("Multiview supports up to four channels.");
+  const connectionLimit = multiviewConnectionLimit();
+  if (state.multiviewTiles.length >= connectionLimit) {
+    showAppToast(connectionLimit < 4 ? "This connection is limited to " + connectionLimit + " multiview channel" + (connectionLimit === 1 ? "." : "s.") : "Multiview supports up to four channels.");
     state.view = "multiview";
     render();
     return;

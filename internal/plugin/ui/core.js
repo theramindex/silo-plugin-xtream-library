@@ -68,6 +68,12 @@ state.adminSourceMessage = "";
 state.adminSourceEPGResult = null;
 state.adminSourceEPGError = "";
 state.adminSourceRequestID = 0;
+state.adminSourceMessageKind = "";
+state.adminSourceBusy = "";
+state.adminSourceEditorOpener = "";
+state.sourceManagerFocusNext = "";
+state.playerErrorMessage = "";
+state.playerRetry = null;
 
 function applySiloTheme() {
   const params = new URLSearchParams(window.location.search);
@@ -686,4 +692,150 @@ function readAdminSettingsValue(value) {
   }
   catch (_) { return defaultAdminCategorySettings(); }
   return defaultAdminCategorySettings();
+}
+// Xtream Codes-specific error copy, consulted by readableError below. Not
+// shared: each plugin lists its own upstream's failure patterns.
+const providerErrorPrefix = /^(connection test failed|account test failed|playback account test failed|alternate epg test failed|check account authentication|could not save source|refresh xtream source "[^"]*" guide|provider "[^"]*")\s*:\s*/i;
+const providerErrorRules = [
+  {
+    pattern: /provider rejected credentials|provider returned http 40[13]\b/,
+    message: function(text) {
+      const accountStatus = (text.match(/account status ([^)]+)\)/i) || [])[1];
+      if (accountStatus && !/^active$/i.test(accountStatus.trim())) return "The provider says this account is " + accountStatus.trim().toLowerCase() + ". Check the account with your provider.";
+      return "The provider rejected this username or password. Check them and try again.";
+    }
+  },
+  // Match by text, not status: other 409s (no compatible account) need other copy.
+  { pattern: /connection_limit|connection limit|account_pool_full|max(imum)? connections/, message: "All provider connections are in use. Stop another stream, then try again." },
+  { pattern: /no compatible playback accounts/, message: "This provider has no playback account that can play this channel. Check the provider's playback accounts." },
+  { pattern: /stream_requires_hls/, message: "This stream can only play when the provider serves HLS." },
+  { pattern: /decode response|invalid character|html instead of json|cannot unmarshal/, message: "The server did not answer like an Xtream Codes provider. Check the server URL: use the provider's base URL, not player_api.php." },
+  { status: [502, 504], pattern: /provider returned http 5\d\d|execute request|no such host|connection refused|timeout|deadline exceeded|i\/o timeout|tls|certificate/, message: "The provider could not be reached. Check the server URL, or try again later." },
+  { status: [403], message: "Only Silo admins can do that." },
+  { status: [503], message: "Live TV is temporarily unavailable. Try again in a moment." }
+];
+// Shared with Dispatcharr plugin: keep in sync.
+// Error copy for people. rawErrorDetail is the error's own message, unedited,
+// for admin screens. readableErrorText strips the "request failed (N):"
+// wrapper and this plugin's own repeated prefixes (providerErrorPrefix).
+function rawErrorDetail(error) {
+  return String(error && error.message ? error.message : error || "");
+}
+function readableErrorText(error) {
+  let text = rawErrorDetail(error).trim().replace(/^request failed \(\d{3}\)\s*:?\s*/i, "");
+  let previous = "";
+  while (providerErrorPrefix && previous !== text) {
+    previous = text;
+    text = text.replace(providerErrorPrefix, "");
+  }
+  return text.trim();
+}
+// readableError turns a failed request into one plain sentence a viewer can act
+// on, or "" when there is nothing friendlier to say than a status code, so
+// callers supply their own fallback copy (see friendlyError and errorSentence).
+// Raw server text never reaches regular users; admin views use
+// adminErrorDetail. Upstream-specific failures come from providerErrorRules: a
+// rule matches when the status is in rule.status or rule.pattern matches the
+// detail, and rule.message is a sentence or a function of the detail text.
+function readableError(error) {
+  const status = Number(error && error.status || 0);
+  const text = readableErrorText(error);
+  const lower = text.toLowerCase();
+  if (status === 401) return "Your Silo session expired. Refresh the page or sign in again.";
+  if (error && error.timeout) return text || "The request took too long. Try again.";
+  for (let index = 0; index < providerErrorRules.length; index += 1) {
+    const rule = providerErrorRules[index];
+    if ((rule.status && rule.status.indexOf(status) >= 0) || (rule.pattern && rule.pattern.test(lower))) {
+      return typeof rule.message === "function" ? rule.message(text, status) : rule.message;
+    }
+  }
+  if (status === 403 || /unexpected status 403|forbidden/.test(lower)) return "You don't have permission to do that.";
+  if (status === 404) return "That item is no longer available. Refresh and try again.";
+  if (status === 408 || status === 504 || /timed? ?out|deadline exceeded/.test(lower)) return "The request took too long. Try again.";
+  if (status === 429) return "Too many requests right now. Wait a moment and try again.";
+  // Short validation messages from the plugin itself are already plain.
+  if ((status === 400 || status === 422) && text && text.length <= 160 && !/[{}<>]|request failed|unexpected status/i.test(text)) {
+    return text.charAt(0).toUpperCase() + text.slice(1).replace(/\.?$/, ".");
+  }
+  if (!status && /failed to fetch|networkerror|load failed|network request failed/.test(lower)) return "Can't reach Silo. Check your network connection and try again.";
+  return "";
+}
+function friendlyError(error, fallback) {
+  return readableError(error) || fallback;
+}
+// errorSentence joins a caller's lead-in ("Could not save your provider.") with
+// the readable detail when there is one.
+function errorSentence(lead, error) {
+  const detail = readableError(error);
+  return detail ? lead + " " + detail : lead;
+}
+// adminErrorDetail is readableError plus the raw detail, for admin screens
+// where the underlying server message helps diagnose a connection.
+function adminErrorDetail(error) {
+  const friendly = readableError(error);
+  const raw = rawErrorDetail(error);
+  if (!friendly) return raw || "Unknown error.";
+  return raw && raw !== friendly ? friendly + " (" + raw + ")" : friendly;
+}
+// Shared with Dispatcharr plugin: keep in sync.
+// openInlineConfirm asks before a destructive action without a modal: the
+// trigger is hidden and "Delete <title>?" (plus an optional message) appears in
+// its place with Confirm and Cancel. Focus moves to Cancel, Escape cancels, and
+// the prompt reverts after inlineConfirmIdleMs without input.
+// options: { title, message, onConfirm(trigger) }.
+const inlineConfirmIdleMs = 6000;
+let activeInlineConfirm = null;
+function closeInlineConfirm(restoreFocus) {
+  const current = activeInlineConfirm;
+  if (!current) return;
+  activeInlineConfirm = null;
+  clearTimeout(current.timer);
+  const hadFocus = current.group.contains(document.activeElement);
+  if (current.group.parentNode) current.group.parentNode.removeChild(current.group);
+  current.trigger.hidden = false;
+  if ((restoreFocus || hadFocus) && document.contains(current.trigger)) current.trigger.focus();
+}
+function openInlineConfirm(trigger, options) {
+  if (!trigger || !trigger.parentNode) return;
+  closeInlineConfirm(false);
+  options = options || {};
+  const title = String(options.title || "this item");
+  const message = String(options.message || "");
+  const group = document.createElement("span");
+  group.className = "inline-confirm";
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", "Delete " + title + "?");
+  group.innerHTML = "<span class=\"inline-confirm-prompt\"><strong>" + escapeHTML("Delete " + title + "?") + "</strong>" + (message ? "<small>" + escapeHTML(message) + "</small>" : "") + "</span>"
+    + "<button type=\"button\" class=\"inline-confirm-yes\" aria-label=\"" + escapeHTML("Confirm delete " + title) + "\">Confirm</button>"
+    + "<button type=\"button\" class=\"inline-confirm-no\" aria-label=\"" + escapeHTML("Cancel deleting " + title) + "\">Cancel</button>";
+  const entry = { trigger: trigger, group: group, options: options, timer: 0 };
+  function arm() {
+    clearTimeout(entry.timer);
+    entry.timer = setTimeout(function() { if (activeInlineConfirm === entry) closeInlineConfirm(false); }, inlineConfirmIdleMs);
+  }
+  group.addEventListener("click", function(event) {
+    event.stopPropagation();
+    const yes = event.target.closest(".inline-confirm-yes");
+    const no = event.target.closest(".inline-confirm-no");
+    if (no) closeInlineConfirm(true);
+    if (yes) {
+      closeInlineConfirm(true);
+      if (typeof options.onConfirm === "function") options.onConfirm(trigger);
+    }
+  });
+  group.addEventListener("keydown", function(event) {
+    arm();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeInlineConfirm(true);
+    }
+  });
+  group.addEventListener("pointerdown", arm);
+  trigger.hidden = true;
+  trigger.parentNode.insertBefore(group, trigger.nextSibling);
+  activeInlineConfirm = entry;
+  arm();
+  const cancel = group.querySelector(".inline-confirm-no");
+  if (cancel) cancel.focus();
 }

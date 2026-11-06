@@ -206,3 +206,136 @@ test('each video source owns one AbortController for its listeners', () => {
   assert.deepEqual(aborted, [1], 'switching sources aborts the previous listeners');
   assert.deepEqual(plain(ctx.videoSourceListenerSignal()), { id: 2 });
 });
+
+// UX review fixes: friendly errors, inline delete confirmation, role-aware
+// empty states, and player Escape handling.
+test('readable errors strip wrappers, map provider failures, and fall back to ""', () => {
+  const ctx = vm.createContext({ Number, String });
+  // The shared readableError (core.js) consults this plugin's providerErrorRules.
+  const rulesStart = app.indexOf('const providerErrorPrefix');
+  const rules = app.slice(rulesStart, app.indexOf('\n];\n', rulesStart) + 4);
+  vm.runInContext(rules + ['rawErrorDetail', 'readableErrorText', 'readableError', 'friendlyError', 'errorSentence', 'adminErrorDetail'].map(name => topLevelFunction(app, name)).join('\n'), ctx);
+  const err = (status, message) => ({ status, message });
+  assert.equal(ctx.readableError(err(502, 'request failed (502): connection test failed: check account authentication: provider rejected credentials')), 'The provider rejected this username or password. Check them and try again.');
+  assert.equal(ctx.readableError(err(502, 'request failed (502): connection test failed: provider rejected credentials (account status Expired)')), 'The provider says this account is expired. Check the account with your provider.');
+  assert.equal(ctx.readableError(err(409, 'request failed (409): provider "Main": all playback accounts are at their connection limit')), 'All provider connections are in use. Stop another stream, then try again.');
+  assert.equal(ctx.readableError(err(409, 'request failed (409): provider "Main" has no compatible playback accounts')), "This provider has no playback account that can play this channel. Check the provider's playback accounts.", 'a 409 that is not a connection limit gets its own copy');
+  assert.equal(ctx.readableError(err(409, 'request failed (409): watch already started')), '', 'an unknown 409 falls back to the caller copy');
+  assert.match(ctx.readableError(err(502, 'request failed (502): connection test failed: check account authentication: execute request: dial tcp: no such host')), /could not be reached/);
+  assert.equal(ctx.readableError(err(401, 'request failed (401): a signed-in Silo user is required')), 'Your Silo session expired. Refresh the page or sign in again.');
+  assert.equal(ctx.readableError(err(400, 'request failed (400): source requires base URL')), 'Source requires base URL.');
+  assert.equal(ctx.readableError(err(403, 'request failed (403): admin required')), 'Only Silo admins can do that.');
+  assert.equal(ctx.readableError(err(500, 'request failed (500): could not load source registry')), '', 'nothing friendly to add');
+  assert.equal(ctx.readableError(Object.assign(new Error('Sports data took too long to respond. Try again.'), { timeout: true })), 'Sports data took too long to respond. Try again.');
+  assert.equal(ctx.friendlyError(err(500, 'request failed (500)'), 'Fallback.'), 'Fallback.');
+  assert.equal(ctx.errorSentence('Could not save your provider.', err(500, 'x')), 'Could not save your provider.');
+  assert.doesNotMatch(ctx.errorSentence('Connection test failed.', err(502, 'request failed (502): connection test failed: provider rejected credentials')), /request failed|connection test failed:/);
+  assert.equal(ctx.adminErrorDetail(err(500, 'request failed (500): could not load source registry')), 'request failed (500): could not load source registry', 'admins see the raw detail');
+});
+
+// A minimal DOM for the shared inline confirmation (openInlineConfirm, core.js).
+function inlineConfirmDOM() {
+  const focused = [];
+  const timers = [];
+  function node(tag) {
+    const listeners = {};
+    const element = {
+      tagName: tag, className: '', hidden: false, parentNode: null, children: [], attributes: {}, innerHTML: '',
+      setAttribute(name, value) { this.attributes[name] = String(value); },
+      getAttribute(name) { return this.attributes[name] ?? null; },
+      addEventListener(type, handler) { listeners[type] = handler; },
+      dispatch(type, event) { if (listeners[type]) listeners[type](Object.assign({ preventDefault() {}, stopPropagation() {} }, event)); },
+      insertBefore(child, before) { child.parentNode = this; const index = this.children.indexOf(before); this.children.splice(index < 0 ? this.children.length : index, 0, child); },
+      removeChild(child) { this.children.splice(this.children.indexOf(child), 1); child.parentNode = null; },
+      contains(other) { return other === this || this.children.includes(other); },
+      focus() { focused.push(this.name || tag); dom.document.activeElement = this; },
+      querySelector(selector) { return selector === '.inline-confirm-no' ? this.cancel : null; },
+      closest() { return null; }
+    };
+    return element;
+  }
+  const dom = {
+    focused, timers, node,
+    document: {
+      activeElement: null,
+      createElement(tag) { const group = node(tag); group.cancel = node('button'); group.cancel.name = 'cancel'; return group; },
+      contains(element) { return !!element.parentNode; }
+    },
+    setTimeout(callback) { timers.push(callback); return timers.length; },
+    clearTimeout() {}
+  };
+  return dom;
+}
+
+test('delete confirms inline through the shared helper, and personal providers warn about channels', () => {
+  const dom = inlineConfirmDOM();
+  const ctx = vm.createContext({ document: dom.document, setTimeout: dom.setTimeout, clearTimeout: dom.clearTimeout, String, escapeHTML: value => String(value) });
+  const confirmStart = app.indexOf('const inlineConfirmIdleMs');
+  vm.runInContext(app.slice(confirmStart, app.indexOf('\nfunction ', confirmStart)) + ['closeInlineConfirm', 'openInlineConfirm'].map(name => topLevelFunction(app, name)).join('\n'), ctx);
+  const row = dom.node('div');
+  const trigger = dom.node('button'); trigger.name = 'delete';
+  row.insertBefore(trigger, null);
+  const confirmed = [];
+  ctx.openInlineConfirm(trigger, { title: 'Main IPTV', message: 'Your channels and guide from this provider will be removed.', onConfirm: target => confirmed.push(target) });
+  const group = row.children[1];
+  assert.equal(trigger.hidden, true, 'the trigger is replaced in place');
+  assert.equal(group.attributes['aria-label'], 'Delete Main IPTV?');
+  assert.match(group.innerHTML, /<strong>Delete Main IPTV\?<\/strong><small>Your channels and guide from this provider will be removed\.<\/small>/);
+  assert.match(group.innerHTML, /class="inline-confirm-yes" aria-label="Confirm delete Main IPTV">Confirm</);
+  assert.match(group.innerHTML, /class="inline-confirm-no" aria-label="Cancel deleting Main IPTV">Cancel</);
+  assert.deepEqual(dom.focused, ['cancel'], 'focus moves to Cancel');
+  group.dispatch('keydown', { key: 'Escape' });
+  assert.equal(trigger.hidden, false, 'Escape cancels');
+  assert.equal(row.children.length, 1);
+  assert.deepEqual(dom.focused, ['cancel', 'delete'], 'and returns focus to Delete');
+  ctx.openInlineConfirm(trigger, { title: 'Main IPTV', onConfirm: target => confirmed.push(target) });
+  assert.doesNotMatch(row.children[1].innerHTML, /<small>/, 'the message is optional');
+  row.children[1].dispatch('click', { target: { closest: selector => (selector === '.inline-confirm-yes' ? {} : null) } });
+  assert.deepEqual(confirmed, [trigger], 'Confirm runs onConfirm with the trigger');
+  ctx.openInlineConfirm(trigger, { title: 'Main IPTV' });
+  dom.timers[dom.timers.length - 1]();
+  assert.equal(trigger.hidden, false, 'the prompt reverts after inlineConfirmIdleMs');
+  // XC wiring: sources and providers call the shared helper.
+  assert.match(fn('handleAdminSourceAction'), /openInlineConfirm\(trigger \|\| document\.querySelector/);
+  assert.match(fn('handleAdminSourceAction'), /Your channels and guide from this provider will be removed\./);
+  assert.match(app, /const inlineConfirmIdleMs = 6000;/);
+  assert.doesNotMatch(app, /data-source-action=\\"delete-confirm\\"/, 'no separate state-driven confirm markup');
+});
+
+test('empty catalog copy only points admins at Live TV Admin', () => {
+  const ctx = vm.createContext({
+    state: { app: { status: { channelCount: 0 } } }, personal: false, missing: false, admin: false,
+    userSourcesActive() { return ctx.personal; }, userSourcesMissing() { return ctx.missing; }, siloUserIsAdmin() { return ctx.admin; },
+    readableError() { return ''; }, Number, String
+  });
+  vm.runInContext(['catalogEmptyDetail', 'catalogEmptyActions'].map(name => topLevelFunction(app, name)).join('\n'), ctx);
+  assert.doesNotMatch(ctx.catalogEmptyDetail(), /Live TV Admin/);
+  ctx.admin = true;
+  assert.match(ctx.catalogEmptyDetail(), /Live TV Admin/);
+  ctx.admin = false; ctx.personal = true; ctx.missing = true;
+  assert.match(ctx.catalogEmptyDetail(), /Settings/);
+  assert.match(ctx.catalogEmptyActions(), /data-open-view="settings"/);
+});
+
+test('Escape closes the topmost player overlay first and returns focus to its opener', () => {
+  const focused = [];
+  const opener = { focus() { focused.push('opener'); } };
+  const ctx = vm.createContext({
+    state: { moreMenuOpen: true, playerGuideOpen: true },
+    playerOverlayOpener: opener,
+    document: { contains: () => true, querySelector: () => null },
+    byId: id => ({ focus() { focused.push(id); } }),
+    closePlayerPopovers() { ctx.state.moreMenuOpen = false; },
+    renderPlayerGuidePanel() {}, wakePlayerChrome() {},
+    togglePlayerSports() { ctx.state.playerSportsOpen = false; }
+  });
+  vm.runInContext(['focusPlayerOverlayOpener', 'closeTopPlayerOverlay'].map(name => topLevelFunction(app, name)).join('\n'), ctx);
+  assert.equal(ctx.closeTopPlayerOverlay(), true);
+  assert.equal(ctx.state.moreMenuOpen, false);
+  assert.equal(ctx.state.playerGuideOpen, true, 'only the topmost overlay closes');
+  assert.deepEqual(focused, ['opener']);
+  assert.equal(ctx.closeTopPlayerOverlay(), true);
+  assert.deepEqual(focused, ['opener', 'player-guide-button']);
+  assert.equal(ctx.closeTopPlayerOverlay(), false, 'nothing open: the caller leaves the player');
+  assert.match(app, /if \(!closeTopPlayerOverlay\(\)\) returnFromPlayer\(\);/);
+});

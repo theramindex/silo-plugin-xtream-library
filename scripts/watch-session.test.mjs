@@ -104,7 +104,9 @@ test('automatic live rewind uses managed playback with the existing watch lease 
     coreFetch: async () => { throw new Error('live channels must not probe the legacy stream route'); },
     setVideoSource: (url, options) => sources.push({url, options}),
     async getJSON() { return {programs: []}; }, byId: () => null,
-    showPlayerToast: message => assert.fail(message)
+    showPlayerToast: message => assert.fail(message),
+    showPlayerError: message => assert.fail(message),
+    capturePlayerReturnContext() {}
   });
   vm.runInContext(['playChannel', 'showStreamBlockedIfNeeded', 'streamBlockedMessage'].map(name => topLevelFunction(app, name)).join('\n'), ctx);
   await ctx.playChannel({id:'news', streamFormat:'ts'});

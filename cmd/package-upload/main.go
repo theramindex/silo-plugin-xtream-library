@@ -106,7 +106,7 @@ func rewritePublicManifestForXtream(manifest *pluginv1.PluginManifest) {
 	manifest.HttpRoutes = routes
 	for _, capability := range manifest.GetCapabilities() {
 		capability.Id = strings.Replace(capability.GetId(), "dispatcharr", "xtream", 1)
-		capability.DisplayName = strings.ReplaceAll(capability.GetDisplayName(), "Dispatcharr", "Xtreme Codes")
+		capability.DisplayName = strings.ReplaceAll(capability.GetDisplayName(), "Dispatcharr", "Xtream Codes")
 		capability.Description = strings.ReplaceAll(capability.GetDescription(), "Dispatcharr", "Xtream")
 	}
 }

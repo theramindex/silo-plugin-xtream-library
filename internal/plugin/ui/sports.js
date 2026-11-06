@@ -27,8 +27,8 @@ function loadSports(force, preparedOnly) {
     else stopSportsPoll(true);
     return state.sports;
   }).catch(function(error) {
-    if (!state.sports) state.sports = { events: [], leagues: [], error: readableError(error) };
-    else state.sports.error = readableError(error);
+    if (!state.sports) state.sports = { events: [], leagues: [], error: friendlyError(error, "Sports could not be loaded.") };
+    else state.sports.error = friendlyError(error, "Sports could not be loaded.");
     showAppToast("Could not refresh sports.");
     return state.sports;
   }).finally(function() {

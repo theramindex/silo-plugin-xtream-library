@@ -186,7 +186,7 @@ function adoptLoadedPrefs(previousLocal, profileID) {
   prefsSync.lastRemoteCheck = Date.now();
   if (prefsSync.retryTimer) { clearTimeout(prefsSync.retryTimer); prefsSync.retryTimer = 0; }
   const droppedKnown = dropKnownPhantomSportsFollows();
-  if (typeof dropPhantomSportsFollows === "function") dropPhantomSportsFollows();
+  dropPhantomSportsFollows();
   if (hadPendingEdits) {
     state.app.preferences = applyPrefsDiff(state.app.preferences, previousBaseline, previousLocal);
     normalizePreferences();

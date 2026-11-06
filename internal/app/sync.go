@@ -304,7 +304,7 @@ func (s *Service) syncXtream(ctx context.Context, settings config.Settings, sour
 	if successfulSources == 0 {
 		message := strings.Join(failures, "; ")
 		s.store.RecordFailure(nowUnix, message)
-		return fmt.Errorf("all Xtreme sources failed: %s", message)
+		return fmt.Errorf("all Xtream sources failed: %s", message)
 	}
 	sortChannelsByLineupNumber(merged.Channels)
 	merged.Health = s.syncHealthForOperation(settings, nowUnix, len(merged.Programs), options)
@@ -964,7 +964,7 @@ func (s *Service) refreshXtreamEPGSources(ctx context.Context, settings config.S
 		sourcePrograms, err := s.xtreamProgramsForSource(ctx, source, channels)
 		if err != nil {
 			if firstErr == nil {
-				firstErr = fmt.Errorf("refresh Xtreme source %q guide: %w", source.ID, err)
+				firstErr = fmt.Errorf("refresh Xtream source %q guide: %w", source.ID, err)
 			}
 			preserved, readErr := preservedProgramsForChannels(ctx, snapshot, config.CatalogCacheKey(settings), channels)
 			if readErr != nil {
@@ -975,7 +975,7 @@ func (s *Service) refreshXtreamEPGSources(ctx context.Context, settings config.S
 		}
 		if len(sourcePrograms) == 0 {
 			if firstErr == nil {
-				firstErr = fmt.Errorf("Xtreme source %q returned no guide programs", source.ID)
+				firstErr = fmt.Errorf("Xtream source %q returned no guide programs", source.ID)
 			}
 			preserved, readErr := preservedProgramsForChannels(ctx, snapshot, config.CatalogCacheKey(settings), channels)
 			if readErr != nil {
@@ -1007,7 +1007,7 @@ func xtreamChannelsForSource(channels []model.Channel, sourceID string) []model.
 func xtreamXMLTVURL(source config.XtreamSource) (string, error) {
 	rawURL, err := providerXMLTVURL(source.BaseURL, source.Username, source.Password)
 	if err != nil {
-		return "", fmt.Errorf("parse Xtreme source %q base url: %w", source.ID, err)
+		return "", fmt.Errorf("parse Xtream source %q base url: %w", source.ID, err)
 	}
 	return rawURL, nil
 }
@@ -1052,7 +1052,7 @@ func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.
 		jobs = append(jobs, epgJob{channel: channel, streamID: streamID, client: client})
 	}
 	if len(jobs) == 0 {
-		return fmt.Errorf("no Xtreme channels were available for guide refresh")
+		return fmt.Errorf("no Xtream channels were available for guide refresh")
 	}
 	workerCount := 12
 	if len(jobs) < workerCount {
@@ -1102,7 +1102,7 @@ func (s *Service) refreshXtreamEPGChannels(ctx context.Context, settings config.
 	close(jobQueue)
 	workers.Wait()
 	if failures == len(jobs) && firstErr != nil {
-		return fmt.Errorf("all Xtreme guide requests failed: %w", firstErr)
+		return fmt.Errorf("all Xtream guide requests failed: %w", firstErr)
 	}
 	if requested != nil {
 		retained := []model.Channel{}

@@ -76,17 +76,6 @@ async function requestError(response) {
   error.status = response.status;
   return error;
 }
-function readableError(error) {
-  const status = Number(error && error.status || 0);
-  const message = String(error && error.message ? error.message : error || "unknown error");
-  if (status === 401 || /request failed \(401\)|unexpected status 401|unauthorized/i.test(message)) {
-    return "Your Silo session expired. Refresh the page or sign in again.";
-  }
-  if (status === 403 || /request failed \(403\)|unexpected status 403|forbidden|permission/i.test(message)) {
-    return message;
-  }
-  return message;
-}
 function channelByID(id) {
   const channel = rawChannelByID(id);
   return channel ? effectiveChannel(channel) : null;
@@ -642,6 +631,11 @@ async function refreshSupplementalData(includeContent) {
   writeLocalAppCache(state.app);
   if (state.view === "guide" || state.view === "search" || state.view === "mytv") ensureGuideCoverageForView(state.view);
 }
+// The one bootstrap request: initial load, and a per-user provider change
+// (which replaces the whole catalog). Other refreshes use lighter endpoints.
+function fetchAppBootstrap() {
+  return getJSON("/dispatcharr/api/app");
+}
 async function loadApp() {
   const cached = readLocalAppCache();
   let renderedCachedApp = false;
@@ -652,7 +646,7 @@ async function loadApp() {
     render();
   }
   try {
-    await hydrateApp(await getJSON("/dispatcharr/api/app"));
+    await hydrateApp(await fetchAppBootstrap());
     state.appLoadedFromCache = false;
     await loadRecordingCapability();
     render();
@@ -765,17 +759,31 @@ function homeSection(title, content, eyebrow, actions, className) {
   const eyebrowHTML = eyebrow ? "<span>" + escapeHTML(eyebrow) + "</span>" : "";
   return "<section class=\"home-section " + escapeHTML(className || "") + "\"><header class=\"home-section-header\"><div>" + eyebrowHTML + "<h2>" + escapeHTML(title) + "</h2></div>" + (actions || "") + "</header>" + content + "</section>";
 }
-function emptyStateHTML(title, detail) {
+function emptyStateHTML(title, detail, actions) {
   detail = String(detail || "").trim();
-  return "<div class=\"empty\"><strong>" + escapeHTML(title) + "</strong>" + (detail ? "<div class=\"muted\">" + escapeHTML(detail) + "</div>" : "") + "</div>";
+  return "<div class=\"empty\"><strong>" + escapeHTML(title) + "</strong>" + (detail ? "<div class=\"muted\">" + escapeHTML(detail) + "</div>" : "") + (actions ? "<div class=\"empty-actions\">" + actions + "</div>" : "") + "</div>";
 }
+// Empty-catalog guidance depends on who is looking: a user with their own
+// providers is sent to Settings, other users are told an admin manages the
+// connection, and only admins are pointed at Live TV Admin.
 function catalogEmptyDetail() {
+  const personal = userSourcesActive();
   if (userSourcesMissing()) return "Add your Xtream Codes provider in Settings to build your Live TV.";
-  if (!state.app || !state.app.status) return "Check your connection in Live TV Admin or press Refresh.";
-  const status = state.app.status;
-  if (status.status === "error" && status.lastError) return status.lastError;
-  if (!status.channelCount) return "No channels synced yet. Run a sync from Live TV Admin or press Refresh.";
-  return "Try Refresh or open Live TV Admin to verify the connection.";
+  const admin = siloUserIsAdmin();
+  const status = state.app && state.app.status ? state.app.status : null;
+  if (status && status.status === "error" && status.lastError) {
+    const detail = readableError({ message: status.lastError });
+    if (personal) return (detail || "Your provider could not be loaded.") + " Check it in Settings, then refresh.";
+    if (admin) return (detail || "The last catalog refresh failed.") + " Check the sources in Live TV Admin.";
+    return "Live TV could not load channels right now. Try again later, or ask your Silo admin to check the provider.";
+  }
+  if (personal) return "Your provider is still syncing. Channels appear here when it finishes.";
+  if (!status || !status.channelCount) return admin ? "No channels synced yet. Add or refresh a source in Live TV Admin." : "No channels are available yet. Your Silo admin sets up the provider.";
+  return admin ? "Try Refresh, or open Live TV Admin to check the connection." : "Try refreshing the guide from the settings menu.";
+}
+function catalogEmptyActions() {
+  if (!userSourcesActive()) return "";
+  return "<button type=\"button\" class=\"chip\" data-open-view=\"settings\">" + (userSourcesMissing() ? "Add provider in Settings" : "Open Settings") + "</button>";
 }
 function sectionHeader(title) {
   return "<div class=\"section-title\"><span>" + escapeHTML(title) + "</span></div>";
@@ -787,7 +795,7 @@ function sectionActions(actions) {
   return "<div class=\"section-title actions-only\">" + (actions || "") + "</div>";
 }
 function rowCards(channels) {
-  if (!channels.length) return emptyStateHTML("No channels yet.", catalogEmptyDetail());
+  if (!channels.length) return emptyStateHTML("No channels yet.", catalogEmptyDetail(), catalogEmptyActions());
   return "<div class=\"row-scroll recent-channel-row\">" + channels.map(function(channel) {
     const program = currentProgram(channel) || {};
     const channelName = channel.name || "Untitled";
@@ -1143,13 +1151,15 @@ async function openSeriesDetail(seriesID) {
     state.seriesDetail = await getJSON("/dispatcharr/api/series/info?series_id=" + encodeURIComponent(seriesID));
   } catch (error) {
     state.seriesDetail = { seriesID: seriesID, episodes: [], name: "Series unavailable" };
-    showAppToast(readableError(error));
+    showAppToast(friendlyError(error, "This series could not be loaded."));
   }
   if (state.view === "series-detail") render();
 }
 
 async function playOnDemand(title, gatewayURL) {
   if (!gatewayURL) return;
+  capturePlayerReturnContext();
+  state.playerRetry = function() { playOnDemand(title, gatewayURL); };
   stopTimeShiftSession();
   state.currentChannel = { id: "ondemand:" + title, name: title || "On Demand", categoryName: "On Demand", streamFormat: "" };
   state.view = "player";
@@ -1159,7 +1169,7 @@ async function playOnDemand(title, gatewayURL) {
     if (await showStreamBlockedIfNeeded(route(gatewayURL), "")) return;
     setVideoSource(route(gatewayURL), { format: "" });
   } catch (error) {
-    showPlayerToast(readableError(error));
+    showPlayerError(friendlyError(error, "This title could not be played."));
   }
 }
 function renderSearchResultRow(row) {
@@ -1375,8 +1385,8 @@ function loadEvents(force) {
     delete state.events.error;
     return state.events;
   }).catch(function(error) {
-    if (!state.events) state.events = { events: [], categories: [], error: readableError(error) };
-    else state.events.error = readableError(error);
+    if (!state.events) state.events = { events: [], categories: [], error: friendlyError(error, "Events could not be loaded.") };
+    else state.events.error = friendlyError(error, "Events could not be loaded.");
     showAppToast("Could not refresh events.");
     return state.events;
   }).finally(function() {
@@ -2439,7 +2449,7 @@ function updateCenterPlayButton() {
   updateTimeShiftUI();
   if (!button) return;
   const loading = !!state.playerWaiting && !video.paused;
-  const show = loading || video.paused;
+  const show = !state.playerErrorMessage && (loading || video.paused);
   button.classList.toggle("hidden", !show);
   button.classList.toggle("loading", loading);
   button.innerHTML = loading ? icon("loader") : icon(video.paused ? "play" : "pause");
@@ -2455,20 +2465,8 @@ function togglePlayPause() {
   updateCenterPlayButton();
 }
 async function playChannel(channel) {
-  if (state.view !== "player") {
-    const main = document.querySelector(".main");
-    const guideScroll = byId("guide-scroll");
-    state.playerReturnContext = {
-      view: state.view,
-      category: state.category,
-      query: state.query,
-      folderQuery: state.folderQuery,
-      scrollY: window.scrollY,
-      mainScrollTop: main ? main.scrollTop : 0,
-      guideScrollTop: guideScroll ? guideScroll.scrollTop : 0,
-      guideScrollLeft: guideScroll ? guideScroll.scrollLeft : 0
-    };
-  }
+  capturePlayerReturnContext();
+  state.playerRetry = function() { playChannel(channel); };
   stopTimeShiftSession();
   const timeShiftAttempt = state.timeShiftAttempt;
   state.currentChannel = channel;
@@ -2477,7 +2475,7 @@ async function playChannel(channel) {
   try {
     await ensurePlayerLibraries(liveRewindEnabled() && channel.streamFormat !== "hls" ? "hls" : channel.streamFormat);
   } catch (_) {
-    showPlayerToast("Playback components could not be loaded.");
+    showPlayerError("Playback components could not be loaded. Check your connection, then try again.");
     return;
   }
   if (timeShiftAttempt !== state.timeShiftAttempt || !state.currentChannel || state.currentChannel.id !== channel.id) return;
@@ -2486,7 +2484,7 @@ async function playChannel(channel) {
     watchSession = await startWatch(channel);
   } catch (error) {
     if (error && error.superseded) return;
-    showPlayerToast("Could not reserve a provider connection: " + readableError(error));
+    showPlayerError(friendlyError(error, "A provider connection could not be reserved for this channel."));
     return;
   }
   const streamURL = browserStreamURL(channel, watchSession && watchSession.id);
@@ -2568,7 +2566,10 @@ document.addEventListener("click", function(event) {
   const settingsMenuButton = event.target.closest("#settings-menu-button");
   if (settingsMenuButton) {
     event.preventDefault();
-    setSettingsMenuOpen(!settingsMenuOpen());
+    const opening = !settingsMenuOpen();
+    setSettingsMenuOpen(opening);
+    // Keyboard and remote users land on the first item (a mouse click has detail > 0).
+    if (opening && event.detail === 0) focusSettingsMenuItem(0);
     return;
   }
   if (!event.target.closest(".settings-menu")) setSettingsMenuOpen(false);
@@ -2799,6 +2800,20 @@ document.addEventListener("click", function(event) {
     renderSportsPage();
     return;
   }
+  const openView = event.target.closest("[data-open-view]");
+  if (openView) {
+    event.preventDefault();
+    setSettingsMenuOpen(false);
+    setView(openView.getAttribute("data-open-view"));
+    return;
+  }
+  const appRetry = event.target.closest("[data-app-load-retry]");
+  if (appRetry) {
+    event.preventDefault();
+    byId("view").innerHTML = "<div class=\"empty\" role=\"status\">Loading Live TV...</div>";
+    startAppLoad();
+    return;
+  }
   const recoveryRetry = event.target.closest("[data-recovery-retry]");
   if (recoveryRetry) {
     event.preventDefault();
@@ -2925,7 +2940,7 @@ document.addEventListener("click", function(event) {
   const sourceAction = event.target.closest("[data-source-action]");
   if (sourceAction) {
     event.preventDefault();
-    handleAdminSourceAction(sourceAction.getAttribute("data-source-action"), sourceAction.getAttribute("data-source-id") || "");
+    handleAdminSourceAction(sourceAction.getAttribute("data-source-action"), sourceAction.getAttribute("data-source-id") || "", sourceAction);
     return;
   }
   const accountAction = event.target.closest("[data-account-action]");
@@ -3049,6 +3064,7 @@ document.addEventListener("fullscreenchange", updateFullscreenButton);
 document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
 document.addEventListener("keydown", function(event) {
   if (trapProgramModalFocus(event)) return;
+  if (sourceDialogKeydown(event)) return;
   if (state.programDetails && event.key === "Escape") {
     event.preventDefault();
     closeProgramDetails();
@@ -3067,19 +3083,19 @@ document.addEventListener("keydown", function(event) {
     return;
   }
   if (state.view !== "player") return;
-  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
-  if (tag === "input" || tag === "textarea" || tag === "select") return;
-  if (event.key === "Escape" && state.playerSportsOpen) {
+  if (event.key === "Escape") {
     event.preventDefault();
-    togglePlayerSports(false);
+    if (!closeTopPlayerOverlay()) returnFromPlayer();
     return;
   }
+  const tag = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : "";
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
   if (event.key === "ArrowDown" && sportsFirstPlayerEnabled() && !state.playerSportsOpen) {
     event.preventDefault();
     togglePlayerSports(true);
     return;
   }
-  if (event.key === " " || event.key === "k" || event.key === "K") {
+  if ((event.key === " " || event.key === "k" || event.key === "K") && !playerShortcutTargetIsControl(event.target)) {
     event.preventDefault();
     togglePlayPause();
   }
@@ -3294,8 +3310,44 @@ document.addEventListener("input", function(event) {
     }
   }
 });
+function settingsMenuItems() {
+  return Array.prototype.slice.call(document.querySelectorAll("#settings-menu [role=\"menuitem\"]")).filter(function(item) { return !item.hidden; });
+}
+function focusSettingsMenuItem(index) {
+  const menuItems = settingsMenuItems();
+  if (!menuItems.length) return;
+  const next = menuItems[(index + menuItems.length) % menuItems.length];
+  next.focus();
+}
+// The settings dropdown is an ARIA menu: arrows move between items, Home/End
+// jump, Escape closes it and returns focus to the gear button.
 document.addEventListener("keydown", function(event) {
-  if (event.key === "Escape") setSettingsMenuOpen(false);
+  const button = byId("settings-menu-button");
+  if (!button) return;
+  if (event.target === button && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+    event.preventDefault();
+    setSettingsMenuOpen(true);
+    focusSettingsMenuItem(event.key === "ArrowDown" ? 0 : -1);
+    return;
+  }
+  if (!settingsMenuOpen()) return;
+  const menuItems = settingsMenuItems();
+  const index = menuItems.indexOf(document.activeElement);
+  if (event.key === "Escape") {
+    setSettingsMenuOpen(false);
+    button.focus();
+    return;
+  }
+  if (index === -1) return;
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    event.preventDefault();
+    focusSettingsMenuItem(index + (event.key === "ArrowDown" ? 1 : -1));
+  } else if (event.key === "Home" || event.key === "End") {
+    event.preventDefault();
+    focusSettingsMenuItem(event.key === "Home" ? 0 : -1);
+  } else if (event.key === "Tab") {
+    setSettingsMenuOpen(false);
+  }
 });
 document.querySelectorAll("[data-view]").forEach(function(button) {
   button.onclick = function() {
@@ -3543,7 +3595,11 @@ async function getJSONWithin(url, timeoutMs, timeoutMessage) {
     if (!response.ok) throw await requestError(response);
     return response.json();
   } catch (error) {
-    if (error && error.name === "AbortError") throw new Error(timeoutMessage || "The request took too long. Try again.");
+    if (error && error.name === "AbortError") {
+      const timeout = new Error(timeoutMessage || "The request took too long. Try again.");
+      timeout.timeout = true;
+      throw timeout;
+    }
     throw error;
   } finally {
     clearTimeout(timer);
@@ -3800,6 +3856,11 @@ document.addEventListener("keydown", function(event) {
 document.addEventListener("focusin", function(event) {
   if (state.view === "guide") rememberGuideFocus(event.target);
 });
-(isAdminRoute ? loadAdminApp() : loadApp()).catch(function() {
-  byId("view").innerHTML = emptyStateHTML(isAdminRoute ? "Unable to load Xtreme sources." : "Unable to load Live TV.", isAdminRoute ? "Confirm this plugin is enabled, then refresh the admin app." : "Check your Xtreme Codes sources in Live TV Admin, then refresh this page.");
-});
+function startAppLoad() {
+  return (isAdminRoute ? loadAdminApp() : loadApp()).catch(function(error) {
+    const detail = readableError(error);
+    const fallback = isAdminRoute ? "Confirm this plugin is enabled, then try again." : "Check your connection, then try again. If it keeps happening, ask your Silo admin to check the provider.";
+    byId("view").innerHTML = "<div role=\"alert\">" + emptyStateHTML(isAdminRoute ? "Unable to load Xtream sources." : "Unable to load Live TV.", detail || fallback, "<button type=\"button\" class=\"chip\" data-app-load-retry=\"true\">Try again</button><button type=\"button\" class=\"chip\" data-recovery-reload=\"true\">Reload page</button>") + "</div>";
+  });
+}
+startAppLoad();

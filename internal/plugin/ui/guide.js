@@ -198,9 +198,9 @@ async function refreshGuideBlockData() {
     await refreshSupplementalData(true);
     state.recordings = null;
     refreshVisibleGuideBlock();
-    showAppToast(guideRefreshAdvanced(previousEPGSuccess) ? "Guide refreshed from Dispatcharr." : "Guide refresh finished without newer EPG data.");
+    showAppToast(guideRefreshAdvanced(previousEPGSuccess) ? "Guide refreshed from your provider." : "Guide refresh finished without newer EPG data.");
   } catch (error) {
-    if (!adminOnlyDenied(error, "force a guide refresh")) showAppToast("Dispatcharr refresh failed.");
+    if (!adminOnlyDenied(error, "force a guide refresh")) showAppToast(errorSentence("Guide refresh failed.", error));
   } finally {
     state.refreshing = false;
     setGuideRefreshButtonsLoading(false);
@@ -617,7 +617,7 @@ function scheduleGuideWindowRender() {
     renderGuideWindow(false);
     // Scrolling forward past loaded data pulls the next guide window.
     const scroll = byId("guide-scroll");
-    if (scroll && typeof ensureGuideCoverageForView === "function" && scroll.scrollLeft + scroll.clientWidth * 2 >= scroll.scrollWidth) ensureGuideCoverageForView("guide");
+    if (scroll && scroll.scrollLeft + scroll.clientWidth * 2 >= scroll.scrollWidth) ensureGuideCoverageForView("guide");
   });
 }
 function guideVisibleRange(totalRows, scrollTop, viewportHeight, rowHeight, headerHeight) {
