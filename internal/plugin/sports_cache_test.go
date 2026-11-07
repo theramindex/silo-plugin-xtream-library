@@ -67,9 +67,9 @@ func TestFootballStatsLoadDedupesWithoutHoldingTheLock(t *testing.T) {
 	close(release)
 	wg.Wait()
 	// Callers that arrive after the shared load finished read its cached
-	// entry, so the whole burst costs one scoreboard and one summary.
-	if got := requests.Load(); got != 2 {
-		t.Fatalf("concurrent pollers must share one load (scoreboard + summary), got %d requests", got)
+	// entry, so the whole burst costs two daily scoreboards and one summary.
+	if got := requests.Load(); got != 3 {
+		t.Fatalf("concurrent pollers must share one load (daily scoreboards + summary), got %d requests", got)
 	}
 	for _, result := range results {
 		if result.SourceURL == "" || result.HomeScore != "46" {

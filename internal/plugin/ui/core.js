@@ -2,7 +2,7 @@ const path = window.location.pathname;
 const base = path.endsWith("/xtream/player") ? path.slice(0, -"/xtream/player".length) : (path.endsWith("/xtream/admin") ? path.slice(0, -"/xtream/admin".length) : (path.endsWith("/xtream") ? path.slice(0, -"/xtream".length) : ""));
 const isAdminRoute = path.endsWith("/xtream/admin");
 const adminSettingsKey = "adminCategorySettings";
-const pluginInstallationID = (base.match(/\/api\/v1\/plugins\/(\d+)/) || [])[1] || "";
+const pluginInstallationID = (base.match(/\/api\/v\d+(?:\/plugin-content)?\/plugins\/(\d+)/) || [])[1] || "";
 const localCacheSuffix = pluginInstallationID || "default";
 const appCacheKey = "silo.ramindex.xtream.appSnapshot.v1." + localCacheSuffix;
 const assetVersionMeta = document.querySelector('meta[name="xtream-asset-version"]');
@@ -221,7 +221,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { favorites: {}, autoFavorites: {}, favoriteOrder: [], hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
+  return { sportsStatsDelaySeconds: 0, favorites: {}, autoFavorites: {}, favoriteOrder: [], hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -381,6 +381,7 @@ function mergePrefs(remote) {
     favoriteOrder: uniqueIDs(items(remote.favoriteOrder)),
     hiddenCategories: Object.assign({}, remote.hiddenCategories),
     sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
+    sportsStatsDelaySeconds: Math.max(0, Math.min(300, Number(remote.sportsStatsDelaySeconds) || 0)),
     keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     groupCategoriesByPipe: remote.groupCategoriesByPipe === true,
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),

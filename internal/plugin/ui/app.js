@@ -479,6 +479,7 @@ function epgCellStyle(startUnix, endUnix, windowInfo) {
   return "left: calc(" + leftSlots.toFixed(4) + " * var(--epg-slot)); width: calc(" + widthSlots.toFixed(4) + " * var(--epg-slot) - 0.0625rem);";
 }
 function stopPlayback() {
+  if (typeof stopSportsCompanion === "function") stopSportsCompanion();
  if(state.videoAttachment){state.videoAttachment.destroy();state.videoAttachment=null;state.hls=null;state.tsPlayer=null;}
   const video = byId("player");
   if (state.hls) { state.hls.destroy(); state.hls = null; }

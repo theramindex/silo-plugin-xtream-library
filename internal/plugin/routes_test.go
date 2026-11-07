@@ -1478,6 +1478,7 @@ function makeElement() {
     textContent: "",
     value: "",
     style: {},
+    remove: () => {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {} },
     setAttribute: (name, value) => { attributes[name] = String(value); },
     getAttribute: (name) => attributes[name] || null,

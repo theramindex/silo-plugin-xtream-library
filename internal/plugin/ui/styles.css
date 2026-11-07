@@ -2238,3 +2238,18 @@ video { width: 100%; aspect-ratio: 16 / 9; background: var(--player-bg); border:
   .inline-confirm { justify-content: flex-start; }
   .inline-confirm .inline-confirm-prompt { text-align: left; }
 }
+
+/* Game companion: keep video dominant and table navigation explicit. */
+.sports-score-overlay{position:absolute;top:76px;left:22px;z-index:5;max-width:calc(100% - 44px)}
+.sports-score-overlay[hidden]{display:none}.sports-score-overlay button{display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:var(--panel,#17191e);color:var(--text,#fff);border:1px solid var(--line,#555);border-radius:12px;padding:10px 14px;font:inherit;box-shadow:0 3px 16px #0005}
+.sports-score-overlay button>span{display:flex;gap:8px;align-items:center}.sports-score-overlay img{width:24px;height:24px;object-fit:contain}.sports-score-overlay small{font-size:12px}.sports-score-overlay b{font-variant-numeric:tabular-nums}
+.sports-companion{padding:16px;border-bottom:1px solid var(--line,#555);color:var(--text,#eee);font-size:14px}.companion-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px}.companion-toolbar label{display:flex;gap:8px;align-items:center}.sports-companion select,.sports-companion button{font:inherit;background:var(--panel,#222);color:var(--text,#eee);border:1px solid var(--line,#777);border-radius:7px;padding:8px}.sports-companion button[aria-pressed=true]{background:var(--accent,#5066c3);color:var(--on-accent,#fff)}.companion-tabs,.companion-teams{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}.companion-match{font-weight:600}.companion-freshness,.companion-leaders small{color:var(--muted,#aaa)}.sports-companion h3{font-size:14px;margin:18px 0 8px}.companion-table-wrap{overflow:auto;max-width:100%}.sports-companion table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}.sports-companion td,.sports-companion th{text-align:right;padding:9px 8px;white-space:nowrap;border-bottom:1px solid var(--line,#444)}.sports-companion th:first-child{text-align:left}.sports-companion th small{display:block;font-weight:500}.companion-leaders{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px}.companion-leaders article{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line,#555);border-radius:8px}.companion-plays{padding-left:20px}.companion-plays li{padding:8px 0;border-bottom:1px solid var(--line,#444)}.companion-plays p{margin:4px 0}.sports-companion :focus-visible,.sports-score-overlay :focus-visible{outline:3px solid var(--accent,#99b4ff);outline-offset:3px}
+@media(max-width:640px){.sports-score-overlay{top:65px;left:12px;max-width:calc(100% - 24px)}.sports-score-overlay button{font-size:12px;gap:8px}.sports-score-overlay img{width:18px;height:18px}.sports-companion{padding:12px}.companion-toolbar{align-items:flex-start}.companion-teams button{flex:1}}
+
+#sports-companion-panel,.sports-companion,.player-sports-body{min-width:0;max-width:100%}.sports-companion{width:100%}.companion-table-wrap{width:100%}
+
+.sports-enabled .playback-stage{min-width:0}
+
+.sports-companion button[aria-pressed=true]{background:var(--text);color:var(--panel);border-color:var(--text)}
+
+.sports-score-overlay .logo-fallback{display:none}

@@ -316,3 +316,18 @@ test('a reload for the same profile still keeps edits that are pending', async (
   assert.deepEqual(clone(ctx.state.app.preferences.favorites), { 'm3u:news.hd': true, 'xtream:7': true });
   assert.equal(ctx.sync.dirty, true);
 });
+
+test('statistics delay persists to the active profile and survives switching back', async () => {
+  const {ctx, server} = setup({preferences: JSON.stringify(fixture)}, 'p1');
+  load(ctx, server);
+  ctx.state.app.preferences.sportsStatsDelaySeconds = 90;
+  ctx.savePrefs({quiet: true});
+  await ctx.flushPrefsSave();
+  assert.equal(stored(server).profiles.p1.sportsStatsDelaySeconds, 90);
+  ctx.viewerProfile = 'p2';
+  await ctx.reloadPrefsFromRemote({force: true});
+  assert.equal(Number(ctx.state.app.preferences.sportsStatsDelaySeconds) || 0, 0);
+  ctx.viewerProfile = 'p1';
+  await ctx.reloadPrefsFromRemote({force: true});
+  assert.equal(ctx.state.app.preferences.sportsStatsDelaySeconds, 90);
+});

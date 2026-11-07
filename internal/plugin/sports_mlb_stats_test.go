@@ -24,7 +24,7 @@ func TestMLBStatsFetchAndCache(t *testing.T) {
 		requests++
 		switch r.URL.Path {
 		case "/scoreboard":
-			if r.URL.Query().Get("groups") != "" || r.URL.Query().Get("dates") != "20260907-20260908" {
+			if r.URL.Query().Get("groups") != "" || (r.URL.Query().Get("dates") != "20260907" && r.URL.Query().Get("dates") != "20260908") {
 				t.Error("MLB must use the game date window without football groups")
 			}
 			_, _ = w.Write([]byte(`{"events":[{"id":"401816849","competitions":[` + mlbCompetition + `]}]}`))
@@ -50,8 +50,8 @@ func TestMLBStatsFetchAndCache(t *testing.T) {
 		t.Fatalf("unplayed innings must remain blank: %+v", value.Innings)
 	}
 	_ = cache.load(context.Background(), mlbFixtureEvent())
-	if requests != 2 {
-		t.Fatalf("expected two cached source requests, got %d", requests)
+	if requests != 3 {
+		t.Fatalf("expected three cached source requests, got %d", requests)
 	}
 }
 

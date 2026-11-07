@@ -155,6 +155,7 @@ function makeElement() {
   const attributes = {};
   const element = {
     innerHTML: "", textContent: "", value: "", scrollTop: 0, scrollLeft: 0, hidden: false, style: {}, dataset: {},
+    remove: () => {},
     classList: { add: () => {}, remove: () => {}, toggle: () => {}, contains: () => false },
     setAttribute: (name, value) => { attributes[name] = String(value); },
     getAttribute: (name) => attributes[name] || null,
