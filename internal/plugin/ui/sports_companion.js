@@ -512,7 +512,10 @@ document.addEventListener("change", function (event) {
     const delays = Object.assign({}, prefs().sportsChannelDelays || {});
     if (event.target.value === "default") delete delays[id];
     else if (Number.isFinite(Number(event.target.value))) delays[id] = Math.max(0, Math.min(300, Math.round(Number(event.target.value))));
-    prefs().sportsChannelDelays = Object.fromEntries(Object.entries(delays).slice(-256));
+    const edited = Object.prototype.hasOwnProperty.call(delays, id);
+    const retained = Object.entries(delays).filter(([key]) => key !== id).slice(edited ? -255 : -256);
+    if (edited) retained.push([id, delays[id]]);
+    prefs().sportsChannelDelays = Object.fromEntries(retained);
   } else if (Number.isFinite(Number(event.target.value))) {
     prefs().sportsStatsDelaySeconds = Math.max(0, Math.min(300, Number(event.target.value)));
   }

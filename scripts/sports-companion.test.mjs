@@ -139,6 +139,11 @@ test('the channel-delay control overrides one channel, preserves the default, an
   assert.equal(vm.runInContext('sportsCompanionDelay()', context), 30);
   assert.equal(Object.hasOwn(values.sportsChannelDelays, 'knicks'), false);
   assert.equal(saves, 3);
+  values.sportsChannelDelays = Object.fromEntries(Array.from({length: 300}, (_, i) => [String(i + 10), 90]));
+  context.state.currentChannel.id = '1'; change('60');
+  assert.equal(values.sportsChannelDelays['1'], 60, 'bounding stored settings must retain the channel just edited');
+  assert.equal(Object.keys(values.sportsChannelDelays).length, 256);
+
 });
 
 test('a profile change clears the delay history and rejects a late result from the previous profile', async () => {
