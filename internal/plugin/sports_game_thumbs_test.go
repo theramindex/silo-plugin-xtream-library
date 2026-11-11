@@ -45,8 +45,8 @@ func TestGameThumbsArtworkPreservesFallbacksAndIdentity(t *testing.T) {
 	if got.Home.LogoFallbackURL != input.Home.LogoURL || got.LeagueLogoFallbackURL != input.LeagueLogoURL || got.Home.LogoURL != gameThumbsTeamLogoURL("nba", "Celtics") {
 		t.Fatalf("missing preferred/fallback logo: %+v", got)
 	}
-	if !strings.Contains(got.GameThumbsBackgroundURL, "/nba/lakers/celtics/thumb.png?") {
-		t.Fatal("expected generated matchup background")
+	if got.GameThumbsBackgroundURL != "https://game-thumbs.swvn.io/nba/lakers/celtics/thumb.png?style=6&logo=false&fallback=true&aspect=16-9" {
+		t.Fatalf("expected native widescreen matchup background, got %s", got.GameThumbsBackgroundURL)
 	}
 	if again := applySportsIdentityFallbacks(got); !reflect.DeepEqual(got, again) {
 		t.Fatal("repeated normalization must preserve preferred and fallback artwork")

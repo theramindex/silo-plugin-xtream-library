@@ -138,6 +138,6 @@ func applyGameThumbsArtwork(event SportsEvent, slug string) SportsEvent {
 		}
 		path += "/" + url.PathEscape(gameThumbsTeamKey(gameThumbsCanonicalTeamName(event.Away.Name))) + "/" + url.PathEscape(gameThumbsTeamKey(gameThumbsCanonicalTeamName(event.Home.Name)))
 	}
-	event.GameThumbsBackgroundURL = gameThumbsPublicBaseURL + path + "/thumb.png?style=6&logo=false&fallback=true"
+	event.GameThumbsBackgroundURL = gameThumbsPublicBaseURL + path + "/thumb.png?style=6&logo=false&fallback=true&aspect=16-9"
 	return event
 }

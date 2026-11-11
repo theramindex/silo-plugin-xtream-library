@@ -532,7 +532,7 @@ function myTVBuiltInSportsPeople() {
   return catalogs.reduce(function(all, catalog) {
     return all.concat(catalog.teams.map(function(team) {
       const slug = sportsGamePassSlug(team[0]);
-      return { id: "gamepass:" + catalog.id + ":" + slug, name: team[0], abbreviation: team[1], kind: "Team", leagueName: catalog.name, logoUrl: "https://game-thumbs.swvn.io/" + catalog.id + "/" + slug + "/teamlogo.png" };
+      return { id: "gamepass:" + catalog.id + ":" + slug, name: team[0], abbreviation: team[1], kind: "Team", leagueName: catalog.name, logoUrl: "https://game-thumbs.swvn.io/" + catalog.id + "/" + slug + "/logo.png" };
     }));
   }, []);
 }
