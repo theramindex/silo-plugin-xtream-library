@@ -34,12 +34,22 @@ const sportsCompanion = {
   tab: "box",
   team: "all",
   stale: false,
+  viewer: "",
 };
-function sportsCompanionDelay() {
-  return Math.max(
-    0,
-    Math.min(300, Number(prefs().sportsStatsDelaySeconds) || 0),
-  );
+function sportsCompanionDelay(channelID) {
+  const settings = prefs();
+  const id = channelID === undefined
+    ? String((state.currentChannel && state.currentChannel.id) || "")
+    : String(channelID || "");
+  const delays = settings.sportsChannelDelays || {};
+  const fallback = Math.max(0, Math.min(300, Number(settings.sportsStatsDelaySeconds) || 0));
+  const value = Object.prototype.hasOwnProperty.call(delays, id) ? delays[id] : null;
+  return value !== null && value !== "" && Number.isFinite(Number(value))
+    ? Math.max(0, Math.min(300, Math.round(Number(value)))) : fallback;
+}
+function sportsCompanionViewer() {
+  if (typeof activeViewerProfileID === "function") return activeViewerProfileID();
+  return typeof coreStoredValue === "function" ? coreStoredValue("profile_id") : "";
 }
 function sportsCompanionCurrent() {
   const events = playerSportsEvents();
@@ -66,7 +76,9 @@ function startSportsCompanion() {
     if (document.hidden) return;
     const event = sportsCompanionCurrent();
     const id = sportsEventStateID(event);
-    if (id !== sportsEventStateID(sportsCompanion.event)) {
+    const viewer = sportsCompanionViewer();
+    if (id !== sportsEventStateID(sportsCompanion.event) || viewer !== sportsCompanion.viewer) {
+      sportsCompanion.viewer = viewer;
       if (sportsCompanion.abort) sportsCompanion.abort.abort();
       sportsCompanion.event = event;
       sportsCompanion.buffer = new SportsCompanionBuffer();
@@ -97,6 +109,7 @@ function startSportsCompanion() {
       .then((data) => {
         if (
           generation !== sportsCompanion.generation ||
+          viewer !== sportsCompanionViewer() ||
           id !== sportsEventStateID(sportsCompanion.event) ||
           abort.signal.aborted
         )
@@ -153,21 +166,18 @@ function sportsCompanionMarkup(event, sample) {
   const hidden = !!(
     prefs().sportsSpoilersHidden || prefs().sportsPlayerSpoilersHidden
   );
-  let html =
-    '<section class="sports-companion" aria-label="Game companion"><div class="companion-toolbar"><strong>Game companion</strong><label>Delay <select data-companion-delay aria-label="Delay game statistics">' +
-    [0, 30, 60, 90, 120, 180, 300]
-      .map(
-        (n) =>
-          '<option value="' +
-          n +
-          '"' +
-          (delay === n ? " selected" : "") +
-          ">" +
-          (n ? n + "s" : "Live") +
-          "</option>",
-      )
-      .join("") +
-    "</select></label></div>";
+  const channelID = String((state.currentChannel && state.currentChannel.id) || "");
+  const override = !!channelID && Object.prototype.hasOwnProperty.call(prefs().sportsChannelDelays || {}, channelID);
+  const defaultDelay = sportsCompanionDelay(null);
+  const choices = [0, 30, 60, 90, 120, 180, 300];
+  if (!choices.includes(delay)) choices.push(delay);
+  let html = '<section class="sports-companion" aria-label="Game companion"><div class="companion-toolbar"><strong>Game companion</strong><label>' +
+    (channelID ? "Channel delay" : "Delay") +
+    ' <select data-companion-delay aria-label="Delay game statistics">' +
+    (channelID ? '<option value="default"' + (!override ? " selected" : "") + '>Profile default (' + defaultDelay + 's)</option>' : "") +
+    choices.sort((a, b) => a - b).map(n => '<option value="' + n + '"' +
+      ((channelID ? override : true) && delay === n ? " selected" : "") + '>' +
+      (n ? n + "s" : "Live") + '</option>').join("") + '</select></label></div>';
   if (!event)
     return (
       html + "<p>No game has a confident match to this channel.</p></section>"
@@ -361,11 +371,11 @@ function renderSportsCompanion() {
   const drawer = byId("player-sports-drawer");
   if (!drawer) return;
   const event = sportsCompanion.event;
-  const sample = sportsCompanion.buffer.read(
+  const sample = sportsCompanion.viewer === sportsCompanionViewer() ? sportsCompanion.buffer.read(
     sportsEventStateID(event),
     sportsCompanionDelay(),
     performance.now(),
-  );
+  ) : null;
   let overlay = byId("sports-score-overlay");
   if (!overlay) {
     overlay = document.createElement("div");
@@ -494,7 +504,15 @@ document.addEventListener("click", function (event) {
 });
 document.addEventListener("change", function (event) {
   if (!event.target.matches("[data-companion-delay]")) return;
-  prefs().sportsStatsDelaySeconds = Number(event.target.value);
+  const id = String((state.currentChannel && state.currentChannel.id) || "");
+  if (id && id !== "__proto__" && id !== "constructor" && id !== "prototype") {
+    const delays = Object.assign({}, prefs().sportsChannelDelays || {});
+    if (event.target.value === "default") delete delays[id];
+    else if (Number.isFinite(Number(event.target.value))) delays[id] = Math.max(0, Math.min(300, Math.round(Number(event.target.value))));
+    prefs().sportsChannelDelays = Object.fromEntries(Object.entries(delays).slice(-256));
+  } else if (Number.isFinite(Number(event.target.value))) {
+    prefs().sportsStatsDelaySeconds = Math.max(0, Math.min(300, Number(event.target.value)));
+  }
   savePrefs();
   renderPlayerSportsDrawer();
   renderSportsCompanion();

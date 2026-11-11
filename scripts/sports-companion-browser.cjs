@@ -167,6 +167,17 @@ const root = require("node:path").resolve(__dirname, "..");
         await page.getByRole("rowheader", { name: /Jalen Brunson/ }).count(),
         0,
       );
+      assert.equal(await page.evaluate(() => fixturePrefs.sportsStatsDelaySeconds), 0);
+      assert.equal(await page.evaluate(() => fixturePrefs.sportsChannelDelays.knicks), 60);
+      await page.evaluate(() => { state.currentChannel = {id: "other"}; startSportsCompanion(); });
+      await page.getByRole("rowheader", {name: /Jalen Brunson/}).waitFor();
+      assert.equal(await page.locator("[data-companion-delay]").inputValue(), "default");
+      await page.locator("[data-companion-delay]").selectOption("120");
+      await page.evaluate(() => { state.currentChannel = {id: "knicks"}; startSportsCompanion(); });
+      await page.getByText("Building a 60s delay…").waitFor();
+      await page.locator("[data-companion-delay]").selectOption("default");
+      await page.getByRole("rowheader", {name: /Jalen Brunson/}).waitFor();
+      assert.deepEqual(await page.evaluate(() => fixturePrefs.sportsChannelDelays), {other: 120});
       await page.evaluate(() => stopSportsCompanion());
       assert.equal(await page.evaluate(() => sportsCompanion.timer), null);
       assert.equal(await page.locator("#sports-score-overlay").count(), 0);

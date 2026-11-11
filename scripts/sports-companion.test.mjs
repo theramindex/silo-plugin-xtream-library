@@ -114,3 +114,42 @@ test('a new game clears failure state and ignores the previous generation', asyn
   assert.equal(h.run('sportsCompanion.buffer.read("game-b",0,performance.now()).data.homeScore'), '12');
   h.run('stopSportsCompanion()');
 });
+
+test('the channel-delay control overrides one channel, preserves the default, and resets independently', () => {
+  const values = {sportsStatsDelaySeconds: 30, sportsChannelDelays: {other: 90}};
+  const handlers = {}; let saves = 0;
+  const context = vm.createContext({
+    document: {addEventListener: (type, callback) => { handlers[type] = callback; }},
+    state: {currentChannel: {id: 'knicks'}}, prefs: () => values,
+    savePrefs: () => saves++, renderPlayerSportsDrawer() {},
+    setTimeout, clearTimeout, setInterval, clearInterval, Date,
+  });
+  vm.runInContext(source + '\nrenderSportsCompanion = function() {};', context);
+  const change = value => handlers.change({target: {value, matches: () => true}});
+  change('60');
+  assert.equal(values.sportsStatsDelaySeconds, 30, 'the profile default must stay unchanged');
+  assert.equal(values.sportsChannelDelays.knicks, 60);
+  assert.equal(values.sportsChannelDelays.other, 90);
+  change('0');
+  assert.equal(vm.runInContext('sportsCompanionDelay()', context), 0, 'explicit zero overrides the default');
+  context.state.currentChannel.id = 'other';
+  assert.equal(vm.runInContext('sportsCompanionDelay()', context), 90);
+  context.state.currentChannel.id = 'knicks';
+  change('default');
+  assert.equal(vm.runInContext('sportsCompanionDelay()', context), 30);
+  assert.equal(Object.hasOwn(values.sportsChannelDelays, 'knicks'), false);
+  assert.equal(saves, 3);
+});
+
+test('a profile change clears the delay history and rejects a late result from the previous profile', async () => {
+  const h = lifecycle(); let profile = 'p1';
+  h.context.coreStoredValue = key => key === 'profile_id' ? profile : '';
+  h.run('startSportsCompanion()'); await settle();
+  profile = 'p2'; h.tick(); await settle();
+  assert.equal(h.requests[0].options.signal.aborted, true);
+  h.requests[0].resolve(success('99')); await settle();
+  assert.equal(h.run('sportsCompanion.buffer.read("game-a",0,performance.now())'), null);
+  h.requests[1].resolve(success('3')); await settle();
+  assert.equal(h.run('sportsCompanion.buffer.read("game-a",0,performance.now()).data.homeScore'), '3');
+  h.run('stopSportsCompanion()');
+});

@@ -50,7 +50,7 @@ async function persistAdminCategorySettingsInSilo(settings) {
 // state.app.preferences; every save re-reads the remote blob and applies only
 // that diff, so concurrent tabs/devices do not overwrite each other.
 const prefsSaveDebounceMs = 400;
-const prefsMapKeys = ["favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "sportsFavoriteTeamLabels", "sportsFavoriteLeagues", "sportsPreferredChannels", "sportsPreferredNetworks", "featuredEvents", "continueWatching", "customGroupMemberships", "playback", "categoryBrowse"];
+const prefsMapKeys = ["favorites", "autoFavorites", "hiddenCategories", "sportsFavoriteTeams", "sportsFavoriteTeamLabels", "sportsFavoriteLeagues", "sportsPreferredChannels", "sportsPreferredNetworks", "sportsChannelDelays", "featuredEvents", "continueWatching", "customGroupMemberships", "playback", "categoryBrowse"];
 const prefsUnionListKeys = { favoriteOrder: 0, recentSearches: 12, recentChannels: 24 };
 // `profileID` is the Silo profile state.app.preferences and the baseline were
 // loaded for; a save only ever writes into that profile's section.
@@ -119,7 +119,7 @@ function remotePrefsFromValues(values) {
 // preferences.profiles[profileID]. Everything else stays top-level. A profile
 // with no section yet shows the legacy top-level values, and so does a viewer
 // with no profile id.
-const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories", "sportsStatsDelaySeconds"];
+const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories", "sportsStatsDelaySeconds", "sportsChannelDelays"];
 function activeViewerProfileID() { return coreStoredValue("profile_id") || ""; }
 function prefsProfileSection(remote, profileID) {
   const section = profileID && remote && prefsPlainObject(remote.profiles) ? remote.profiles[profileID] : null;
