@@ -11,6 +11,8 @@ const root = require("node:path").resolve(__dirname, "..");
       });
       await page.clock.install();
       const errors = [];
+      const apiRequests = [];
+      page.on("request", request => { if (request.url().includes("/api/sports")) apiRequests.push(request.url()); });
       page.on("pageerror", (e) => errors.push(e.message));
       const source = fs.readFileSync(
         root + "/internal/plugin/ui/sports_companion.js",
@@ -83,6 +85,10 @@ const root = require("node:path").resolve(__dirname, "..");
       );
       await page.goto("http://sports.test/");
       await page.evaluate(() => {
+        const nativeSetInterval = window.setInterval, nativeClearInterval = window.clearInterval;
+        window.activeSportsIntervals = new Set();
+        window.setInterval = (...args) => {const id = nativeSetInterval(...args); activeSportsIntervals.add(id); return id;};
+        window.clearInterval = id => {activeSportsIntervals.delete(id); return nativeClearInterval(id);};
         window.state = {
           view: "player",
           currentChannel: { id: "knicks" },
@@ -199,6 +205,7 @@ const root = require("node:path").resolve(__dirname, "..");
       });
       await page.getByRole("combobox", {name: "Game switching"}).selectOption("auto");
       await page.locator("#sports-assist-banner").getByText(/Switching to/).waitFor();
+      await page.screenshot({path: "/tmp/" + repo + "-sports-switch-mobile.png"});
       await page.locator("#sports-assist-banner").getByRole("button", {name: "Cancel", exact: true}).click();
       await page.clock.runFor(6000);
       assert.deepEqual(await page.evaluate(() => playedChannels), []);
@@ -217,11 +224,45 @@ const root = require("node:path").resolve(__dirname, "..");
       await page.evaluate(() => stopSportsCompanion());
       assert.equal(await page.evaluate(() => sportsCompanion.timer), null);
       assert.equal(await page.locator("#sports-score-overlay").count(), 0);
+      assert.equal(await page.evaluate(() => activeSportsIntervals.size), 0);
+      const requestsBeforePractice = apiRequests.length;
+      const preferencesBeforePractice = await page.evaluate(() => JSON.stringify(fixturePrefs));
+      await page.evaluate(() => {
+        state.view = "sports";
+        const entry = document.createElement("div"); entry.innerHTML = renderSportsPracticeButton(); document.body.appendChild(entry);
+      });
+      await page.getByRole("button", {name: "Sports practice", exact: true}).click();
+      const practice = page.getByRole("dialog", {name: "Sports practice", exact: true});
+      await practice.getByText(/Simulated games/).waitFor();
+      assert.equal(await page.evaluate(() => activeSportsIntervals.size), 1);
+      await page.clock.runFor(6000);
+      await practice.getByText("Practicing: Harbor at Metro", {exact: true}).waitFor();
+      await page.screenshot({path: "/tmp/" + repo + "-sports-practice-mobile.png"});
+      await practice.getByRole("button", {name: "Next scenario", exact: true}).click();
+      await practice.getByRole("button", {name: "Cancel countdown", exact: true}).click();
+      await page.clock.runFor(6000);
+      await practice.getByText("Practicing: Harbor at Metro", {exact: true}).waitFor();
+      await practice.getByRole("button", {name: "Next scenario", exact: true}).click();
+      await practice.getByRole("button", {name: "Stay here", exact: true}).click();
+      await page.clock.runFor(6000);
+      await practice.getByText("Locked to this practice game", {exact: true}).waitFor();
+      await practice.getByRole("button", {name: "Restart", exact: true}).click();
+      await practice.getByRole("combobox", {name: "Practice game switching"}).selectOption("suggest");
+      await practice.getByRole("button", {name: "Watch suggested game", exact: true}).click();
+      await practice.getByText("Practicing: Harbor at Metro", {exact: true}).waitFor();
+      assert.deepEqual(await page.evaluate(() => playedChannels), ["knicks"], "practice must never call the real player");
+      assert.equal(await page.evaluate(() => JSON.stringify(fixturePrefs)), preferencesBeforePractice);
+      assert.equal(apiRequests.length, requestsBeforePractice, "practice must not request a real source");
+      assert.ok(await practice.evaluate(el => el.scrollWidth <= el.clientWidth + 1), "practice must fit a mobile viewport");
+      await page.keyboard.press("Escape");
+      assert.equal(await page.evaluate(() => sportsAssist.practice), null);
+      assert.equal(await page.evaluate(() => activeSportsIntervals.size), 0);
+      assert.equal(await page.getByRole("button", {name: "Sports practice", exact: true}).evaluate(el => el === document.activeElement), true);
       assert.deepEqual(errors, []);
       await page.close();
       console.log(
         repo +
-          ": PASS tabs, team filter, delayed warmup, hidden fresh scores, mobile layout and timer cleanup",
+          ": PASS companion controls, per-channel delay, switch countdown/cancel/lock, isolated practice, mobile layout and timer cleanup",
       );
     }
   } finally {

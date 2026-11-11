@@ -17,6 +17,8 @@ if [[ "${mode}" == "--version-only" ]]; then
   exit 0
 fi
 
+node --check internal/plugin/ui/sports_assist.js
+node --test scripts/sports-assist.test.mjs
 node --check internal/plugin/ui/sports_companion.js
 node --test scripts/sports-companion.test.mjs
 go vet ./...

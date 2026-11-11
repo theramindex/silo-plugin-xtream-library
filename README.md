@@ -206,10 +206,31 @@ its compact score overlay and collapsible Game companion. The companion has
 Box score, Statistics and Play-by-play views, with team filters for player and
 team statistics. Available data depends on ESPN's coverage of that game.
 
-The Delay selector holds scores and statistics for up to five minutes and saves
-the setting to the active Silo profile. A new delay first builds a buffer and
+The Channel delay selector holds scores and statistics for up to five minutes
+and saves an override for that channel in the active Silo profile. Choose
+**Profile default** to remove an override; **Live** explicitly selects zero delay.
+Changing one channel leaves other channels and profiles unchanged. A new delay first builds a buffer and
 withholds scores; related game cards also hide their fresh scores. The delay
 uses a monotonic browser clock and a bounded in-memory history. Reloading or
 changing games rebuilds that buffer. Hide scores continues to hide the companion
 statistics as well. Temporary feed failures retain the last available snapshot
 and show delayed updates.
+
+### Suggested game switching and practice
+
+Game switching is **Off** by default. In Game companion, choose **Suggest only**
+to get a Watch now action for a followed live game, or **Switch after countdown**
+to tune after five seconds of visible notice. Cancel snoozes suggestions for two
+minutes. **Stay here** locks the current channel until you unlock it or manually
+choose another; manual channel changes get a 90-second break from suggestions.
+An already-followed live game stays selected.
+
+Suggestions require a fresh prepared schedule and a confident playable channel.
+Automatic switching pauses when the tab is hidden or the video is paused,
+buffering, or rewound. It also waits for a configured statistics delay to warm
+up, and never uses a fresh final flag to cut off a delayed game's ending.
+
+Choose **Practice** from Sports or Game companion to try simulated games,
+countdowns, cancellation, and locks without a live event. The clearly labeled
+sandbox uses the same decision engine, opens no real channels, and saves no
+preferences. **Next scenario** starts a new situation; **Restart** resets it.

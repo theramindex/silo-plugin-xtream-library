@@ -73,6 +73,7 @@ function renderSportsTabFilters(payload) {
   const replayStatus = sportsReplayStatusLabel();
   return "<div class=\"sports-filter-row\"><div class=\"view-toggle\" aria-label=\"Sports filter\">" + sportsTabButtonsHTML() + "</div>"
     + "<span class=\"sports-data-source\">Data by " + escapeHTML(sportsDataSourceLabel(payload)) + (replayStatus ? " <span class=\"sports-replay-status\">· " + escapeHTML(replayStatus) + "</span>" : "") + "</span>"
+    + '<button type="button" class="sports-refresh" data-sports-practice aria-label="Sports practice"><span>Practice</span></button>'
     + "<button type=\"button\" class=\"" + refreshClass + "\" data-sports-refresh=\"true\"" + refreshDisabled + ">" + icon("loader") + "<span>Refresh scores</span></button></div>";
 }
 function renderSportsPage() {

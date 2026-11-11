@@ -120,3 +120,42 @@ test('switching is off by default and starts no additional sports requests', () 
   const p = player(); delete p.settings.sportsSwitchMode; p.tick();
   assert.equal(p.requests.length, 0); assert.deepEqual(p.played, []);
 });
+
+test('practice follows the same countdown, cancel and lock rules using only simulated channel identities', () => {
+  const context = vm.createContext({document: {addEventListener() {}}, Date});
+  vm.runInContext(source + '\nglobalThis.Practice = SportsSwitchPractice;', context);
+  const p = new context.Practice(1000);
+  assert.equal(p.tick(1000).pending.channelID, 'practice:harbor');
+  for (let now=2000; now<=6000; now+=1000) p.tick(now);
+  assert.equal(p.current, 'practice:harbor');
+  p.next(7000); const next = p.tick(7000).pending.channelID;
+  assert.match(next, /^practice:/);
+  p.engine.cancel(7500);
+  for (let now=8000; now<=16000; now+=1000) p.tick(now);
+  assert.equal(p.current, 'practice:harbor');
+  p.next(17000); p.engine.lock(p.current);
+  for (let now=17000; now<=25000; now+=1000) assert.equal(p.tick(now).pending, undefined);
+  p.restart(26000);
+  assert.equal(p.tick(26000).pending.channelID, 'practice:harbor');
+  assert.equal(p.current, 'practice:waiting');
+});
+
+test('a followed delayed game is held until its buffered final arrives even if the live schedule has dropped it', async () => {
+  const p = player(); const data = {live: true, completed: false};
+  p.context.sportsCompanionDelay = () => 60;
+  p.context.sportsEventStateID = event => event.id;
+  p.context.sportsCompanion = {viewer: 'p1', event: {id: 'ended-ahead', home: {name: 'Followed', followed: true}, away: {name: 'Other'}, channels: [{id: 'news', score: 90}]}, buffer: {read: () => ({data})}};
+  p.tick(); p.requests[0].resolve({ok: true, json: async () => p.payload}); await settle();
+  for (let i=0; i<8; i++) {p.advance(); p.tick();}
+  assert.deepEqual(p.played, [], 'the schedule cannot cut off a delayed followed game');
+  data.completed = true;
+  for (let i=0; i<6; i++) {p.advance(); p.tick();}
+  assert.deepEqual(p.played, ['knicks']);
+});
+test('a different event on the same suggested channel receives a new full countdown', () => {
+  const e = engine(); e.tick(input(1000));
+  const changed = candidates.map(row => row.channelID === 'knicks' ? {...row, eventID: 'new-game', label: 'A new matchup'} : row);
+  e.tick({...input(2000), candidates: changed});
+  for (let now=3000; now<7000; now+=1000) assert.equal(e.tick({...input(now), candidates: changed}).switchTo, undefined);
+  assert.equal(e.tick({...input(7000), candidates: changed}).switchTo, 'knicks');
+});
