@@ -766,7 +766,7 @@ func (s *HTTPRoutesServer) buildAppPayload(request *pluginv1.HandleHTTPRequest) 
 		Status:            s.healthPayload(request),
 		Source:            source,
 		Channels:          s.publicChannels(snapshot.Catalog.Channels, streamFormat),
-		Categories:        liveCategories(snapshot),
+		Categories:        s.publicCategories(liveCategories(snapshot)),
 		Capabilities:      appCapabilities(snapshot.Catalog.Source.Mode),
 		UserSources:       s.tenantUserID != "",
 		SourcesConfigured: s.tenantUserID == "" || s.tenantHasSources(),
@@ -820,16 +820,16 @@ func (s *HTTPRoutesServer) channelsPayload() ChannelsPayload {
 	return ChannelsPayload{
 		SourceName: snapshot.Catalog.Source.Name,
 		Channels:   s.publicChannels(snapshot.Catalog.Channels, s.xtreamLiveStreamFormat(snapshot.Catalog.Source.Mode)),
-		Categories: liveCategories(snapshot),
+		Categories: s.publicCategories(liveCategories(snapshot)),
 	}
 }
 
 func (s *HTTPRoutesServer) categoriesPayload() map[string][]model.Category {
 	snapshot := s.store.Current()
 	return map[string][]model.Category{
-		"live":   liveCategories(snapshot),
-		"vod":    snapshot.Catalog.Content.VODCategories,
-		"series": snapshot.Catalog.Content.SeriesCategories,
+		"live":   s.publicCategories(liveCategories(snapshot)),
+		"vod":    s.publicCategories(snapshot.Catalog.Content.VODCategories),
+		"series": s.publicCategories(snapshot.Catalog.Content.SeriesCategories),
 	}
 }
 
@@ -840,7 +840,7 @@ func (s *HTTPRoutesServer) vodPayload() ContentPayload {
 	}
 	return ContentPayload{
 		Available:  len(snapshot.Catalog.Content.VODItems) > 0,
-		Categories: snapshot.Catalog.Content.VODCategories,
+		Categories: s.publicCategories(snapshot.Catalog.Content.VODCategories),
 		Items:      publicVODItems(snapshot.Catalog.Content.VODItems),
 	}
 }
@@ -858,6 +858,7 @@ func (s *HTTPRoutesServer) xtreamLiveStreamFormat(sourceMode model.SourceMode) s
 func (s *HTTPRoutesServer) publicChannels(channels []model.Channel, xtreamFormat string) []PublicChannel {
 	result := make([]PublicChannel, 0, len(channels))
 	hlsBufferBySource, defaultHLSBuffer := s.hlsBufferSettings()
+	categoryPrefixes := s.sourceCategoryPrefixes()
 	for _, channel := range channels {
 		streamFormat := publicStreamFormat(channel.StreamURL)
 		if streamFormat == "" && strings.HasPrefix(channel.ID, "xtream:") {
@@ -879,7 +880,7 @@ func (s *HTTPRoutesServer) publicChannels(channels []model.Channel, xtreamFormat
 			GuideID:          channel.GuideID,
 			LogoURL:          s.relay.imageURL(channel.LogoURL),
 			CategoryID:       channel.CategoryID,
-			CategoryName:     channel.CategoryName,
+			CategoryName:     categoryNameWithoutSource(channel.CategoryID, channel.CategoryName, categoryPrefixes),
 			ProfileIDs:       append([]string(nil), channel.ProfileIDs...),
 			StreamFormat:     streamFormat,
 			HLSBufferSeconds: hlsBufferSeconds,
@@ -945,7 +946,7 @@ func (s *HTTPRoutesServer) seriesPayload() ContentPayload {
 	}
 	return ContentPayload{
 		Available:  len(snapshot.Catalog.Content.SeriesItems) > 0,
-		Categories: snapshot.Catalog.Content.SeriesCategories,
+		Categories: s.publicCategories(snapshot.Catalog.Content.SeriesCategories),
 		Items:      snapshot.Catalog.Content.SeriesItems,
 	}
 }
