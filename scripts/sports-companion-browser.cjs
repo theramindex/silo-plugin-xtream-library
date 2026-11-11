@@ -9,6 +9,7 @@ const root = require("node:path").resolve(__dirname, "..");
       const page = await browser.newPage({
         viewport: { width: 1440, height: 1000 },
       });
+      await page.clock.install();
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
       const source = fs.readFileSync(
@@ -66,7 +67,11 @@ const root = require("node:path").resolve(__dirname, "..");
         ],
       };
       await page.route("http://sports.test/**", (route) =>
-        route.request().url().includes("/api/sports?")
+        route.request().url().endsWith("/api/sports")
+          ? route.fulfill({json: {updatedAtUnix: Math.floor(Date.now()/1000), events: [{
+              id: "game", live: true, home: {name: "New York Knicks"}, away: {name: "Boston Celtics"}, channels: [{id: "knicks", score: 90}]
+            }]}})
+          : route.request().url().includes("/api/sports?")
           ? route.fulfill({ json: snapshot })
           : route.fulfill({
               contentType: "text/html",
@@ -117,6 +122,16 @@ const root = require("node:path").resolve(__dirname, "..");
         window.renderPlayerSportsDrawer = () =>
           document.getElementById("sports-companion-panel")?.remove();
       });
+      await page.evaluate(() => {
+        const video = document.createElement("video"); video.id = "player";
+        Object.defineProperties(video, {paused: {get: () => false}, readyState: {get: () => 4}});
+        document.querySelector(".playback-stage").prepend(video);
+        window.sportsFavoriteTeamMatches = team => team?.name === "New York Knicks";
+        window.playerSportsEventChannel = event => event.channels?.[0];
+        window.playedChannels = [];
+        window.playChannel = channel => { playedChannels.push(channel.id); state.currentChannel = channel; };
+      });
+      await page.addScriptTag({content: fs.readFileSync(root + "/internal/plugin/ui/sports_assist.js", "utf8")});
       await page.addScriptTag({ content: source });
       await page.evaluate(() => startSportsCompanion());
       await page.getByRole("rowheader", { name: /Jalen Brunson/ }).waitFor();
@@ -178,6 +193,27 @@ const root = require("node:path").resolve(__dirname, "..");
       await page.locator("[data-companion-delay]").selectOption("default");
       await page.getByRole("rowheader", {name: /Jalen Brunson/}).waitFor();
       assert.deepEqual(await page.evaluate(() => fixturePrefs.sportsChannelDelays), {other: 120});
+      await page.evaluate(() => {
+        state.currentChannel = {id: "news"};
+        state.app = {channels: [{id: "news"}, {id: "knicks"}]};
+      });
+      await page.getByRole("combobox", {name: "Game switching"}).selectOption("auto");
+      await page.locator("#sports-assist-banner").getByText(/Switching to/).waitFor();
+      await page.locator("#sports-assist-banner").getByRole("button", {name: "Cancel", exact: true}).click();
+      await page.clock.runFor(6000);
+      assert.deepEqual(await page.evaluate(() => playedChannels), []);
+      await page.getByRole("combobox", {name: "Game switching"}).selectOption("off");
+      await page.getByRole("combobox", {name: "Game switching"}).selectOption("auto");
+      await page.locator("#sports-assist-banner").getByText(/Switching to/).waitFor();
+      await page.locator("#sports-assist-banner").getByRole("button", {name: "Stay here", exact: true}).click();
+      await page.clock.runFor(6000);
+      assert.deepEqual(await page.evaluate(() => playedChannels), []);
+      await page.getByRole("button", {name: "Unlock channel", exact: true}).click();
+      await page.getByRole("combobox", {name: "Game switching"}).selectOption("off");
+      await page.getByRole("combobox", {name: "Game switching"}).selectOption("auto");
+      await page.locator("#sports-assist-banner").getByText(/Switching to/).waitFor();
+      await page.clock.runFor(6000);
+      assert.deepEqual(await page.evaluate(() => playedChannels), ["knicks"]);
       await page.evaluate(() => stopSportsCompanion());
       assert.equal(await page.evaluate(() => sportsCompanion.timer), null);
       assert.equal(await page.locator("#sports-score-overlay").count(), 0);

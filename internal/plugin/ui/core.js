@@ -221,7 +221,7 @@ function icon(name) {
 }
 function menuIcon(name) { return "<span class=\"menu-icon\">" + icon(name) + "</span>"; }
 function defaultPrefs() {
-  return { sportsStatsDelaySeconds: 0, sportsChannelDelays: {}, favorites: {}, autoFavorites: {}, favoriteOrder: [], hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
+  return { sportsStatsDelaySeconds: 0, sportsChannelDelays: {}, sportsSwitchMode: "off", favorites: {}, autoFavorites: {}, favoriteOrder: [], hiddenCategories: {}, sportsFavoriteTeams: {}, keywordPasses: [], groupCategoriesByPipe: false, recentSearches: [], recentChannels: [], continueWatching: {}, playback: { backendProxySupported: false, streamMode: "redirect", outputFormat: "ts" }, categoryBrowse: { sort: "provider", layout: "grid", logoStyle: "color", cleanNames: false }, customGroups: [], customGroupMemberships: {} };
 }
 function prefs() { return state.app && state.app.preferences ? state.app.preferences : defaultPrefs(); }
 function availableChannelProfiles() {
@@ -383,6 +383,7 @@ function mergePrefs(remote) {
     sportsFavoriteTeams: Object.assign({}, remote.sportsFavoriteTeams),
     sportsStatsDelaySeconds: Math.max(0, Math.min(300, Number(remote.sportsStatsDelaySeconds) || 0)),
     sportsChannelDelays: Object.assign({}, remote.sportsChannelDelays),
+    sportsSwitchMode: ["off", "suggest", "auto"].includes(remote.sportsSwitchMode) ? remote.sportsSwitchMode : "off",
     keywordPasses: normalizeKeywordPasses(remote.keywordPasses),
     groupCategoriesByPipe: remote.groupCategoriesByPipe === true,
     recentSearches: uniqueIDs(items(remote.recentSearches).map(function(value) { return String(value || "").trim(); }).filter(Boolean)).slice(0, 12),

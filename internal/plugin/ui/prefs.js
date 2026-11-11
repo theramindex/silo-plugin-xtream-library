@@ -119,7 +119,7 @@ function remotePrefsFromValues(values) {
 // preferences.profiles[profileID]. Everything else stays top-level. A profile
 // with no section yet shows the legacy top-level values, and so does a viewer
 // with no profile id.
-const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories", "sportsStatsDelaySeconds", "sportsChannelDelays"];
+const profileScopedPrefKeys = ["favorites", "favoriteOrder", "hiddenCategories", "sportsStatsDelaySeconds", "sportsChannelDelays", "sportsSwitchMode"];
 function activeViewerProfileID() { return coreStoredValue("profile_id") || ""; }
 function prefsProfileSection(remote, profileID) {
   const section = profileID && remote && prefsPlainObject(remote.profiles) ? remote.profiles[profileID] : null;

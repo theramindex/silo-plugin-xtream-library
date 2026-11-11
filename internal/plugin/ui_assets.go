@@ -21,6 +21,7 @@ var playerUIFiles embed.FS
 var playerAppScriptParts = []string{
 	"ui/core.js",
 	"ui/prefs.js",
+	"ui/sports_assist.js",
 	"ui/sports_companion.js",
 	"ui/sports.js",
 	"ui/admin.js",

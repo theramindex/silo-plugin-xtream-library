@@ -73,6 +73,7 @@ function startSportsCompanion() {
       stopSportsCompanion();
       return;
     }
+    if (typeof sportsAssistTick === "function") sportsAssistTick();
     if (document.hidden) return;
     const event = sportsCompanionCurrent();
     const id = sportsEventStateID(event);
@@ -146,6 +147,7 @@ function startSportsCompanion() {
   sportsCompanion.timer = setInterval(tick, 1000);
 }
 function stopSportsCompanion() {
+  if (typeof stopSportsAssist === "function") stopSportsAssist();
   sportsCompanion.generation++;
   if (sportsCompanion.timer) clearInterval(sportsCompanion.timer);
   if (sportsCompanion.abort) sportsCompanion.abort.abort();
@@ -178,6 +180,7 @@ function sportsCompanionMarkup(event, sample) {
     choices.sort((a, b) => a - b).map(n => '<option value="' + n + '"' +
       ((channelID ? override : true) && delay === n ? " selected" : "") + '>' +
       (n ? n + "s" : "Live") + '</option>').join("") + '</select></label></div>';
+  if (typeof renderSportsAssistControls === "function") html += renderSportsAssistControls();
   if (!event)
     return (
       html + "<p>No game has a confident match to this channel.</p></section>"

@@ -334,14 +334,16 @@ test('statistics delay persists to the active profile and survives switching bac
 
 // The preferences API is the owner of profile isolation and concurrent edits.
 test('channel delay overrides stay per profile and merge independent channel edits', async () => {
-  const remote = {sportsStatsDelaySeconds: 30, sportsChannelDelays: {a: 30}, profiles: {
-    p1: {sportsStatsDelaySeconds: 60, sportsChannelDelays: {a: 60}},
-    p2: {sportsStatsDelaySeconds: 120, sportsChannelDelays: {a: 120}}
+  const remote = {sportsSwitchMode: "off", sportsStatsDelaySeconds: 30, sportsChannelDelays: {a: 30}, profiles: {
+    p1: {sportsSwitchMode: "auto", sportsStatsDelaySeconds: 60, sportsChannelDelays: {a: 60}},
+    p2: {sportsSwitchMode: "suggest", sportsStatsDelaySeconds: 120, sportsChannelDelays: {a: 120}}
   }};
   const {ctx, server} = setup({preferences: JSON.stringify(remote)}, 'p1');
   load(ctx, server);
   assert.ok(ctx.state.app.preferences.sportsChannelDelays, "channel overrides must load from the active profile");
   assert.deepEqual(clone(ctx.state.app.preferences.sportsChannelDelays), {a: 60});
+  assert.equal(ctx.state.app.preferences.sportsSwitchMode, "auto");
+  ctx.state.app.preferences.sportsSwitchMode = "off";
   ctx.state.app.preferences.sportsChannelDelays.a = 0;
   ctx.state.app.preferences.sportsChannelDelays.c = 90;
   const concurrent = stored(server);
@@ -352,6 +354,9 @@ test('channel delay overrides stay per profile and merge independent channel edi
   const saved = stored(server);
   assert.deepEqual(saved.profiles.p1.sportsChannelDelays, {a: 0, b: 120, c: 90});
   assert.deepEqual(saved.profiles.p2.sportsChannelDelays, {a: 120});
+  assert.equal(saved.profiles.p1.sportsSwitchMode, "off");
+  assert.equal(saved.profiles.p2.sportsSwitchMode, "suggest");
+  assert.equal(saved.sportsSwitchMode, "off");
   assert.deepEqual(saved.sportsChannelDelays, {a: 30});
   delete ctx.state.app.preferences.sportsChannelDelays.a;
   ctx.savePrefs({quiet: true});
