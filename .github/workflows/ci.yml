@@ -28,7 +28,7 @@ jobs:
       - name: Test game companion in Chromium
         run: |
           npm install --prefix "${RUNNER_TEMP}/sports-companion" --no-save playwright@1.65.0
-          node "${RUNNER_TEMP}/sports-companion/node_modules/playwright/cli.js" install --with-deps chromium
+          node "${RUNNER_TEMP}/sports-companion/node_modules/playwright/cli.js" install chromium
           PLAYWRIGHT_PATH="${RUNNER_TEMP}/sports-companion/node_modules/playwright" node scripts/sports-companion-browser.cjs
 
       - name: Verify tagged version
