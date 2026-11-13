@@ -35,13 +35,14 @@ type livetvInfo struct {
 }
 
 type livetvChannel struct {
-	ID      string   `json:"id"`
-	Number  string   `json:"number"`
-	Name    string   `json:"name"`
-	LogoURL string   `json:"logoUrl"`
-	GroupID string   `json:"groupId"`
-	Group   string   `json:"group"`
-	Folders []string `json:"folders,omitempty"`
+	WatchPath string   `json:"watchPath,omitempty"`
+	ID        string   `json:"id"`
+	Number    string   `json:"number"`
+	Name      string   `json:"name"`
+	LogoURL   string   `json:"logoUrl"`
+	GroupID   string   `json:"groupId"`
+	Group     string   `json:"group"`
+	Folders   []string `json:"folders,omitempty"`
 	// PipeFolders are the channel's folders for a user who groups categories
 	// by "|", when they differ from Folders.
 	PipeFolders []string `json:"pipeFolders,omitempty"`
@@ -83,13 +84,14 @@ func (s *HTTPRoutesServer) handleLiveTVChannels(ctx context.Context) *pluginv1.H
 	lineup := make([]livetvChannel, 0, len(channels))
 	for _, channel := range channels {
 		entry := livetvChannel{
-			ID:      channel.ID,
-			Number:  channel.Number,
-			Name:    channel.Name,
-			LogoURL: livetvLogoURL(channel.LogoURL),
-			GroupID: channel.CategoryID,
-			Group:   channel.CategoryName,
-			Folders: folders[channel.ID],
+			WatchPath: "/dispatcharr#/watch/" + url.PathEscape(channel.ID),
+			ID:        channel.ID,
+			Number:    channel.Number,
+			Name:      channel.Name,
+			LogoURL:   livetvLogoURL(channel.LogoURL),
+			GroupID:   channel.CategoryID,
+			Group:     channel.CategoryName,
+			Folders:   folders[channel.ID],
 		}
 		if pipe := pipeFolders[channel.ID]; !slices.Equal(pipe, entry.Folders) {
 			entry.PipeFolders = pipe
