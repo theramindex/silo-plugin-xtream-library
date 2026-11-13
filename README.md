@@ -36,7 +36,7 @@ advertised.
 
 ## Playback and privacy
 
-The app serves catalog data without provider URLs or credentials. Embedded live playback uses the Ramindex Silo fork's continuous loopback relay for MPEG-TS and HLS. Browser media routes are authenticated and bound to the Silo user/profile; nested HLS playlists, keys, and segments stay on Silo's origin.
+The app serves catalog data without provider URLs or credentials. Embedded live playback uses the Ramedia Server's continuous loopback relay for MPEG-TS and HLS. Browser media routes are authenticated and bound to the Silo user/profile; nested HLS playlists, keys, and segments stay on Silo's origin.
 
 - **Guarded source fetches.** Only HTTP/HTTPS is allowed, with dial-time address checks, bounded redirects, and no environment proxies. Explicit administrator-configured source hosts may be LAN addresses. Per-user sources retain the public-address-only policy.
 - **Compatible playback.** One codec failure can trigger GPU conversion to H.264/AAC HLS; a manual player option is also available. It requires host FFmpeg and `/dev/dri/renderD128`, caps output at 1080p/30 fps, and shares two GPU encoder slots with Dispatcharr and HDHomeRun. Decoding and scaling use the CPU. There is no software encoder fallback.
@@ -161,7 +161,7 @@ lineups and guide rows are not shared between accounts.
 
 ## Optional web premiere shortcuts
 
-The Ramindex Silo server extension can show a channel shortcut on a series,
+The Ramedia Server premiere extension can show a channel shortcut on a series,
 episode, or calendar card while a new episode is expected to premiere. Open
 **Calendar → Premiere reminders** to map a broadcaster to channels in your
 current profile. Series details also allow a show-specific override. One channel
