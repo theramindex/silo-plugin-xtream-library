@@ -130,6 +130,25 @@ func TestLiveTVContractChannelsMatchesFixtureShape(t *testing.T) {
 	if err := json.Unmarshal(response.GetBody(), &got); err != nil {
 		t.Fatalf("decode channels: %v", err)
 	}
+	// The deployed pre-premiere host decodes these fields with json.Unmarshal.
+	// Keep its legacy consumer shape: no watchPath field and no host extension.
+	var legacy []struct {
+		ID      string `json:"id"`
+		Number  string `json:"number"`
+		Name    string `json:"name"`
+		GroupID string `json:"groupId"`
+		Group   string `json:"group"`
+	}
+	if err := json.Unmarshal(response.GetBody(), &legacy); err != nil || len(legacy) != len(got) {
+		t.Fatalf("legacy host cannot decode channel response: %v", err)
+	}
+	if len(legacy) == 0 || legacy[0].ID != got[0]["id"] || legacy[0].Number != "101" || legacy[0].GroupID != "7" || legacy[0].Name != "News HD" {
+		t.Fatalf("legacy channel identity or guide grouping changed: %+v", legacy)
+	}
+	if got[0]["watchPath"] != "/dispatcharr#/watch/"+legacy[0].ID {
+		t.Fatalf("missing optional channel shortcut: %v", got[0]["watchPath"])
+	}
+
 	raw, err := os.ReadFile(filepath.Join("..", "..", "testdata", "livetv-v1", "fixtures", "channels.json"))
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
