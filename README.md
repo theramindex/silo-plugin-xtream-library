@@ -156,7 +156,6 @@ lineups and guide rows are not shared between accounts.
 ## Out of scope
 
 - DVR and recording management
-- Local rolling-buffer timeshift
 - Dispatcharr integration and Dispatcharr-specific sports/event features
 - Plugin-owned databases, migrations, or persisted catalog tables
 
